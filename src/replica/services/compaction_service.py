@@ -111,9 +111,7 @@ async def compact(db: AsyncSession, session: Session) -> None:
     await db.commit()
 
 
-async def archive_session_memory(
-    db: AsyncSession, session_id: uuid.UUID
-) -> MemoryNote | None:
+async def archive_session_memory(db: AsyncSession, session_id: uuid.UUID) -> MemoryNote | None:
     """Extract memory from a session being archived."""
     session = await db.get(Session, session_id)
     if not session:

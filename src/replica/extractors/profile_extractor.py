@@ -97,15 +97,11 @@ class ProfileMemoryExtractor:
                     attempt + 1,
                 )
             except Exception as e:
-                logger.warning(
-                    "Profile extraction error (attempt %d): %s", attempt + 1, e
-                )
+                logger.warning("Profile extraction error (attempt %d): %s", attempt + 1, e)
 
         return []
 
-    def _merge_profiles(
-        self, part1: list[dict], part2: list[dict]
-    ) -> list[ProfileMemory]:
+    def _merge_profiles(self, part1: list[dict], part2: list[dict]) -> list[ProfileMemory]:
         """Merge Part 1 and Part 2 results by user_id."""
         by_user: dict[str, dict] = {}
 
@@ -118,9 +114,7 @@ class ProfileMemoryExtractor:
             uid = p.get("user_id", "")
             if uid:
                 if uid in by_user:
-                    by_user[uid].update(
-                        {k: v for k, v in p.items() if v and k != "user_id"}
-                    )
+                    by_user[uid].update({k: v for k, v in p.items() if v and k != "user_id"})
                 else:
                     by_user[uid] = {**p}
 
@@ -166,9 +160,7 @@ class ProfileMemoryExtractor:
                 speaker_id = msg.get("speaker_id", "")
                 ts = msg.get("timestamp", "")
                 if content:
-                    speaker_fmt = (
-                        f"{speaker}(user_id:{speaker_id})" if speaker_id else speaker
-                    )
+                    speaker_fmt = f"{speaker}(user_id:{speaker_id})" if speaker_id else speaker
                     if ts:
                         lines.append(f"[{ts}] {speaker_fmt}: {content}")
                     else:

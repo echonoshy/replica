@@ -2,7 +2,7 @@
 # Memory management service for AI applications
 
 database:
-  url: "postgresql+asyncpg://postgres:postgres@localhost:5432/replica"
+  url: "postgresql+asyncpg://postgres:password@localhost:5432/replica"
 
 # LLM Provider Configuration
 llm:

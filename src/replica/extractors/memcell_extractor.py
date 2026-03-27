@@ -45,14 +45,10 @@ class ConvMemCellExtractor:
     ):
         self.llm = llm_provider or get_llm_provider()
         self.hard_token_limit = hard_token_limit or settings.memory.boundary_max_tokens
-        self.hard_message_limit = (
-            hard_message_limit or settings.memory.boundary_max_messages
-        )
+        self.hard_message_limit = hard_message_limit or settings.memory.boundary_max_messages
         self._boundary_prompt = get_prompt("CONV_BOUNDARY_DETECTION_PROMPT")
 
-    async def extract_memcell(
-        self, request: MemCellExtractRequest
-    ) -> tuple[MemCellData | None, StatusResult]:
+    async def extract_memcell(self, request: MemCellExtractRequest) -> tuple[MemCellData | None, StatusResult]:
         """Detect boundary and create MemCell if boundary found."""
         history = [self._process_raw(r) for r in request.history_raw_data_list]
         history = [m for m in history if m is not None]
@@ -67,10 +63,7 @@ class ConvMemCellExtractor:
         total_tokens = self._count_tokens(history) + self._count_tokens(new_msgs)
         total_messages = len(history) + len(new_msgs)
 
-        needs_force_split = (
-            total_tokens >= self.hard_token_limit
-            or total_messages >= self.hard_message_limit
-        )
+        needs_force_split = total_tokens >= self.hard_token_limit or total_messages >= self.hard_message_limit
 
         if needs_force_split and len(history) >= 2:
             logger.debug(
@@ -129,13 +122,9 @@ class ConvMemCellExtractor:
                         confidence=data.get("confidence", 1.0),
                         topic_summary=data.get("topic_summary", ""),
                     )
-                logger.warning(
-                    "Failed to parse boundary JSON (attempt %d)", attempt + 1
-                )
+                logger.warning("Failed to parse boundary JSON (attempt %d)", attempt + 1)
             except Exception as e:
-                logger.warning(
-                    "Boundary detection error (attempt %d): %s", attempt + 1, e
-                )
+                logger.warning("Boundary detection error (attempt %d): %s", attempt + 1, e)
 
         return BoundaryDetectionResult(
             should_end=False,
@@ -144,13 +133,9 @@ class ConvMemCellExtractor:
             confidence=0.0,
         )
 
-    def _create_memcell(
-        self, messages: list[dict], request: MemCellExtractRequest, summary: str
-    ) -> MemCellData:
+    def _create_memcell(self, messages: list[dict], request: MemCellExtractRequest, summary: str) -> MemCellData:
         ts = self._parse_timestamp(messages[-1].get("timestamp")) if messages else None
-        participants = list(
-            {m.get("speaker_id", "") for m in messages if m.get("speaker_id")}
-        )
+        participants = list({m.get("speaker_id", "") for m in messages if m.get("speaker_id")})
         return MemCellData(
             user_id_list=request.user_id_list,
             original_data=messages,
@@ -162,11 +147,7 @@ class ConvMemCellExtractor:
         )
 
     def _process_raw(self, raw_data: RawData) -> dict | None:
-        content = (
-            raw_data.content.copy()
-            if isinstance(raw_data.content, dict)
-            else raw_data.content
-        )
+        content = raw_data.content.copy() if isinstance(raw_data.content, dict) else raw_data.content
         msg_type = content.get("msgType") if isinstance(content, dict) else None
         if isinstance(content, dict) and msg_type is not None:
             if msg_type not in _SUPPORTED_MSG_TYPES:
@@ -186,9 +167,7 @@ class ConvMemCellExtractor:
             total += count_tokens(text)
         return total
 
-    def _format_messages(
-        self, messages: list[dict], include_timestamps: bool = False
-    ) -> str:
+    def _format_messages(self, messages: list[dict], include_timestamps: bool = False) -> str:
         lines = []
         for msg in messages:
             content = msg.get("content", "")

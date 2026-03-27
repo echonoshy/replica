@@ -83,9 +83,7 @@ class VLLMEmbeddingProvider(EmbeddingProvider):
                 logger.warning("Embedding error: %s, retrying in %ds", e, wait)
                 await asyncio.sleep(wait)
 
-        raise RuntimeError(
-            f"Embedding call failed after {self.cfg.max_retries} retries: {last_error}"
-        )
+        raise RuntimeError(f"Embedding call failed after {self.cfg.max_retries} retries: {last_error}")
 
     async def close(self):
         await self._client.aclose()
@@ -115,8 +113,7 @@ def get_embedding_provider() -> EmbeddingProvider:
         cls = _PROVIDER_REGISTRY.get(provider_name)
         if cls is None:
             raise ValueError(
-                f"Unknown embedding provider '{provider_name}'. "
-                f"Available: {list(_PROVIDER_REGISTRY.keys())}"
+                f"Unknown embedding provider '{provider_name}'. Available: {list(_PROVIDER_REGISTRY.keys())}"
             )
         _instance = cls(settings.embedding)
     return _instance

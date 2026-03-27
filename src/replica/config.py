@@ -100,7 +100,7 @@ class Settings(BaseSettings):
     model_config = {"env_prefix": "REPLICA_"}
 
     # Database
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/replica"
+    database_url: str = "postgresql+asyncpg://postgres:password@localhost:5432/replica"
 
     # Sub-configs
     llm: LLMConfig = LLMConfig()

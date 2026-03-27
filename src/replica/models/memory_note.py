@@ -28,26 +28,16 @@ class MemoryNote(Base):
         Index("ix_memory_notes_user_created", "user_id", "created_at"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id")
-    )
-    session_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=True
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    session_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=True)
     note_type: Mapped[NoteType] = mapped_column(ENUM(NoteType, name="note_type"))
     content: Mapped[str] = mapped_column(Text)
     source: Mapped[NoteSource] = mapped_column(ENUM(NoteSource, name="note_source"))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     user: Mapped["User"] = relationship(back_populates="memory_notes")  # noqa: F821
-    chunks: Mapped[list["MemoryChunk"]] = relationship(
-        back_populates="note", cascade="all, delete-orphan"
-    )  # noqa: F821
+    chunks: Mapped[list["MemoryChunk"]] = relationship(back_populates="note", cascade="all, delete-orphan")  # noqa: F821

@@ -56,9 +56,7 @@ class GroupProfileExtractor:
             existing_str,
         )
 
-        content_result, behavior_result = await asyncio.gather(
-            content_task, behavior_task
-        )
+        content_result, behavior_result = await asyncio.gather(content_task, behavior_task)
 
         topics = content_result.get("topics", []) if content_result else []
         summary = content_result.get("summary", "") if content_result else ""
@@ -99,9 +97,7 @@ class GroupProfileExtractor:
                 resp = await self.llm.generate(prompt)
                 return self._parse_json_response(resp)
             except Exception as e:
-                logger.warning(
-                    "Content analysis error (attempt %d): %s", attempt + 1, e
-                )
+                logger.warning("Content analysis error (attempt %d): %s", attempt + 1, e)
         return None
 
     async def _extract_behavior(
@@ -125,9 +121,7 @@ class GroupProfileExtractor:
                 resp = await self.llm.generate(prompt)
                 return self._parse_json_response(resp)
             except Exception as e:
-                logger.warning(
-                    "Behavior analysis error (attempt %d): %s", attempt + 1, e
-                )
+                logger.warning("Behavior analysis error (attempt %d): %s", attempt + 1, e)
         return None
 
     def _build_conversation_text(self, memcells: list[MemCellData]) -> str:

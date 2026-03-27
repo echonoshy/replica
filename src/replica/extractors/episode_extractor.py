@@ -39,11 +39,7 @@ class EpisodeMemoryExtractor:
         if memcell.timestamp:
             timestamp_str = memcell.timestamp.strftime("%B %d, %Y (%A) at %I:%M %p UTC")
 
-        prompt_name = (
-            "GROUP_EPISODE_GENERATION_PROMPT"
-            if is_group
-            else "EPISODE_GENERATION_PROMPT"
-        )
+        prompt_name = "GROUP_EPISODE_GENERATION_PROMPT" if is_group else "EPISODE_GENERATION_PROMPT"
         custom_instructions = get_prompt("DEFAULT_CUSTOM_INSTRUCTIONS")
         prompt_template = get_prompt(prompt_name)
 
@@ -91,9 +87,7 @@ class EpisodeMemoryExtractor:
                     attempt + 1,
                 )
             except Exception as e:
-                logger.warning(
-                    "Episode extraction error (attempt %d): %s", attempt + 1, e
-                )
+                logger.warning("Episode extraction error (attempt %d): %s", attempt + 1, e)
 
         return None
 

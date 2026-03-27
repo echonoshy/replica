@@ -60,9 +60,7 @@ class VLLMProvider(LLMProvider):
         payload: dict = {
             "model": self.cfg.model,
             "messages": [{"role": "user", "content": prompt}],
-            "temperature": temperature
-            if temperature is not None
-            else self.cfg.temperature,
+            "temperature": temperature if temperature is not None else self.cfg.temperature,
             "max_tokens": max_tokens if max_tokens is not None else self.cfg.max_tokens,
         }
         if response_format:
@@ -86,9 +84,7 @@ class VLLMProvider(LLMProvider):
                     )
                     await asyncio.sleep(wait)
                 else:
-                    logger.error(
-                        "LLM HTTP error %d: %s", e.response.status_code, e.response.text
-                    )
+                    logger.error("LLM HTTP error %d: %s", e.response.status_code, e.response.text)
                     raise
             except (httpx.RequestError, KeyError, json.JSONDecodeError) as e:
                 last_error = e
@@ -101,9 +97,7 @@ class VLLMProvider(LLMProvider):
                 )
                 await asyncio.sleep(wait)
 
-        raise RuntimeError(
-            f"LLM call failed after {self.cfg.max_retries} retries: {last_error}"
-        )
+        raise RuntimeError(f"LLM call failed after {self.cfg.max_retries} retries: {last_error}")
 
     async def close(self):
         await self._client.aclose()
@@ -114,9 +108,7 @@ class OpenRouterProvider(VLLMProvider):
 
     def __init__(self, cfg: LLMConfig | None = None):
         if cfg is None:
-            cfg = settings.llm.model_copy(
-                update={"base_url": "https://openrouter.ai/api/v1"}
-            )
+            cfg = settings.llm.model_copy(update={"base_url": "https://openrouter.ai/api/v1"})
         super().__init__(cfg)
 
 
@@ -144,10 +136,7 @@ def get_llm_provider() -> LLMProvider:
         provider_name = settings.llm.provider
         cls = _PROVIDER_REGISTRY.get(provider_name)
         if cls is None:
-            raise ValueError(
-                f"Unknown LLM provider '{provider_name}'. "
-                f"Available: {list(_PROVIDER_REGISTRY.keys())}"
-            )
+            raise ValueError(f"Unknown LLM provider '{provider_name}'. Available: {list(_PROVIDER_REGISTRY.keys())}")
         _instance = cls(settings.llm)
     return _instance
 

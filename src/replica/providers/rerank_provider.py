@@ -87,9 +87,7 @@ class VLLMRerankProvider(RerankProvider):
                 logger.warning("Rerank error: %s, retrying in %ds", e, wait)
                 await asyncio.sleep(wait)
 
-        raise RuntimeError(
-            f"Rerank call failed after {self.cfg.max_retries} retries: {last_error}"
-        )
+        raise RuntimeError(f"Rerank call failed after {self.cfg.max_retries} retries: {last_error}")
 
     async def close(self):
         await self._client.aclose()
@@ -118,10 +116,7 @@ def get_rerank_provider() -> RerankProvider:
         provider_name = settings.rerank.provider
         cls = _PROVIDER_REGISTRY.get(provider_name)
         if cls is None:
-            raise ValueError(
-                f"Unknown rerank provider '{provider_name}'. "
-                f"Available: {list(_PROVIDER_REGISTRY.keys())}"
-            )
+            raise ValueError(f"Unknown rerank provider '{provider_name}'. Available: {list(_PROVIDER_REGISTRY.keys())}")
         _instance = cls(settings.rerank)
     return _instance
 

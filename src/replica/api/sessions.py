@@ -12,9 +12,7 @@ router = APIRouter()
 
 
 @router.post("/users/{user_id}/sessions", response_model=SessionOut, status_code=201)
-async def create_session(
-    user_id: uuid.UUID, body: SessionCreate, db: AsyncSession = Depends(get_db)
-):
+async def create_session(user_id: uuid.UUID, body: SessionCreate, db: AsyncSession = Depends(get_db)):
     session = Session(user_id=user_id, metadata_=body.metadata)
     db.add(session)
     await db.commit()
@@ -24,11 +22,7 @@ async def create_session(
 
 @router.get("/users/{user_id}/sessions", response_model=list[SessionOut])
 async def list_sessions(user_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(Session)
-        .where(Session.user_id == user_id)
-        .order_by(Session.created_at.desc())
-    )
+    result = await db.execute(select(Session).where(Session.user_id == user_id).order_by(Session.created_at.desc()))
     return result.scalars().all()
 
 

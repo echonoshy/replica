@@ -35,9 +35,7 @@ class EventLogExtractor:
 
         prompt_template = get_prompt("EVENT_LOG_PROMPT")
         # The event log prompt uses {{TIME}} and {{INPUT_TEXT}} (double braces)
-        prompt = prompt_template.replace("{{TIME}}", timestamp_str).replace(
-            "{{INPUT_TEXT}}", conversation_text
-        )
+        prompt = prompt_template.replace("{{TIME}}", timestamp_str).replace("{{INPUT_TEXT}}", conversation_text)
 
         for attempt in range(5):
             try:
@@ -49,9 +47,7 @@ class EventLogExtractor:
                     time_str = event_log_data.get("time", timestamp_str)
 
                     if not atomic_facts:
-                        logger.warning(
-                            "No atomic facts extracted (attempt %d)", attempt + 1
-                        )
+                        logger.warning("No atomic facts extracted (attempt %d)", attempt + 1)
                         continue
 
                     # Batch embed all facts
@@ -74,9 +70,7 @@ class EventLogExtractor:
                     )
                 logger.warning("Event log parse failed (attempt %d)", attempt + 1)
             except Exception as e:
-                logger.warning(
-                    "Event log extraction error (attempt %d): %s", attempt + 1, e
-                )
+                logger.warning("Event log extraction error (attempt %d): %s", attempt + 1, e)
 
         return None
 

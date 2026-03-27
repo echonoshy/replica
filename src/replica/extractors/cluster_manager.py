@@ -58,12 +58,8 @@ class ClusterManager:
         similarity_threshold: float | None = None,
         max_time_gap_days: int | None = None,
     ):
-        self.similarity_threshold = (
-            similarity_threshold or settings.memory.cluster_similarity_threshold
-        )
-        self.max_time_gap_days = (
-            max_time_gap_days or settings.memory.cluster_max_time_gap_days
-        )
+        self.similarity_threshold = similarity_threshold or settings.memory.cluster_similarity_threshold
+        self.max_time_gap_days = max_time_gap_days or settings.memory.cluster_max_time_gap_days
 
     async def cluster_memcell(
         self,
@@ -146,18 +142,12 @@ class ClusterManager:
         cluster_id = f"cluster_{state.next_cluster_idx}"
         state.next_cluster_idx += 1
         if embedding is not None:
-            state.cluster_centroids[cluster_id] = (
-                embedding if isinstance(embedding, list) else embedding.tolist()
-            )
+            state.cluster_centroids[cluster_id] = embedding if isinstance(embedding, list) else embedding.tolist()
         state.cluster_counts[cluster_id] = 1
         ts_value = memcell.timestamp.timestamp() if memcell.timestamp else None
         state.cluster_last_ts[cluster_id] = ts_value
         return cluster_id
 
-    def get_cluster_memcell_ids(
-        self, state: ClusterState, cluster_id: str
-    ) -> list[str]:
+    def get_cluster_memcell_ids(self, state: ClusterState, cluster_id: str) -> list[str]:
         """Get all event_ids in a specific cluster."""
-        return [
-            eid for eid, cid in state.eventid_to_cluster.items() if cid == cluster_id
-        ]
+        return [eid for eid, cid in state.eventid_to_cluster.items() if cid == cluster_id]

@@ -13,12 +13,8 @@ from replica.api.schemas import MessageCreate, MessageOut
 router = APIRouter()
 
 
-@router.post(
-    "/sessions/{session_id}/messages", response_model=MessageOut, status_code=201
-)
-async def create_message(
-    session_id: uuid.UUID, body: MessageCreate, db: AsyncSession = Depends(get_db)
-):
+@router.post("/sessions/{session_id}/messages", response_model=MessageOut, status_code=201)
+async def create_message(session_id: uuid.UUID, body: MessageCreate, db: AsyncSession = Depends(get_db)):
     session = await db.get(Session, session_id)
     if not session:
         raise HTTPException(404, "Session not found")

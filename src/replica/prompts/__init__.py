@@ -122,16 +122,11 @@ class PromptManager:
         lang = lang.lower()
 
         if prompt_name not in _PROMPT_REGISTRY:
-            raise ValueError(
-                f"Unknown prompt: {prompt_name}. Available: {list(_PROMPT_REGISTRY.keys())}"
-            )
+            raise ValueError(f"Unknown prompt: {prompt_name}. Available: {list(_PROMPT_REGISTRY.keys())}")
 
         lang_map = _PROMPT_REGISTRY[prompt_name]
         if lang not in lang_map:
-            raise ValueError(
-                f"Language '{lang}' not available for '{prompt_name}'. "
-                f"Available: {list(lang_map.keys())}"
-            )
+            raise ValueError(f"Language '{lang}' not available for '{prompt_name}'. Available: {list(lang_map.keys())}")
 
         module = self._load_module(lang_map[lang])
         return getattr(module, prompt_name)

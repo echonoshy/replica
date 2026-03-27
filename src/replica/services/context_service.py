@@ -15,9 +15,7 @@ from replica.api.schemas import (
 )
 
 
-async def build_context(
-    db: AsyncSession, req: ContextBuildRequest
-) -> ContextBuildResponse:
+async def build_context(db: AsyncSession, req: ContextBuildRequest) -> ContextBuildResponse:
     # 1. Evergreen memories for this user
     result = await db.execute(
         select(MemoryNote)

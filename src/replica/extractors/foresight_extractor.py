@@ -29,9 +29,7 @@ class ForesightExtractor:
         if not conversation_text.strip():
             return []
 
-        user_id = request.user_id or (
-            memcell.user_id_list[0] if memcell.user_id_list else "unknown"
-        )
+        user_id = request.user_id or (memcell.user_id_list[0] if memcell.user_id_list else "unknown")
         user_name = user_id  # Can be enhanced with user profile lookup
 
         prompt_template = get_prompt("FORESIGHT_GENERATION_PROMPT")
@@ -46,15 +44,11 @@ class ForesightExtractor:
                 resp = await self.llm.generate(prompt)
                 items = self._parse_json_array(resp)
                 if not items:
-                    logger.warning(
-                        "No foresight items parsed (attempt %d)", attempt + 1
-                    )
+                    logger.warning("No foresight items parsed (attempt %d)", attempt + 1)
                     continue
 
                 foresights = []
-                contents = [
-                    item.get("content", "") for item in items if item.get("content")
-                ]
+                contents = [item.get("content", "") for item in items if item.get("content")]
 
                 # Batch embed all predictions
                 embeddings = None
@@ -70,11 +64,7 @@ class ForesightExtractor:
                     content = item.get("content", "")
                     if not content:
                         continue
-                    vector = (
-                        embeddings[embed_idx]
-                        if embeddings and embed_idx < len(embeddings)
-                        else None
-                    )
+                    vector = embeddings[embed_idx] if embeddings and embed_idx < len(embeddings) else None
                     embed_idx += 1
 
                     foresights.append(
@@ -96,9 +86,7 @@ class ForesightExtractor:
                 return foresights
 
             except Exception as e:
-                logger.warning(
-                    "Foresight extraction error (attempt %d): %s", attempt + 1, e
-                )
+                logger.warning("Foresight extraction error (attempt %d): %s", attempt + 1, e)
 
         return []
 
@@ -112,11 +100,7 @@ class ForesightExtractor:
             ts = msg.get("timestamp", "")
             if content:
                 if ts:
-                    time_str = (
-                        ts.strftime("%Y-%m-%dT%H:%M:%SZ")
-                        if isinstance(ts, datetime)
-                        else str(ts)
-                    )
+                    time_str = ts.strftime("%Y-%m-%dT%H:%M:%SZ") if isinstance(ts, datetime) else str(ts)
                     lines.append(f"[{time_str}] {speaker}: {content}")
                 else:
                     lines.append(f"{speaker}: {content}")

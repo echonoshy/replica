@@ -27,17 +27,13 @@ async def memory_search(body: MemorySearchRequest, db: AsyncSession = Depends(ge
 @router.get("/users/{user_id}/memory", response_model=list[MemoryNoteOut])
 async def list_memory_notes(user_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(MemoryNote)
-        .where(MemoryNote.user_id == user_id)
-        .order_by(MemoryNote.created_at.desc())
+        select(MemoryNote).where(MemoryNote.user_id == user_id).order_by(MemoryNote.created_at.desc())
     )
     return result.scalars().all()
 
 
 @router.post("/users/{user_id}/memory", response_model=MemoryNoteOut, status_code=201)
-async def create_memory_note(
-    user_id: uuid.UUID, body: MemoryNoteCreate, db: AsyncSession = Depends(get_db)
-):
+async def create_memory_note(user_id: uuid.UUID, body: MemoryNoteCreate, db: AsyncSession = Depends(get_db)):
     note = MemoryNote(
         user_id=user_id,
         note_type=body.note_type,

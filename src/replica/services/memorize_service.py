@@ -97,9 +97,7 @@ class MemorizePipeline:
 
         # 3a: Episode extraction (group + personal)
         is_group = scene == "group_chat"
-        episode = await self.episode_extractor.extract_memory(
-            extract_req, is_group=is_group
-        )
+        episode = await self.episode_extractor.extract_memory(extract_req, is_group=is_group)
         if episode:
             embedding = episode.extend.get("embedding") if episode.extend else None
             ep_db = EpisodicMemory(
