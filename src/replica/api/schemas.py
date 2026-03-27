@@ -10,6 +10,7 @@ from replica.models.session import SessionStatus
 
 # ---------- Users ----------
 
+
 class UserCreate(BaseModel):
     external_id: str
     metadata: dict | None = None
@@ -25,6 +26,7 @@ class UserOut(BaseModel):
 
 
 # ---------- Sessions ----------
+
 
 class SessionCreate(BaseModel):
     metadata: dict | None = None
@@ -42,6 +44,7 @@ class SessionOut(BaseModel):
 
 
 # ---------- Messages ----------
+
 
 class MessageCreate(BaseModel):
     role: MessageRole
@@ -65,6 +68,7 @@ class MessageOut(BaseModel):
 
 # ---------- Memory Notes ----------
 
+
 class MemoryNoteCreate(BaseModel):
     content: str
     note_type: NoteType = NoteType.evergreen
@@ -84,6 +88,7 @@ class MemoryNoteOut(BaseModel):
 
 # ---------- Memory Search ----------
 
+
 class MemorySearchRequest(BaseModel):
     user_id: uuid.UUID
     query: str
@@ -100,6 +105,7 @@ class MemorySearchResult(BaseModel):
 
 # ---------- Context Build ----------
 
+
 class ContextBuildRequest(BaseModel):
     user_id: uuid.UUID
     session_id: uuid.UUID
@@ -110,3 +116,82 @@ class ContextBuildResponse(BaseModel):
     evergreen_memories: list[MemoryNoteOut]
     relevant_memories: list[MemorySearchResult]
     recent_messages: list[MessageOut]
+
+
+# ---------- Memorize (new memory ingestion) ----------
+
+
+class MemorizeRequest(BaseModel):
+    new_raw_data_list: list[dict]
+    history_raw_data_list: list[dict] | None = None
+    user_id_list: list[str] | None = None
+    group_id: str | None = None
+    group_name: str | None = None
+    scene: str = "assistant"
+
+
+class MemorizeResponse(BaseModel):
+    memory_count: int
+    status: str = "ok"
+
+
+# ---------- Episodic Memory ----------
+
+
+class EpisodicMemoryOut(BaseModel):
+    id: uuid.UUID
+    user_id: str | None
+    group_id: str | None
+    timestamp: datetime
+    title: str | None
+    episode: str
+    summary: str
+    participants: list[str] | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ---------- Event Log ----------
+
+
+class EventLogOut(BaseModel):
+    id: uuid.UUID
+    user_id: str | None
+    group_id: str | None
+    atomic_fact: str
+    timestamp: datetime
+    parent_type: str
+    parent_id: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ---------- Foresight ----------
+
+
+class ForesightOut(BaseModel):
+    id: uuid.UUID
+    user_id: str | None
+    group_id: str | None
+    content: str
+    evidence: str | None
+    start_time: str | None
+    end_time: str | None
+    duration_days: int | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ---------- Retrieve ----------
+
+
+class RetrieveRequest(BaseModel):
+    query: str
+    user_id: str | None = None
+    group_id: str | None = None
+    memory_types: list[str] | None = None
+    retrieve_method: str = "hybrid"  # keyword | vector | hybrid | rrf | agentic
+    top_k: int = Field(default=20, ge=1, le=100)

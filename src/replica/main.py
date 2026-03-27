@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from sqlalchemy import text
 
 from replica.db.database import engine
-from replica.api import users, sessions, messages, memory
+from replica.api import users, sessions, messages, memory, memorize
 
 
 @asynccontextmanager
@@ -22,6 +22,7 @@ app.include_router(users.router, prefix="/v1", tags=["users"])
 app.include_router(sessions.router, prefix="/v1", tags=["sessions"])
 app.include_router(messages.router, prefix="/v1", tags=["messages"])
 app.include_router(memory.router, prefix="/v1", tags=["memory"])
+app.include_router(memorize.router, prefix="/v1", tags=["memorize"])
 
 
 @app.get("/health")

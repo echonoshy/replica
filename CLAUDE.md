@@ -23,3 +23,4 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - All configuration files are stored in the `config/` directory
 - Use YAML format (`.yaml`) for configuration files
+- Do not use `.env` to save the config

@@ -1,4 +1,5 @@
 """Context assembly: combine evergreen memories, relevant memories, and recent messages."""
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,11 +15,16 @@ from replica.api.schemas import (
 )
 
 
-async def build_context(db: AsyncSession, req: ContextBuildRequest) -> ContextBuildResponse:
+async def build_context(
+    db: AsyncSession, req: ContextBuildRequest
+) -> ContextBuildResponse:
     # 1. Evergreen memories for this user
     result = await db.execute(
         select(MemoryNote)
-        .where(MemoryNote.user_id == req.user_id, MemoryNote.note_type == NoteType.evergreen)
+        .where(
+            MemoryNote.user_id == req.user_id,
+            MemoryNote.note_type == NoteType.evergreen,
+        )
         .order_by(MemoryNote.updated_at.desc())
     )
     evergreen = [MemoryNoteOut.model_validate(n) for n in result.scalars().all()]

@@ -1,4 +1,5 @@
 """Memory search: hybrid vector + full-text with temporal decay and MMR."""
+
 import math
 from datetime import datetime, timezone
 
@@ -21,9 +22,13 @@ async def search_memory(
     query_embedding = await provider.embed_query(req.query)
 
     # Vector search
-    vector_results = await _vector_search(db, req.user_id, query_embedding, req.top_k * 3, req.note_type)
+    vector_results = await _vector_search(
+        db, req.user_id, query_embedding, req.top_k * 3, req.note_type
+    )
     # Full-text search
-    text_results = await _text_search(db, req.user_id, req.query, req.top_k * 3, req.note_type)
+    text_results = await _text_search(
+        db, req.user_id, req.query, req.top_k * 3, req.note_type
+    )
 
     # Merge scores
     merged = _merge_scores(vector_results, text_results)
@@ -66,7 +71,9 @@ async def _vector_search(
             MemoryChunk.note_id,
             MemoryChunk.embedding,
             MemoryChunk.created_at,
-            (1 - MemoryChunk.embedding.cosine_distance(embedding_str)).label("similarity"),
+            (1 - MemoryChunk.embedding.cosine_distance(embedding_str)).label(
+                "similarity"
+            ),
         )
         .where(MemoryChunk.user_id == user_id)
         .order_by(MemoryChunk.embedding.cosine_distance(embedding_str))
@@ -180,19 +187,23 @@ def _apply_temporal_decay(results: list[dict]) -> list[dict]:
     for r in results:
         # Check if this chunk belongs to an evergreen note (we'd need note_type in the result)
         # For now, apply decay to all — evergreen exemption handled at query filter level
-        age_days = (now - r["created_at"].replace(tzinfo=timezone.utc)).total_seconds() / 86400
+        age_days = (
+            now - r["created_at"].replace(tzinfo=timezone.utc)
+        ).total_seconds() / 86400
         r["score"] *= math.exp(-lambda_ * age_days)
 
     return results
 
 
-def _mmr_rerank(results: list[dict], query_embedding: list[float], top_k: int) -> list[dict]:
+def _mmr_rerank(
+    results: list[dict], query_embedding: list[float], top_k: int
+) -> list[dict]:
     """Maximal Marginal Relevance: balance relevance vs diversity."""
     if not results:
         return results
 
     lam = settings.mmr_lambda
-    query_vec = np.array(query_embedding)
+    _ = np.array(query_embedding)  # reserved for future query-vs-candidate comparison
 
     selected = []
     candidates = list(results)

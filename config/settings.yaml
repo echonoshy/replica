@@ -1,0 +1,72 @@
+# Replica Configuration
+# Memory management service for AI applications
+
+database:
+  url: "postgresql+asyncpg://postgres:postgres@localhost:5432/replica"
+
+# LLM Provider Configuration
+llm:
+  provider: "vllm"                   # vllm | openrouter | openai
+  base_url: "http://localhost:8001/v1"
+  api_key: ""
+  model: "Qwen/Qwen3-4B"
+  temperature: 0.3
+  max_tokens: 16384
+  timeout: 600
+  max_retries: 5
+
+# Embedding Provider Configuration
+embedding:
+  provider: "vllm"                   # vllm | openai
+  base_url: "http://localhost:8002/v1"
+  api_key: ""
+  model: "Qwen/Qwen3-Embedding-4B"
+  dimensions: 1024
+  timeout: 30
+  max_retries: 3
+  batch_size: 10
+
+# Rerank Provider Configuration
+rerank:
+  provider: "vllm"                   # vllm | openai
+  base_url: "http://localhost:8003/v1"
+  api_key: ""
+  model: "Qwen/Qwen3-Reranker-4B"
+  timeout: 30
+  max_retries: 3
+
+# Memory extraction
+memory:
+  language: "en"                     # en | zh
+  # Boundary detection
+  boundary_max_tokens: 8192
+  boundary_max_messages: 50
+  # Clustering
+  cluster_similarity_threshold: 0.3
+  cluster_max_time_gap_days: 7
+  # Profile extraction
+  profile_min_memcells: 1
+  profile_min_confidence: 0.6
+  profile_life_max_items: 25
+
+# Compaction
+compaction:
+  soft_threshold_tokens: 12000
+  hard_threshold_tokens: 16000
+  keep_recent_tokens: 4000
+  session_end_extract_messages: 15
+
+# Chunking
+chunking:
+  chunk_size_tokens: 400
+  chunk_overlap_tokens: 80
+
+# Search
+search:
+  vector_weight: 0.7
+  text_weight: 0.3
+  temporal_decay_half_life_days: 30
+  mmr_enabled: true
+  mmr_lambda: 0.7
+  default_top_k: 10
+  rrf_k: 60                         # RRF fusion parameter

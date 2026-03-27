@@ -35,7 +35,9 @@ async def list_memory_notes(user_id: uuid.UUID, db: AsyncSession = Depends(get_d
 
 
 @router.post("/users/{user_id}/memory", response_model=MemoryNoteOut, status_code=201)
-async def create_memory_note(user_id: uuid.UUID, body: MemoryNoteCreate, db: AsyncSession = Depends(get_db)):
+async def create_memory_note(
+    user_id: uuid.UUID, body: MemoryNoteCreate, db: AsyncSession = Depends(get_db)
+):
     note = MemoryNote(
         user_id=user_id,
         note_type=body.note_type,
@@ -61,4 +63,5 @@ async def delete_memory_note(note_id: uuid.UUID, db: AsyncSession = Depends(get_
 @router.post("/context/build", response_model=ContextBuildResponse)
 async def build_context(body: ContextBuildRequest, db: AsyncSession = Depends(get_db)):
     from replica.services.context_service import build_context
+
     return await build_context(db, body)

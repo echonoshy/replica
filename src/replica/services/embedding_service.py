@@ -1,58 +1,38 @@
-from abc import ABC, abstractmethod
+"""Token counting and text chunking utilities.
+
+Embedding provider is now in replica.providers.embedding_provider.
+This module re-exports get_provider / set_provider for backward compatibility.
+"""
 
 import tiktoken
 
 from replica.config import settings
+from replica.providers.embedding_provider import (
+    EmbeddingProvider,
+    get_embedding_provider as get_provider,
+    set_embedding_provider as set_provider,
+)
+
+__all__ = [
+    "EmbeddingProvider",
+    "get_provider",
+    "set_provider",
+    "count_tokens",
+    "chunk_text",
+]
 
 _tokenizer = tiktoken.get_encoding("cl100k_base")
 
 
-# ---------- Embedding Provider (可插拔) ----------
-
-class EmbeddingProvider(ABC):
-    @abstractmethod
-    async def embed_texts(self, texts: list[str]) -> list[list[float]]:
-        ...
-
-    async def embed_query(self, query: str) -> list[float]:
-        result = await self.embed_texts([query])
-        return result[0]
-
-
-class VLLMProvider(EmbeddingProvider):
-    """Placeholder: call your vLLM embedding endpoint."""
-
-    def __init__(self, base_url: str = settings.embedding_base_url, model: str = settings.embedding_model):
-        self.base_url = base_url
-        self.model = model
-
-    async def embed_texts(self, texts: list[str]) -> list[list[float]]:
-        # TODO: implement HTTP call to your vLLM /v1/embeddings endpoint
-        raise NotImplementedError("Wire up your vLLM embedding service here")
-
-
-_provider: EmbeddingProvider | None = None
-
-
-def get_provider() -> EmbeddingProvider:
-    global _provider
-    if _provider is None:
-        _provider = VLLMProvider()
-    return _provider
-
-
-def set_provider(provider: EmbeddingProvider) -> None:
-    global _provider
-    _provider = provider
-
-
 # ---------- Token counting ----------
+
 
 def count_tokens(text: str) -> int:
     return len(_tokenizer.encode(text))
 
 
 # ---------- Chunking ----------
+
 
 def chunk_text(
     text: str,
@@ -79,12 +59,14 @@ def chunk_text(
         start_offset = len(_tokenizer.decode(tokens[:start]))
         end_offset = start_offset + len(chunk_str)
 
-        chunks.append({
-            "text": chunk_str,
-            "start_offset": start_offset,
-            "end_offset": end_offset,
-            "chunk_index": index,
-        })
+        chunks.append(
+            {
+                "text": chunk_str,
+                "start_offset": start_offset,
+                "end_offset": end_offset,
+                "chunk_index": index,
+            }
+        )
 
         if end >= len(tokens):
             break
