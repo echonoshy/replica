@@ -1,13 +1,5 @@
-# Python-generated files
-__pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
-
-# Virtual environments
-.venv
-
-# Weights
 weights/
+.venv/
+.ruff_cache/
+__pycache__/
+*.pyc
