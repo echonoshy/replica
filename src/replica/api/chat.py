@@ -1,0 +1,179 @@
+"""Streaming chat endpoint: context-aware conversation with LLM via SSE."""
+
+import json
+import uuid
+import logging
+from collections.abc import AsyncGenerator
+
+import httpx
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from replica.config import settings
+from replica.db.database import get_db
+from replica.models.session import Session
+from replica.models.message import Message
+from replica.models.memory_note import MemoryNote, NoteType
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+
+
+class ChatRequest(BaseModel):
+    content: str
+    use_memory: bool = True
+
+
+def _build_system_prompt(evergreen: list[str], relevant: list[str]) -> str:
+    parts = ["你是一个友好的 AI 助手。"]
+    if evergreen:
+        parts.append("以下是你关于用户的长期记忆：")
+        for m in evergreen:
+            parts.append(f"- {m}")
+    if relevant:
+        parts.append("\n以下是与本次对话相关的记忆：")
+        for m in relevant:
+            parts.append(f"- {m}")
+    parts.append("\n请基于上述记忆和对话上下文，自然地回复用户。")
+    return "\n".join(parts)
+
+
+async def _stream_llm(messages: list[dict]) -> AsyncGenerator[str, None]:
+    """Stream tokens from the LLM via SSE, yielding content deltas."""
+    cfg = settings.llm
+    headers = {"Content-Type": "application/json"}
+    if cfg.api_key:
+        headers["Authorization"] = f"Bearer {cfg.api_key}"
+
+    payload = {
+        "model": cfg.model,
+        "messages": messages,
+        "temperature": cfg.temperature,
+        "max_tokens": cfg.max_tokens,
+        "stream": True,
+    }
+
+    if "qwen3" in cfg.model.lower():
+        payload["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
+
+    async with httpx.AsyncClient(
+        base_url=cfg.base_url,
+        timeout=httpx.Timeout(cfg.timeout),
+        headers=headers,
+    ) as client:
+        async with client.stream("POST", "/chat/completions", json=payload) as resp:
+            resp.raise_for_status()
+            async for line in resp.aiter_lines():
+                if not line.startswith("data: "):
+                    continue
+                data_str = line[6:]
+                if data_str.strip() == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(data_str)
+                    delta = chunk["choices"][0].get("delta", {})
+                    content = delta.get("content", "")
+                    if content:
+                        yield content
+                except (json.JSONDecodeError, KeyError, IndexError):
+                    continue
+
+
+async def _sse_generator(
+    session_id: uuid.UUID,
+    user_content: str,
+    use_memory: bool,
+    db: AsyncSession,
+) -> AsyncGenerator[str, None]:
+    """Full SSE generator: build context, stream LLM, save messages."""
+    session = await db.get(Session, session_id)
+    if not session:
+        yield f"data: {json.dumps({'error': 'Session not found'})}\n\n"
+        return
+
+    user_msg = Message(
+        session_id=session_id,
+        role="user",
+        content=user_content,
+    )
+    db.add(user_msg)
+    await db.commit()
+
+    llm_messages: list[dict] = []
+
+    if use_memory:
+        result = await db.execute(
+            select(MemoryNote)
+            .where(MemoryNote.user_id == session.user_id, MemoryNote.note_type == NoteType.evergreen)
+            .order_by(MemoryNote.updated_at.desc())
+            .limit(20)
+        )
+        evergreen_texts = [n.content for n in result.scalars().all()]
+
+        from replica.services.memory_service import search_memory
+        from replica.api.schemas import MemorySearchRequest
+
+        try:
+            search_req = MemorySearchRequest(user_id=session.user_id, query=user_content, top_k=5)
+            search_results = await search_memory(db, search_req)
+            relevant_texts = [r.chunk_text for r in search_results]
+        except Exception:
+            relevant_texts = []
+
+        system_prompt = _build_system_prompt(evergreen_texts, relevant_texts)
+        llm_messages.append({"role": "system", "content": system_prompt})
+
+    result = await db.execute(
+        select(Message)
+        .where(Message.session_id == session_id, Message.is_compacted == False)  # noqa: E712
+        .order_by(Message.created_at)
+    )
+    history = result.scalars().all()
+    for msg in history:
+        if msg.role in ("user", "assistant"):
+            llm_messages.append({"role": msg.role, "content": msg.content})
+
+    full_response = []
+    try:
+        async for token in _stream_llm(llm_messages):
+            full_response.append(token)
+            yield f"data: {json.dumps({'token': token})}\n\n"
+    except Exception as e:
+        logger.error("LLM streaming error: %s", e)
+        yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        return
+
+    assistant_content = "".join(full_response)
+    assistant_msg = Message(
+        session_id=session_id,
+        role="assistant",
+        content=assistant_content,
+    )
+    db.add(assistant_msg)
+    await db.commit()
+    await db.refresh(assistant_msg)
+
+    yield f"data: {json.dumps({'done': True, 'message_id': str(assistant_msg.id)})}\n\n"
+
+
+@router.post("/sessions/{session_id}/chat")
+async def chat_stream(
+    session_id: uuid.UUID,
+    body: ChatRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    session = await db.get(Session, session_id)
+    if not session:
+        raise HTTPException(404, "Session not found")
+
+    return StreamingResponse(
+        _sse_generator(session_id, body.content, body.use_memory, db),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )

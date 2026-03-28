@@ -5,6 +5,7 @@ import { createSession, archiveSession } from '../api/sessions'
 import { sendMessage, getMessages, type Message } from '../api/messages'
 import { createMemory, searchMemory, type SearchResult } from '../api/memory'
 import { buildContext, type ContextResponse } from '../api/memory'
+import { chatStream } from '../api/chat'
 import ApiMonitor from '../components/ApiMonitor.vue'
 import TokenProgress from '../components/TokenProgress.vue'
 import JsonViewer from '../components/JsonViewer.vue'
@@ -16,9 +17,12 @@ import {
   Layers,
   Archive,
   BookPlus,
-  ChevronRight,
   Bot,
   User as UserIcon,
+  Loader2,
+  Square,
+  ToggleLeft,
+  ToggleRight,
 } from 'lucide-vue-next'
 
 const userId = ref('')
@@ -26,8 +30,12 @@ const sessionId = ref('')
 const tokenCount = ref(0)
 const messages = ref<Message[]>([])
 const msgInput = ref('')
-const msgRole = ref<'user' | 'assistant'>('user')
 const sending = ref(false)
+const streamingText = ref('')
+const abortCtrl = ref<AbortController | null>(null)
+
+const useMemory = ref(true)
+const chatMode = ref(true)
 
 const searchQuery = ref('')
 const searchResults = ref<SearchResult[]>([])
@@ -64,21 +72,92 @@ async function handleCreateSession() {
 
 async function handleSend() {
   if (!sessionId.value || !msgInput.value.trim() || sending.value) return
+  const content = msgInput.value.trim()
+  msgInput.value = ''
   sending.value = true
-  try {
-    await sendMessage(sessionId.value, msgRole.value, msgInput.value.trim())
-    msgInput.value = ''
-    await refreshMessages()
-  } finally {
-    sending.value = false
+
+  if (chatMode.value) {
+    messages.value.push({
+      id: 'temp-user-' + Date.now(),
+      session_id: sessionId.value,
+      parent_id: null,
+      role: 'user',
+      content,
+      token_count: 0,
+      message_type: 'message',
+      created_at: new Date().toISOString(),
+    })
+    scrollToBottom()
+
+    streamingText.value = ''
+    const ctrl = new AbortController()
+    abortCtrl.value = ctrl
+
+    await chatStream(sessionId.value, content, useMemory.value, {
+      onToken: (token) => {
+        streamingText.value += token
+        scrollToBottom()
+      },
+      onDone: async () => {
+        messages.value.push({
+          id: 'temp-ai-' + Date.now(),
+          session_id: sessionId.value,
+          parent_id: null,
+          role: 'assistant',
+          content: streamingText.value,
+          token_count: 0,
+          message_type: 'message',
+          created_at: new Date().toISOString(),
+        })
+        streamingText.value = ''
+        sending.value = false
+        abortCtrl.value = null
+        await refreshMessages()
+      },
+      onError: (err) => {
+        streamingText.value += `\n[错误: ${err}]`
+        sending.value = false
+        abortCtrl.value = null
+      },
+    }, ctrl.signal)
+  } else {
+    try {
+      await sendMessage(sessionId.value, 'user', content)
+      await refreshMessages()
+    } finally {
+      sending.value = false
+    }
   }
+}
+
+function handleStop() {
+  abortCtrl.value?.abort()
+  if (streamingText.value) {
+    messages.value.push({
+      id: 'temp-stopped-' + Date.now(),
+      session_id: sessionId.value,
+      parent_id: null,
+      role: 'assistant',
+      content: streamingText.value + '\n[已中止]',
+      token_count: 0,
+      message_type: 'message',
+      created_at: new Date().toISOString(),
+    })
+    streamingText.value = ''
+  }
+  sending.value = false
+  abortCtrl.value = null
 }
 
 async function refreshMessages() {
   if (!sessionId.value) return
-  const { data } = await getMessages(sessionId.value, 100)
+  const { data } = await getMessages(sessionId.value, 200)
   messages.value = data
   tokenCount.value = data.reduce((sum, m) => sum + m.token_count, 0)
+  scrollToBottom()
+}
+
+async function scrollToBottom() {
   await nextTick()
   if (chatContainer.value) {
     chatContainer.value.scrollTop = chatContainer.value.scrollHeight
@@ -135,8 +214,26 @@ function onKeydown(e: KeyboardEvent) {
   <div class="playground">
     <div class="play-left">
       <header class="page-header">
-        <h1 class="page-title">Playground</h1>
-        <p class="page-desc">交互式端到端演示</p>
+        <div>
+          <h1 class="page-title">Playground</h1>
+          <p class="page-desc">交互式端到端演示</p>
+        </div>
+        <div v-if="sessionId" class="mode-toggles">
+          <button
+            :class="['toggle-btn', { active: chatMode }]"
+            @click="chatMode = !chatMode"
+          >
+            <component :is="chatMode ? ToggleRight : ToggleLeft" :size="16" />
+            {{ chatMode ? 'AI 对话模式' : '手动模式' }}
+          </button>
+          <button
+            v-if="chatMode"
+            :class="['toggle-btn small', { active: useMemory }]"
+            @click="useMemory = !useMemory"
+          >
+            {{ useMemory ? '记忆: ON' : '记忆: OFF' }}
+          </button>
+        </div>
       </header>
 
       <!-- Step 0: Create User -->
@@ -178,18 +275,18 @@ function onKeydown(e: KeyboardEvent) {
         </div>
       </div>
 
-      <!-- Step 2: Chat -->
+      <!-- Chat Area -->
       <div class="chat-section card" :class="{ disabled: currentStep < 2 }">
         <div class="chat-head">
           <h3>
-            <ChevronRight :size="16" /> 发送消息
+            {{ chatMode ? '💬 AI 对话' : '📝 手动消息' }}
           </h3>
           <TokenProgress v-if="sessionId" :current="tokenCount" />
         </div>
 
         <div ref="chatContainer" class="chat-messages">
-          <div v-if="messages.length === 0" class="chat-empty">
-            还没有消息，开始对话吧
+          <div v-if="messages.length === 0 && !streamingText" class="chat-empty">
+            {{ chatMode ? '输入消息，开始与 AI 对话' : '手动发送 user/assistant 消息' }}
           </div>
           <div
             v-for="msg in messages"
@@ -206,28 +303,46 @@ function onKeydown(e: KeyboardEvent) {
                 <span v-if="msg.message_type !== 'message'" class="badge badge-info">
                   {{ msg.message_type }}
                 </span>
-                <span class="msg-tokens mono">{{ msg.token_count }} tokens</span>
+                <span v-if="msg.token_count" class="msg-tokens mono">{{ msg.token_count }} tokens</span>
               </div>
               <div class="msg-content">{{ msg.content }}</div>
+            </div>
+          </div>
+
+          <!-- Streaming indicator -->
+          <div v-if="streamingText" class="chat-msg chat-msg-assistant">
+            <div class="msg-avatar streaming-avatar">
+              <Bot :size="16" />
+            </div>
+            <div class="msg-body">
+              <div class="msg-meta">
+                <span class="msg-role">assistant</span>
+                <span class="badge badge-accent">streaming…</span>
+              </div>
+              <div class="msg-content">{{ streamingText }}<span class="cursor-blink">▍</span></div>
             </div>
           </div>
         </div>
 
         <div class="chat-input-area">
-          <select v-model="msgRole" class="input role-select">
-            <option value="user">user</option>
-            <option value="assistant">assistant</option>
-          </select>
           <textarea
             v-model="msgInput"
             class="input chat-textarea"
-            placeholder="输入消息内容…"
+            :placeholder="chatMode ? '输入消息，按 Enter 发送…' : '输入消息内容…'"
             :disabled="currentStep < 2"
             @keydown="onKeydown"
           />
           <button
+            v-if="sending"
+            class="btn btn-danger"
+            @click="handleStop"
+          >
+            <Square :size="14" />
+          </button>
+          <button
+            v-else
             class="btn btn-primary"
-            :disabled="currentStep < 2 || !msgInput.trim() || sending"
+            :disabled="currentStep < 2 || !msgInput.trim()"
             @click="handleSend"
           >
             <Send :size="14" />
@@ -235,7 +350,7 @@ function onKeydown(e: KeyboardEvent) {
         </div>
       </div>
 
-      <!-- Actions -->
+      <!-- Tools Row -->
       <div class="actions-row">
         <div class="action-group card">
           <h4><BookPlus :size="14" /> 创建记忆</h4>
@@ -394,6 +509,9 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   margin-bottom: 20px;
 }
 
@@ -406,6 +524,42 @@ function onKeydown(e: KeyboardEvent) {
 .page-desc {
   color: var(--text-secondary);
   font-size: 13px;
+}
+
+.mode-toggles {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.toggle-btn:hover {
+  border-color: var(--text-tertiary);
+}
+
+.toggle-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-muted);
+}
+
+.toggle-btn.small {
+  padding: 4px 8px;
+  font-size: 11px;
 }
 
 /* Steps */
@@ -485,17 +639,17 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 .chat-messages {
-  max-height: 350px;
+  max-height: 450px;
   overflow-y: auto;
   margin-bottom: 12px;
-  padding: 8px;
+  padding: 12px;
   background: var(--bg-primary);
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
 }
 
 .chat-empty {
-  padding: 40px;
+  padding: 60px 20px;
   text-align: center;
   color: var(--text-tertiary);
   font-size: 13px;
@@ -504,7 +658,7 @@ function onKeydown(e: KeyboardEvent) {
 .chat-msg {
   display: flex;
   gap: 10px;
-  padding: 8px 0;
+  padding: 10px 0;
 }
 
 .chat-msg + .chat-msg {
@@ -531,9 +685,13 @@ function onKeydown(e: KeyboardEvent) {
   color: var(--info);
 }
 
-.chat-msg-system .msg-avatar {
-  background: var(--bg-hover);
-  color: var(--text-tertiary);
+.streaming-avatar {
+  animation: pulse-glow 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.3); }
+  50% { box-shadow: 0 0 8px 2px rgba(96, 165, 250, 0.3); }
 }
 
 .msg-body {
@@ -562,9 +720,20 @@ function onKeydown(e: KeyboardEvent) {
 
 .msg-content {
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.7;
   color: var(--text-primary);
   word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.cursor-blink {
+  animation: blink 0.8s step-end infinite;
+  color: var(--accent);
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 
 .chat-input-area {
@@ -573,16 +742,11 @@ function onKeydown(e: KeyboardEvent) {
   align-items: flex-end;
 }
 
-.role-select {
-  width: 110px;
-  flex-shrink: 0;
-}
-
 .chat-textarea {
   flex: 1;
   resize: none;
-  min-height: 38px;
-  max-height: 100px;
+  min-height: 42px;
+  max-height: 120px;
 }
 
 /* Actions */
