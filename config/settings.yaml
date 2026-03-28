@@ -9,7 +9,7 @@ llm:
   provider: "vllm"                   # vllm | openrouter | openai
   base_url: "http://localhost:19000/v1"
   api_key: "EMPTY"
-  model: "weights/Qwen3.5-122B-A10B-FP8"
+  model: "qwen3.5-122b"
   temperature: 0.3
   max_tokens: 60000
   timeout: 600
@@ -18,9 +18,9 @@ llm:
 # Embedding Provider Configuration
 embedding:
   provider: "vllm"                   # vllm | openai
-  base_url: "http://localhost:19001/v1"
+  base_url: "http://localhost:19000/v1"
   api_key: ""
-  model: "/home/lake/workspace/vllm-services/qwen3-embedding-4b/weights/Qwen3-Embedding-4B"
+  model: "qwen3-embedding-4b"
   dimensions: 2560
   timeout: 30
   max_retries: 3
@@ -29,9 +29,9 @@ embedding:
 # Rerank Provider Configuration
 rerank:
   provider: "vllm"                   # vllm | openai
-  base_url: "http://localhost:19002/v1"
+  base_url: "http://localhost:19000/v1"
   api_key: ""
-  model: "/home/lake/workspace/vllm-services/qwen3-reranker-4b/weights/Qwen3-Reranker-4B"
+  model: "qwen3-reranker-4b"
   timeout: 30
   max_retries: 3
 
