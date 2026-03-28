@@ -57,7 +57,7 @@ async def _stream_llm(messages: list[dict]) -> AsyncGenerator[str, None]:
     }
 
     if "qwen3" in cfg.model.lower():
-        payload["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
+        payload["chat_template_kwargs"] = {"enable_thinking": False}
 
     async with httpx.AsyncClient(
         base_url=cfg.base_url,

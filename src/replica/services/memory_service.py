@@ -58,8 +58,6 @@ async def _vector_search(
     note_type: NoteType | None,
 ) -> list[dict]:
     """Cosine similarity search via pgvector."""
-    embedding_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
-
     query = (
         select(
             MemoryChunk.id,
@@ -67,10 +65,10 @@ async def _vector_search(
             MemoryChunk.note_id,
             MemoryChunk.embedding,
             MemoryChunk.created_at,
-            (1 - MemoryChunk.embedding.cosine_distance(embedding_str)).label("similarity"),
+            (1 - MemoryChunk.embedding.cosine_distance(query_embedding)).label("similarity"),
         )
         .where(MemoryChunk.user_id == user_id)
-        .order_by(MemoryChunk.embedding.cosine_distance(embedding_str))
+        .order_by(MemoryChunk.embedding.cosine_distance(query_embedding))
         .limit(limit)
     )
 
