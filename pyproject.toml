@@ -1,0 +1,9 @@
+[project]
+name = "qwen3-reranker-4b"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "vllm==0.18.0",
+]
