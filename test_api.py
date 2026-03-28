@@ -1,6 +1,7 @@
 import httpx
 
-BASE_URL = "http://localhost:19001"
+BASE_URL = "http://localhost:19000"
+MODEL = "qwen3-embedding-4b"
 
 
 def get_models() -> str:
@@ -84,8 +85,8 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
 
 
 if __name__ == "__main__":
-    model = get_models()
-    test_single_text(model)
-    test_batch_texts(model)
-    test_similarity(model)
+    get_models()
+    test_single_text(MODEL)
+    test_batch_texts(MODEL)
+    test_similarity(MODEL)
     print("\n所有测试完成!")
