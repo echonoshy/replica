@@ -19,7 +19,7 @@ class UserCreate(BaseModel):
 class UserOut(BaseModel):
     id: uuid.UUID
     external_id: str
-    metadata: dict | None
+    metadata: dict | None = Field(validation_alias="metadata_")
     created_at: datetime
 
     model_config = {"from_attributes": True}
