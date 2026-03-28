@@ -1,7 +1,7 @@
 import httpx
 
-BASE_URL = "http://localhost:19000"
-MODEL = "qwen3-embedding-4b"
+BASE_URL = "http://localhost:19001"
+MODEL = "Qwen3-Embedding-4B"
 
 
 def get_models() -> str:
