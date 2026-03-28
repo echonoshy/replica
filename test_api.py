@@ -5,7 +5,7 @@ from openai import OpenAI
 
 BASE_URL = "http://localhost:19000/v1"
 API_KEY = "EMPTY"
-MODEL = "qwen3.5-122b"
+MODEL = "Qwen3.5-122B-A10B-FP8"
 
 ENABLE_THINKING = False
 

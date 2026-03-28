@@ -5,6 +5,6 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "openai==0.24.0",
+    "openai>=1.99.1,<2.25.0",
     "vllm==0.18.0",
 ]

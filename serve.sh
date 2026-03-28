@@ -12,7 +12,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 exec uv run vllm serve "${MODEL_PATH}" \
   --host "${HOST}" \
   --port "${PORT}" \
-  --served-model-name qwen3.5-122b \
+  --served-model-name Qwen3.5-122B-A10B-FP8 \
   --tensor-parallel-size 4 \
   --max-model-len 65536 \
   --reasoning-parser qwen3 \
