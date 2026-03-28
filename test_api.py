@@ -1,29 +1,26 @@
-import json
-import urllib.request
-
+import httpx
 
 BASE_URL = "http://localhost:19001"
 
 
-def get_models():
-    req = urllib.request.Request(f"{BASE_URL}/v1/models")
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        data = json.loads(resp.read())
+def get_models() -> str:
+    resp = httpx.get(f"{BASE_URL}/v1/models", timeout=10)
+    resp.raise_for_status()
+    data = resp.json()
     print("可用模型列表:")
     for m in data["data"]:
         print(f"  - {m['id']}")
     return data["data"][0]["id"]
 
 
-def embed(model: str, texts: list[str]):
-    payload = json.dumps({"model": model, "input": texts}).encode()
-    req = urllib.request.Request(
+def embed(model: str, texts: list[str]) -> dict:
+    resp = httpx.post(
         f"{BASE_URL}/v1/embeddings",
-        data=payload,
-        headers={"Content-Type": "application/json"},
+        json={"model": model, "input": texts},
+        timeout=60,
     )
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        return json.loads(resp.read())
+    resp.raise_for_status()
+    return resp.json()
 
 
 def test_single_text(model: str):
