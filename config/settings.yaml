@@ -20,8 +20,8 @@ embedding:
   provider: "vllm"                   # vllm | openai
   base_url: "http://localhost:19001/v1"
   api_key: ""
-  model: "Qwen/Qwen3-Embedding-4B"
-  dimensions: 1024
+  model: "/home/lake/workspace/vllm-services/qwen3-embedding-4b/weights/Qwen3-Embedding-4B"
+  dimensions: 2560
   timeout: 30
   max_retries: 3
   batch_size: 10
@@ -31,7 +31,7 @@ rerank:
   provider: "vllm"                   # vllm | openai
   base_url: "http://localhost:19002/v1"
   api_key: ""
-  model: "Qwen/Qwen3-Reranker-4B"
+  model: "/home/lake/workspace/vllm-services/qwen3-reranker-4b/weights/Qwen3-Reranker-4B"
   timeout: 30
   max_retries: 3
 
