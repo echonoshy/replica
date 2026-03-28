@@ -2,8 +2,8 @@ import math
 
 import httpx
 
-BASE_URL = "http://localhost:19002"
-MODEL = "/home/lake/workspace/vllm-services/qwen3-reranker-4b/weights/Qwen3-Reranker-4B"
+BASE_URL = "http://localhost:19000"
+MODEL = "qwen3-reranker-4b"
 
 RERANKER_SYSTEM_PROMPT = (
     "Judge whether the Document is relevant to the Query. Answer only 'yes' or 'no'."
