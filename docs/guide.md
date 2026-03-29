@@ -149,12 +149,24 @@ docker exec -it pgvector psql -U postgres -d replica -c "CREATE EXTENSION IF NOT
 
 ### 3.3 模型服务部署
 
-Replica 需要三个模型服务（Reranker 可选），均使用 OpenAI 兼容 API 协议。推荐使用 vLLM 部署：
+Replica 需要三个模型服务（Reranker 可选），均使用 OpenAI 兼容 API 协议。下面命令参考
+`feat/qwen3.5-122b-a10b-fp8`、`feat/qwen3-embedding-4b`、`feat/qwen3-reranker-4b`
+三个分支中的部署参数整理而成。推荐显式设置 `--served-model-name`，这样客户端配置可以使用稳定的服务名，而不依赖本地权重目录名。
 
 **LLM 推理服务**（默认端口 19000）：
 
 ```bash
-vllm serve Qwen3.5-122B-A10B-FP8 --port 19000
+vllm serve weights/Qwen3.5-122B-A10B-FP8 \
+  --port 19000 \
+  --served-model-name Qwen3.5-122B-A10B-FP8  \
+  --tensor-parallel-size 4 \
+  --max-model-len 65536 \
+  --reasoning-parser qwen3 \
+  --enable-auto-tool-choice \
+  --tool-call-parser qwen3_coder \
+  --gpu-memory-utilization 0.8 \
+  --disable-custom-all-reduce \
+  --trust-remote-code
 ```
 
 用途：记忆提取、对话摘要、边界检测、画像生成等智能处理。
@@ -162,7 +174,14 @@ vllm serve Qwen3.5-122B-A10B-FP8 --port 19000
 **Embedding 服务**（默认端口 19001）：
 
 ```bash
-vllm serve Qwen3-Embedding-4B --port 19001
+vllm serve weights/Qwen3-Embedding-4B \
+  --port 19001 \
+  --served-model-name Qwen3-Embedding-4B \
+  --tensor-parallel-size 1 \
+  --max-model-len 8192 \
+  --dtype auto \
+  --gpu-memory-utilization 0.4 \
+  --trust-remote-code
 ```
 
 用途：文本向量化，用于向量相似度搜索。
@@ -170,10 +189,21 @@ vllm serve Qwen3-Embedding-4B --port 19001
 **Reranker 服务**（默认端口 19002，可选）：
 
 ```bash
-vllm serve Qwen3-Reranker-4B --port 19002
+vllm serve weights/Qwen3-Reranker-4B \
+  --port 19002 \
+  --served-model-name Qwen3-Reranker-4B \
+  --tensor-parallel-size 1 \
+  --max-model-len 8192 \
+  --dtype auto \
+  --gpu-memory-utilization 0.4 \
+  --trust-remote-code
 ```
 
 用途：搜索结果精排，提升检索质量。Qwen3-Reranker 使用 chat/completions + logprobs 方式进行相关性评分。
+
+> **提示**：如果启动命令中设置了 `--served-model-name`，则 `config/settings.yaml` 中的
+> `llm.model`、`embedding.model`、`rerank.model` 也应分别填写
+> `Qwen3.5-122B-A10B-FP8`、`Qwen3-Embedding-4B`、`Qwen3-Reranker-4B`。
 
 ### 3.4 安装依赖
 
