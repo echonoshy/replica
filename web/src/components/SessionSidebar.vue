@@ -185,7 +185,12 @@ function formatTime(iso: string) {
 <template>
   <aside class="sidebar">
     <div class="sidebar-brand">
-      <div class="brand-icon">R</div>
+      <div class="brand-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="32" height="32">
+          <rect width="128" height="128" rx="22" fill="#0D0D0D"/>
+          <text x="64" y="95" text-anchor="middle" fill="#E8A23E" font-family="Georgia,'Times New Roman',serif" font-weight="bold" font-size="100">R</text>
+        </svg>
+      </div>
       <div class="brand-text">
         <span class="brand-name">Replica</span>
         <span class="brand-sub">Memory for AI</span>
@@ -385,15 +390,17 @@ function formatTime(iso: string) {
 .brand-icon {
   width: 32px;
   height: 32px;
-  background: var(--accent);
-  color: var(--text-inverse);
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
-  font-size: 15px;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.brand-icon svg {
+  width: 100%;
+  height: 100%;
 }
 
 .brand-text {

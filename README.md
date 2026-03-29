@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="web/public/favicon.svg" width="80" />
+  <img src="web/public/favicon.svg" width="100" />
 </p>
 
-<h1 align="center">Replica</h1>
+<h1 align="center">R E P L I C A</h1>
 
 <p align="center">
   <b>Memory layer for AI.</b><br/>
@@ -10,7 +10,12 @@
 </p>
 
 <p align="center">
-  <code>beta</code>&nbsp;&nbsp;·&nbsp;&nbsp;FastAPI&nbsp;&nbsp;·&nbsp;&nbsp;PostgreSQL + pgvector&nbsp;&nbsp;·&nbsp;&nbsp;Vue 3
+  <img src="https://img.shields.io/badge/status-beta-E8A23E?style=flat-square" alt="Status" />
+  <img src="https://img.shields.io/badge/python-≥3.13-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/Vue_3-4FC08D?style=flat-square&logo=vuedotjs&logoColor=white" alt="Vue 3" />
+  <img src="https://img.shields.io/badge/license-MIT-0D0D0D?style=flat-square" alt="License" />
 </p>
 
 ---
