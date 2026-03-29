@@ -17,6 +17,8 @@ from replica.db.database import get_db
 from replica.models.session import Session
 from replica.models.message import Message
 from replica.models.memory_note import MemoryNote, NoteType
+from replica.services.embedding_service import count_tokens
+from replica.services.compaction_service import check_and_compact
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -94,12 +96,15 @@ async def _sse_generator(
         yield f"data: {json.dumps({'error': 'Session not found'})}\n\n"
         return
 
+    user_tokens = count_tokens(user_content)
     user_msg = Message(
         session_id=session_id,
         role="user",
         content=user_content,
+        token_count=user_tokens,
     )
     db.add(user_msg)
+    session.token_count += user_tokens
     await db.commit()
 
     llm_messages: list[dict] = []
@@ -147,16 +152,21 @@ async def _sse_generator(
         return
 
     assistant_content = "".join(full_response)
+    assistant_tokens = count_tokens(assistant_content)
     assistant_msg = Message(
         session_id=session_id,
         role="assistant",
         content=assistant_content,
+        token_count=assistant_tokens,
     )
     db.add(assistant_msg)
+    session.token_count += assistant_tokens
     await db.commit()
     await db.refresh(assistant_msg)
 
     yield f"data: {json.dumps({'done': True, 'message_id': str(assistant_msg.id)})}\n\n"
+
+    await check_and_compact(db, session)
 
 
 @router.post("/sessions/{session_id}/chat")

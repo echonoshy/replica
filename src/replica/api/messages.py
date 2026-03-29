@@ -8,6 +8,7 @@ from replica.db.database import get_db
 from replica.models.message import Message
 from replica.models.session import Session
 from replica.services.embedding_service import count_tokens
+from replica.services.compaction_service import check_and_compact
 from replica.api.schemas import MessageCreate, MessageOut
 
 router = APIRouter()
@@ -35,7 +36,7 @@ async def create_message(session_id: uuid.UUID, body: MessageCreate, db: AsyncSe
     await db.commit()
     await db.refresh(msg)
 
-    # TODO: check soft/hard threshold and trigger compaction_service
+    await check_and_compact(db, session)
     return msg
 
 
