@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import Sidebar from './components/layout/Sidebar.vue'
 import { useAppStore } from './stores/app'
 import { onApiLog } from './api/client'
 
@@ -12,16 +11,5 @@ onMounted(() => {
 </script>
 
 <template>
-  <Sidebar />
-  <main class="main-content">
-    <router-view />
-  </main>
+  <router-view />
 </template>
-
-<style scoped>
-.main-content {
-  flex: 1;
-  overflow-y: auto;
-  height: 100vh;
-}
-</style>

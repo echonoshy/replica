@@ -106,6 +106,7 @@ async def _sse_generator(
     await db.commit()
 
     llm_messages: list[dict] = []
+    context_payload: dict = {"evergreen": [], "knowledge": []}
 
     if use_memory:
         # Layer 1: Evergreen — all long-term facts
@@ -114,7 +115,11 @@ async def _sse_generator(
             .where(EvergreenMemory.user_id == session.user_id)
             .order_by(EvergreenMemory.updated_at.desc())
         )
-        evergreen_texts = [n.content for n in result.scalars().all()]
+        evergreen_rows = result.scalars().all()
+        evergreen_texts = [n.content for n in evergreen_rows]
+        context_payload["evergreen"] = [
+            {"id": str(n.id), "content": n.content, "category": n.category.value} for n in evergreen_rows
+        ]
 
         # Layer 3: Knowledge search — relevant historical knowledge
         from replica.services.memory_service import search_knowledge
@@ -125,6 +130,16 @@ async def _sse_generator(
             search_req = KnowledgeSearchRequest(user_id=session.user_id, query=user_content, top_k=5)
             search_results = await search_knowledge(db, search_req)
             relevant_texts = [r.content for r in search_results]
+            context_payload["knowledge"] = [
+                {
+                    "id": str(r.id),
+                    "content": r.content,
+                    "entry_type": r.entry_type.value,
+                    "score": round(r.score, 4),
+                    "title": r.title,
+                }
+                for r in search_results
+            ]
         except Exception:
             logger.warning("Knowledge search failed, proceeding without relevant memories")
 
@@ -165,7 +180,8 @@ async def _sse_generator(
     await db.commit()
     await db.refresh(assistant_msg)
 
-    yield f"data: {json.dumps({'done': True, 'message_id': str(assistant_msg.id)})}\n\n"
+    yield f"data: {json.dumps({'context': context_payload})}\n\n"
+    yield f"data: {json.dumps({'done': True, 'message_id': str(assistant_msg.id), 'token_count': session.token_count})}\n\n"
 
     await check_and_compact(db, session)
 

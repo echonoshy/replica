@@ -1,6 +1,9 @@
+import type { ChatContext } from '../stores/app'
+
 export interface ChatStreamCallbacks {
   onToken: (token: string) => void
-  onDone: (messageId: string) => void
+  onContext: (ctx: ChatContext) => void
+  onDone: (messageId: string, tokenCount?: number) => void
   onError: (error: string) => void
 }
 
@@ -47,8 +50,10 @@ export async function chatStream(
         const data = JSON.parse(jsonStr)
         if (data.token) {
           callbacks.onToken(data.token)
+        } else if (data.context) {
+          callbacks.onContext(data.context)
         } else if (data.done) {
-          callbacks.onDone(data.message_id)
+          callbacks.onDone(data.message_id, data.token_count)
         } else if (data.error) {
           callbacks.onError(data.error)
         }

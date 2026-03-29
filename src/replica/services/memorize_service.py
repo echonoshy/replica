@@ -12,9 +12,11 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from replica.extractors import (
+    MemCellData,
     MemCellExtractRequest,
     MemoryExtractRequest,
     RawData,
+    RawDataType,
     ParentType,
 )
 from replica.extractors.memcell_extractor import ConvMemCellExtractor
@@ -51,27 +53,41 @@ class MemorizePipeline:
         group_id: str | None = None,
         group_name: str | None = None,
         scene: str = "assistant",
+        force: bool = False,
     ) -> int:
         """Main memorize entry point.
 
+        When force=True, skip boundary detection and directly create MemCell.
         Returns count of extracted knowledge entries.
         """
-        history = [RawData(content=d) for d in (history_raw_data_list or [])]
-        new_data = [RawData(content=d) for d in new_raw_data_list]
+        all_data = (history_raw_data_list or []) + new_raw_data_list
 
-        request = MemCellExtractRequest(
-            history_raw_data_list=history,
-            new_raw_data_list=new_data,
-            user_id_list=user_id_list or [],
-            group_id=group_id,
-            group_name=group_name,
-        )
+        if force and all_data:
+            memcell_data = MemCellData(
+                user_id_list=user_id_list or [],
+                original_data=all_data,
+                timestamp=datetime.now(timezone.utc),
+                summary="",
+                group_id=group_id,
+                group_name=group_name,
+                data_type=RawDataType.CONVERSATION,
+            )
+        else:
+            history = [RawData(content=d) for d in (history_raw_data_list or [])]
+            new_data = [RawData(content=d) for d in new_raw_data_list]
 
-        # Step 1: Boundary detection
-        memcell_data, status = await self.memcell_extractor.extract_memcell(request)
-        if memcell_data is None:
-            logger.debug("No boundary detected, waiting for more messages")
-            return 0
+            request = MemCellExtractRequest(
+                history_raw_data_list=history,
+                new_raw_data_list=new_data,
+                user_id_list=user_id_list or [],
+                group_id=group_id,
+                group_name=group_name,
+            )
+
+            memcell_data, status = await self.memcell_extractor.extract_memcell(request)
+            if memcell_data is None:
+                logger.debug("No boundary detected, waiting for more messages")
+                return 0
 
         # Step 2: Save MemCell to DB
         memcell_db = MemCell(

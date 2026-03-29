@@ -14,12 +14,14 @@ from replica.models.knowledge_entry import EntryType
 
 class UserCreate(BaseModel):
     external_id: str
+    name: str | None = None
     metadata: dict | None = None
 
 
 class UserOut(BaseModel):
     id: uuid.UUID
     external_id: str
+    name: str | None = None
     metadata: dict | None = Field(validation_alias="metadata_")
     created_at: datetime
 
@@ -62,6 +64,7 @@ class MessageOut(BaseModel):
     content: str
     token_count: int
     message_type: MessageType
+    is_compacted: bool = False
     created_at: datetime
 
     model_config = {"from_attributes": True}

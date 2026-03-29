@@ -8,6 +8,7 @@ export interface Message {
   content: string
   token_count: number
   message_type: 'message' | 'compaction_summary' | 'memory_flush'
+  is_compacted: boolean
   created_at: string
 }
 
@@ -24,8 +25,13 @@ export function sendMessage(
   })
 }
 
-export function getMessages(sessionId: string, limit = 50, offset = 0) {
+export function getMessages(
+  sessionId: string,
+  limit = 50,
+  offset = 0,
+  includeCompacted = false,
+) {
   return client.get<Message[]>(`/v1/sessions/${sessionId}/messages`, {
-    params: { limit, offset },
+    params: { limit, offset, include_compacted: includeCompacted },
   })
 }

@@ -57,6 +57,44 @@ export function searchKnowledge(
   })
 }
 
+// ---------- Knowledge List (Admin) ----------
+
+export interface KnowledgeEntry {
+  id: string
+  user_id: string | null
+  group_id: string | null
+  entry_type: 'episode' | 'event' | 'foresight'
+  title: string | null
+  content: string
+  metadata: Record<string, unknown> | null
+  participants: string[] | null
+  created_at: string
+}
+
+export interface KnowledgeCountResponse {
+  total: number
+  by_type: Record<string, number>
+}
+
+export function getUserKnowledge(
+  userId: string,
+  limit = 50,
+  offset = 0,
+  entryType?: string,
+) {
+  return client.get<KnowledgeEntry[]>(`/v1/users/${userId}/knowledge`, {
+    params: { limit, offset, ...(entryType ? { entry_type: entryType } : {}) },
+  })
+}
+
+export function getUserKnowledgeCount(userId: string) {
+  return client.get<KnowledgeCountResponse>(`/v1/users/${userId}/knowledge/count`)
+}
+
+export function deleteKnowledgeEntry(knowledgeId: string) {
+  return client.delete(`/v1/knowledge/${knowledgeId}`)
+}
+
 // ---------- Context Build ----------
 
 export interface ContextResponse {

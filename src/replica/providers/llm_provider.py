@@ -39,7 +39,12 @@ class VLLMProvider(LLMProvider):
         self.cfg = cfg or settings.llm
         self._client = httpx.AsyncClient(
             base_url=self.cfg.base_url,
-            timeout=httpx.Timeout(self.cfg.timeout),
+            timeout=httpx.Timeout(
+                connect=30.0,
+                read=float(self.cfg.timeout),
+                write=30.0,
+                pool=30.0,
+            ),
             headers=self._build_headers(),
         )
 
@@ -86,6 +91,17 @@ class VLLMProvider(LLMProvider):
                 else:
                     logger.error("LLM HTTP error %d: %s", e.response.status_code, e.response.text)
                     raise
+            except httpx.TimeoutException as e:
+                last_error = e
+                wait = min(5 * (2**attempt), 60)
+                logger.warning(
+                    "LLM timeout (%s), retrying in %ds (attempt %d/%d)",
+                    type(e).__name__,
+                    wait,
+                    attempt + 1,
+                    self.cfg.max_retries,
+                )
+                await asyncio.sleep(wait)
             except (httpx.RequestError, KeyError, json.JSONDecodeError) as e:
                 last_error = e
                 wait = min(2 * (2**attempt), 30)

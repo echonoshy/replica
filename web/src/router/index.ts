@@ -5,28 +5,13 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      name: 'dashboard',
-      component: () => import('../views/Dashboard.vue'),
+      name: 'chat',
+      component: () => import('../views/ChatView.vue'),
     },
     {
-      path: '/playground',
-      name: 'playground',
-      component: () => import('../views/Playground.vue'),
-    },
-    {
-      path: '/memory',
-      name: 'memory',
-      component: () => import('../views/MemoryExplorer.vue'),
-    },
-    {
-      path: '/sessions',
-      name: 'sessions',
-      component: () => import('../views/Sessions.vue'),
-    },
-    {
-      path: '/database',
-      name: 'database',
-      component: () => import('../views/DatabaseExplorer.vue'),
+      path: '/admin',
+      name: 'admin',
+      component: () => import('../views/AdminView.vue'),
     },
   ],
 })

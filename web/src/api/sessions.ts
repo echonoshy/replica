@@ -6,7 +6,6 @@ export interface Session {
   status: 'active' | 'archived' | 'deleted'
   token_count: number
   compaction_count: number
-  metadata: Record<string, unknown> | null
   created_at: string
 }
 
@@ -18,6 +17,22 @@ export function getSessions(userId: string) {
   return client.get<Session[]>(`/v1/users/${userId}/sessions`)
 }
 
+export function getSession(sessionId: string) {
+  return client.get<Session>(`/v1/sessions/${sessionId}`)
+}
+
+export function deleteSession(sessionId: string) {
+  return client.delete(`/v1/sessions/${sessionId}`)
+}
+
 export function archiveSession(sessionId: string) {
   return client.post<Session>(`/v1/sessions/${sessionId}/archive`)
+}
+
+export function memorizeSession(sessionId: string) {
+  return client.post<{ memory_count: number; status: string }>(
+    `/v1/sessions/${sessionId}/memorize`,
+    {},
+    { timeout: 300000 },
+  )
 }

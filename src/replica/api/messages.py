@@ -45,13 +45,11 @@ async def list_messages(
     session_id: uuid.UUID,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    include_compacted: bool = Query(False),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(Message)
-        .where(Message.session_id == session_id, Message.is_compacted == False)  # noqa: E712
-        .order_by(Message.created_at)
-        .offset(offset)
-        .limit(limit)
-    )
+    query = select(Message).where(Message.session_id == session_id)
+    if not include_compacted:
+        query = query.where(Message.is_compacted == False)  # noqa: E712
+    result = await db.execute(query.order_by(Message.created_at).offset(offset).limit(limit))
     return result.scalars().all()
