@@ -12,8 +12,8 @@ from replica.db.database import Base
 from replica.models.user import User
 from replica.models.session import Session, SessionStatus
 from replica.models.message import Message, MessageRole, MessageType
-from replica.models.memory_note import MemoryNote, NoteType, NoteSource
-from replica.models.memory_chunk import MemoryChunk
+from replica.models.evergreen_memory import EvergreenMemory, EvergreenCategory, EvergreenSource
+from replica.models.knowledge_entry import KnowledgeEntry, EntryType
 from replica.models.memcell import MemCell
 from replica.services.embedding_service import count_tokens
 from replica.providers.embedding_provider import VLLMEmbeddingProvider
@@ -245,111 +245,124 @@ class TestMessageCRUD:
         await db.commit()
 
 
-class TestMemoryNoteCRUD:
-    async def test_create_memory_note(self, db: AsyncSession):
+class TestEvergreenMemoryCRUD:
+    async def test_create_evergreen(self, db: AsyncSession):
         user = User(external_id=f"test_{uuid.uuid4().hex[:8]}")
         db.add(user)
         await db.commit()
         await db.refresh(user)
 
-        note = MemoryNote(
+        mem = EvergreenMemory(
             user_id=user.id,
-            note_type=NoteType.evergreen,
+            category=EvergreenCategory.fact,
             content="User likes coffee.",
-            source=NoteSource.manual,
+            source=EvergreenSource.manual,
         )
-        db.add(note)
+        db.add(mem)
         await db.commit()
-        await db.refresh(note)
+        await db.refresh(mem)
 
-        assert note.id is not None
-        assert note.note_type == NoteType.evergreen
+        assert mem.id is not None
+        assert mem.category == EvergreenCategory.fact
+        assert mem.confidence == 1.0
 
-        await db.delete(note)
+        await db.delete(mem)
         await db.delete(user)
         await db.commit()
 
-    async def test_create_chunk_with_embedding(self, db: AsyncSession):
+    async def test_list_evergreen_by_user(self, db: AsyncSession):
         user = User(external_id=f"test_{uuid.uuid4().hex[:8]}")
         db.add(user)
         await db.commit()
         await db.refresh(user)
 
-        note = MemoryNote(
-            user_id=user.id,
-            note_type=NoteType.daily,
-            content="User discussed project deadlines and weekend plans.",
-            source=NoteSource.auto_flush,
-        )
-        db.add(note)
+        for content in ["Likes coffee", "Lives in Shanghai", "Software engineer"]:
+            db.add(
+                EvergreenMemory(
+                    user_id=user.id,
+                    category=EvergreenCategory.fact,
+                    content=content,
+                    source=EvergreenSource.manual,
+                )
+            )
         await db.commit()
-        await db.refresh(note)
 
-        provider = _fresh_embedding_provider()
-        embedding = await provider.embed_query(note.content)
-        await provider.close()
+        result = await db.execute(select(EvergreenMemory).where(EvergreenMemory.user_id == user.id))
+        memories = result.scalars().all()
+        assert len(memories) == 3
 
-        chunk = MemoryChunk(
-            user_id=user.id,
-            note_id=note.id,
-            chunk_text=note.content,
-            embedding=embedding,
-            chunk_index=0,
-            start_offset=0,
-            end_offset=len(note.content),
-        )
-        db.add(chunk)
-        await db.commit()
-        await db.refresh(chunk)
-
-        assert chunk.id is not None
-        assert chunk.note_id == note.id
-
-        await db.delete(chunk)
-        await db.delete(note)
+        for m in memories:
+            await db.delete(m)
         await db.delete(user)
         await db.commit()
 
-    async def test_note_chunk_relationship(self, db: AsyncSession):
-        user = User(external_id=f"test_{uuid.uuid4().hex[:8]}")
-        db.add(user)
-        await db.commit()
-        await db.refresh(user)
 
-        note = MemoryNote(
-            user_id=user.id,
-            note_type=NoteType.evergreen,
-            content="Important information.",
-            source=NoteSource.manual,
+class TestKnowledgeEntryCRUD:
+    async def test_create_knowledge_entry(self, db: AsyncSession):
+        entry = KnowledgeEntry(
+            user_id="test_user_001",
+            entry_type=EntryType.event,
+            title="Alice likes hiking",
+            content="Alice mentioned she enjoys hiking, especially in the mountains.",
+            metadata_={"event_type": "Conversation"},
         )
-        db.add(note)
+        db.add(entry)
         await db.commit()
-        await db.refresh(note)
+        await db.refresh(entry)
 
+        assert entry.id is not None
+        assert entry.entry_type == EntryType.event
+
+        await db.delete(entry)
+        await db.commit()
+
+    async def test_create_knowledge_with_embedding(self, db: AsyncSession):
         provider = _fresh_embedding_provider()
-        embedding = await provider.embed_query("Important information.")
+        content = "Alice is planning a tech talk about FlashAttention next month."
+        embedding = await provider.embed_query(content)
         await provider.close()
 
-        chunk = MemoryChunk(
-            user_id=user.id,
-            note_id=note.id,
-            chunk_text="Important information.",
+        entry = KnowledgeEntry(
+            user_id="test_user_002",
+            entry_type=EntryType.foresight,
+            title="FlashAttention tech talk",
+            content=content,
+            metadata_={"evidence": "Alice said she's preparing slides", "duration_days": 30},
             embedding=embedding,
-            chunk_index=0,
-            start_offset=0,
-            end_offset=22,
         )
-        db.add(chunk)
+        db.add(entry)
+        await db.commit()
+        await db.refresh(entry)
+
+        assert entry.id is not None
+        assert entry.embedding is not None
+
+        await db.delete(entry)
         await db.commit()
 
-        result = await db.execute(select(MemoryChunk).where(MemoryChunk.note_id == note.id))
-        chunks = result.scalars().all()
-        assert len(chunks) == 1
-        assert chunks[0].chunk_text == "Important information."
+    async def test_query_by_type(self, db: AsyncSession):
+        for i, etype in enumerate([EntryType.episode, EntryType.event, EntryType.event]):
+            db.add(
+                KnowledgeEntry(
+                    user_id="test_user_003",
+                    entry_type=etype,
+                    content=f"Entry {i}",
+                )
+            )
+        await db.commit()
 
-        await db.delete(chunk)
-        await db.delete(note)
-        await db.delete(user)
+        result = await db.execute(
+            select(KnowledgeEntry).where(
+                KnowledgeEntry.user_id == "test_user_003",
+                KnowledgeEntry.entry_type == EntryType.event,
+            )
+        )
+        events = result.scalars().all()
+        assert len(events) == 2
+
+        all_result = await db.execute(select(KnowledgeEntry).where(KnowledgeEntry.user_id == "test_user_003"))
+        for e in all_result.scalars().all():
+            await db.delete(e)
         await db.commit()
 
 

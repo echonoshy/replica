@@ -16,7 +16,7 @@ from replica.config import settings
 from replica.db.database import get_db
 from replica.models.session import Session
 from replica.models.message import Message
-from replica.models.memory_note import MemoryNote, NoteType
+from replica.models.evergreen_memory import EvergreenMemory
 from replica.services.embedding_service import count_tokens
 from replica.services.compaction_service import check_and_compact
 
@@ -36,7 +36,7 @@ def _build_system_prompt(evergreen: list[str], relevant: list[str]) -> str:
         for m in evergreen:
             parts.append(f"- {m}")
     if relevant:
-        parts.append("\n以下是与本次对话相关的记忆：")
+        parts.append("\n以下是与本次对话相关的历史知识：")
         for m in relevant:
             parts.append(f"- {m}")
     parts.append("\n请基于上述记忆和对话上下文，自然地回复用户。")
@@ -44,7 +44,6 @@ def _build_system_prompt(evergreen: list[str], relevant: list[str]) -> str:
 
 
 async def _stream_llm(messages: list[dict]) -> AsyncGenerator[str, None]:
-    """Stream tokens from the LLM via SSE, yielding content deltas."""
     cfg = settings.llm
     headers = {"Content-Type": "application/json"}
     if cfg.api_key:
@@ -90,7 +89,6 @@ async def _sse_generator(
     use_memory: bool,
     db: AsyncSession,
 ) -> AsyncGenerator[str, None]:
-    """Full SSE generator: build context, stream LLM, save messages."""
     session = await db.get(Session, session_id)
     if not session:
         yield f"data: {json.dumps({'error': 'Session not found'})}\n\n"
@@ -110,27 +108,30 @@ async def _sse_generator(
     llm_messages: list[dict] = []
 
     if use_memory:
+        # Layer 1: Evergreen — all long-term facts
         result = await db.execute(
-            select(MemoryNote)
-            .where(MemoryNote.user_id == session.user_id, MemoryNote.note_type == NoteType.evergreen)
-            .order_by(MemoryNote.updated_at.desc())
-            .limit(20)
+            select(EvergreenMemory)
+            .where(EvergreenMemory.user_id == session.user_id)
+            .order_by(EvergreenMemory.updated_at.desc())
         )
         evergreen_texts = [n.content for n in result.scalars().all()]
 
-        from replica.services.memory_service import search_memory
-        from replica.api.schemas import MemorySearchRequest
+        # Layer 3: Knowledge search — relevant historical knowledge
+        from replica.services.memory_service import search_knowledge
+        from replica.api.schemas import KnowledgeSearchRequest
 
+        relevant_texts = []
         try:
-            search_req = MemorySearchRequest(user_id=session.user_id, query=user_content, top_k=5)
-            search_results = await search_memory(db, search_req)
-            relevant_texts = [r.chunk_text for r in search_results]
+            search_req = KnowledgeSearchRequest(user_id=session.user_id, query=user_content, top_k=5)
+            search_results = await search_knowledge(db, search_req)
+            relevant_texts = [r.content for r in search_results]
         except Exception:
-            relevant_texts = []
+            logger.warning("Knowledge search failed, proceeding without relevant memories")
 
         system_prompt = _build_system_prompt(evergreen_texts, relevant_texts)
         llm_messages.append({"role": "system", "content": system_prompt})
 
+    # Layer 2: Session context — recent un-compacted messages
     result = await db.execute(
         select(Message)
         .where(Message.session_id == session_id, Message.is_compacted == False)  # noqa: E712

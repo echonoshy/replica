@@ -20,4 +20,4 @@ class User(Base):
     )
 
     sessions: Mapped[list["Session"]] = relationship(back_populates="user")  # noqa: F821
-    memory_notes: Mapped[list["MemoryNote"]] = relationship(back_populates="user")  # noqa: F821
+    evergreen_memories: Mapped[list["EvergreenMemory"]] = relationship(back_populates="user")  # noqa: F821

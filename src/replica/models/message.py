@@ -19,7 +19,6 @@ class MessageRole(str, enum.Enum):
 class MessageType(str, enum.Enum):
     message = "message"
     compaction_summary = "compaction_summary"
-    memory_flush = "memory_flush"
 
 
 class Message(Base):

@@ -1,6 +1,9 @@
 """Memorize pipeline — end-to-end memory ingestion.
 
-Raw data → Boundary detection → MemCell → Extract memories → Persist.
+Raw data → Boundary detection → MemCell → Extract memories → KnowledgeEntry.
+
+All extracted memories (episodes, events, foresights) are written to the
+unified knowledge_entries table.
 """
 
 import logging
@@ -8,7 +11,6 @@ from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from replica.config import settings
 from replica.extractors import (
     MemCellExtractRequest,
     MemoryExtractRequest,
@@ -23,9 +25,7 @@ from replica.extractors.profile_extractor import ProfileMemoryExtractor
 from replica.extractors.group_profile_extractor import GroupProfileExtractor
 from replica.extractors.cluster_manager import ClusterManager
 from replica.models.memcell import MemCell
-from replica.models.episodic_memory import EpisodicMemory
-from replica.models.event_log import EventLogRecord
-from replica.models.foresight import ForesightRecord
+from replica.models.knowledge_entry import KnowledgeEntry, EntryType
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ class MemorizePipeline:
     ) -> int:
         """Main memorize entry point.
 
-        Returns count of extracted memory objects.
+        Returns count of extracted knowledge entries.
         """
         history = [RawData(content=d) for d in (history_raw_data_list or [])]
         new_data = [RawData(content=d) for d in new_raw_data_list]
@@ -88,37 +88,38 @@ class MemorizePipeline:
 
         memory_count = 0
 
-        # Step 3: Extract memories
+        # Step 3: Extract memories → write to unified knowledge_entries
         extract_req = MemoryExtractRequest(
             memcell=memcell_data,
             user_id=memcell_data.user_id_list[0] if memcell_data.user_id_list else None,
             group_id=group_id,
         )
 
-        # 3a: Episode extraction (group + personal)
+        # 3a: Episode extraction
         is_group = scene == "group_chat"
         episode = await self.episode_extractor.extract_memory(extract_req, is_group=is_group)
         if episode:
             embedding = episode.extend.get("embedding") if episode.extend else None
-            ep_db = EpisodicMemory(
+            entry = KnowledgeEntry(
                 user_id=episode.user_id,
                 group_id=episode.group_id,
-                timestamp=episode.timestamp or datetime.now(timezone.utc),
-                summary=episode.summary or "",
+                entry_type=EntryType.episode,
                 title=episode.title,
-                episode=episode.episode,
-                subject=episode.subject,
-                participants=episode.participants,
-                memcell_event_id_list=[memcell_data.event_id],
-                parent_type=ParentType.MEMCELL.value,
-                parent_id=str(memcell_db.id),
+                content=episode.episode,
+                metadata_={
+                    "subject": episode.subject,
+                    "summary": episode.summary,
+                    "participants": episode.participants,
+                    "parent_type": ParentType.MEMCELL.value,
+                    "parent_id": str(memcell_db.id),
+                },
                 embedding=embedding,
-                vector_model=settings.embedding.model if embedding else None,
+                memcell_id=memcell_db.id,
+                participants=episode.participants,
             )
-            db.add(ep_db)
+            db.add(entry)
             memory_count += 1
 
-            # Update memcell with episode content
             memcell_db.episode = episode.episode
             memcell_db.subject = episode.title
 
@@ -131,44 +132,51 @@ class MemorizePipeline:
                     if event_log.fact_embeddings and i < len(event_log.fact_embeddings)
                     else None
                 )
-                el_db = EventLogRecord(
+                entry = KnowledgeEntry(
                     user_id=event_log.user_id,
                     group_id=event_log.group_id,
-                    atomic_fact=fact,
-                    parent_type=ParentType.MEMCELL.value,
-                    parent_id=str(memcell_db.id),
-                    timestamp=event_log.timestamp or datetime.now(timezone.utc),
-                    participants=memcell_data.participants,
-                    event_type="Conversation",
+                    entry_type=EntryType.event,
+                    title=fact[:100] if len(fact) > 100 else fact,
+                    content=fact,
+                    metadata_={
+                        "event_type": "Conversation",
+                        "parent_type": ParentType.MEMCELL.value,
+                        "parent_id": str(memcell_db.id),
+                    },
                     embedding=embedding,
-                    vector_model=settings.embedding.model if embedding else None,
+                    memcell_id=memcell_db.id,
+                    participants=memcell_data.participants,
                 )
-                db.add(el_db)
+                db.add(entry)
                 memory_count += 1
 
         # 3c: Foresight extraction
         foresights = await self.foresight_extractor.extract_memory(extract_req)
         for fs in foresights:
-            fs_db = ForesightRecord(
+            entry = KnowledgeEntry(
                 user_id=fs.user_id,
                 group_id=fs.group_id,
+                entry_type=EntryType.foresight,
+                title=fs.content[:100] if len(fs.content) > 100 else fs.content,
                 content=fs.content,
-                evidence=fs.evidence,
-                parent_type=ParentType.MEMCELL.value,
-                parent_id=str(memcell_db.id),
-                start_time=fs.start_time,
-                end_time=fs.end_time,
-                duration_days=fs.duration_days,
-                participants=memcell_data.participants,
+                metadata_={
+                    "evidence": fs.evidence,
+                    "start_time": fs.start_time,
+                    "end_time": fs.end_time,
+                    "duration_days": fs.duration_days,
+                    "parent_type": ParentType.MEMCELL.value,
+                    "parent_id": str(memcell_db.id),
+                },
                 embedding=fs.vector,
-                vector_model=settings.embedding.model if fs.vector else None,
+                memcell_id=memcell_db.id,
+                participants=memcell_data.participants,
             )
-            db.add(fs_db)
+            db.add(entry)
             memory_count += 1
 
         await db.commit()
         logger.info(
-            "Memorize complete: %d memories extracted from MemCell %s",
+            "Memorize complete: %d knowledge entries extracted from MemCell %s",
             memory_count,
             memcell_db.id,
         )

@@ -34,5 +34,5 @@ async def archive_session(session_id: uuid.UUID, db: AsyncSession = Depends(get_
     session.status = SessionStatus.archived
     await db.commit()
     await db.refresh(session)
-    # TODO: trigger session-end memory extraction via compaction_service
+    # TODO: trigger async Memorize pipeline for session knowledge extraction
     return session

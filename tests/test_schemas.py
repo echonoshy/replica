@@ -12,17 +12,17 @@ from replica.api.schemas import (
     SessionOut,
     MessageCreate,
     MessageOut,
-    MemoryNoteCreate,
-    MemorySearchRequest,
-    MemorySearchResult,
+    EvergreenMemoryCreate,
+    KnowledgeSearchRequest,
+    KnowledgeSearchResult,
     ContextBuildRequest,
     ContextBuildResponse,
     MemorizeRequest,
     MemorizeResponse,
-    RetrieveRequest,
 )
 from replica.models.message import MessageRole, MessageType
-from replica.models.memory_note import NoteType
+from replica.models.evergreen_memory import EvergreenCategory
+from replica.models.knowledge_entry import EntryType
 from replica.models.session import SessionStatus
 
 
@@ -41,7 +41,7 @@ class TestUserSchemas:
         u = UserOut(
             id=uuid.uuid4(),
             external_id="test",
-            metadata=None,
+            metadata_=None,
             created_at=now,
         )
         assert isinstance(u.id, uuid.UUID)
@@ -89,26 +89,40 @@ class TestMessageSchemas:
         assert m.parent_id is None
 
 
-class TestMemorySchemas:
-    def test_memory_note_create_defaults(self):
-        m = MemoryNoteCreate(content="important note")
-        assert m.note_type == NoteType.evergreen
+class TestEvergreenSchemas:
+    def test_evergreen_create_defaults(self):
+        m = EvergreenMemoryCreate(content="important note")
+        assert m.category == EvergreenCategory.fact
 
-    def test_memory_search_request(self):
+    def test_evergreen_create_with_category(self):
+        m = EvergreenMemoryCreate(content="likes coffee", category=EvergreenCategory.preference)
+        assert m.category == EvergreenCategory.preference
+
+
+class TestKnowledgeSchemas:
+    def test_knowledge_search_request(self):
         uid = uuid.uuid4()
-        r = MemorySearchRequest(user_id=uid, query="test query")
+        r = KnowledgeSearchRequest(user_id=uid, query="test query")
         assert r.top_k == 10
-        assert r.note_type is None
+        assert r.entry_type is None
 
-    def test_memory_search_result(self):
+    def test_knowledge_search_request_with_type(self):
+        uid = uuid.uuid4()
+        r = KnowledgeSearchRequest(user_id=uid, query="test", entry_type=EntryType.episode)
+        assert r.entry_type == EntryType.episode
+
+    def test_knowledge_search_result(self):
         now = datetime.now(timezone.utc)
-        r = MemorySearchResult(
-            chunk_text="some text",
-            note_id=uuid.uuid4(),
+        r = KnowledgeSearchResult(
+            id=uuid.uuid4(),
+            entry_type=EntryType.event,
+            title="some fact",
+            content="some text",
             score=0.95,
             created_at=now,
         )
         assert r.score == 0.95
+        assert r.entry_type == EntryType.event
 
 
 class TestContextSchemas:
@@ -122,10 +136,11 @@ class TestContextSchemas:
     def test_context_build_response(self):
         r = ContextBuildResponse(
             evergreen_memories=[],
-            relevant_memories=[],
+            relevant_knowledge=[],
             recent_messages=[],
         )
         assert len(r.evergreen_memories) == 0
+        assert len(r.relevant_knowledge) == 0
 
 
 class TestMemorizeSchemas:
@@ -141,14 +156,6 @@ class TestMemorizeSchemas:
         r = MemorizeResponse(memory_count=5)
         assert r.status == "ok"
         assert r.memory_count == 5
-
-
-class TestRetrieveSchema:
-    def test_retrieve_request_defaults(self):
-        r = RetrieveRequest(query="test")
-        assert r.retrieve_method == "hybrid"
-        assert r.top_k == 20
-        assert r.user_id is None
 
 
 if __name__ == "__main__":

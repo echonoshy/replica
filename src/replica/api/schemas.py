@@ -4,8 +4,9 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from replica.models.message import MessageRole, MessageType
-from replica.models.memory_note import NoteType, NoteSource
 from replica.models.session import SessionStatus
+from replica.models.evergreen_memory import EvergreenCategory, EvergreenSource
+from replica.models.knowledge_entry import EntryType
 
 
 # ---------- Users ----------
@@ -66,41 +67,60 @@ class MessageOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# ---------- Memory Notes ----------
+# ---------- Evergreen Memory ----------
 
 
-class MemoryNoteCreate(BaseModel):
+class EvergreenMemoryCreate(BaseModel):
     content: str
-    note_type: NoteType = NoteType.evergreen
+    category: EvergreenCategory = EvergreenCategory.fact
 
 
-class MemoryNoteOut(BaseModel):
+class EvergreenMemoryOut(BaseModel):
     id: uuid.UUID
     user_id: uuid.UUID
-    session_id: uuid.UUID | None
-    note_type: NoteType
+    category: EvergreenCategory
     content: str
-    source: NoteSource
+    source: EvergreenSource
+    confidence: float
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ---------- Knowledge Search ----------
+
+
+class KnowledgeSearchRequest(BaseModel):
+    user_id: uuid.UUID
+    query: str
+    top_k: int = Field(default=10, ge=1, le=100)
+    entry_type: EntryType | None = None
+
+
+class KnowledgeSearchResult(BaseModel):
+    id: uuid.UUID
+    entry_type: EntryType
+    title: str | None
+    content: str
+    score: float
     created_at: datetime
 
     model_config = {"from_attributes": True}
 
 
-# ---------- Memory Search ----------
-
-
-class MemorySearchRequest(BaseModel):
-    user_id: uuid.UUID
-    query: str
-    top_k: int = Field(default=10, ge=1, le=100)
-    note_type: NoteType | None = None
-
-
-class MemorySearchResult(BaseModel):
-    chunk_text: str
-    note_id: uuid.UUID
-    score: float
+class KnowledgeEntryOut(BaseModel):
+    id: uuid.UUID
+    user_id: str | None
+    group_id: str | None
+    entry_type: EntryType
+    title: str | None
+    content: str
+    metadata: dict | None = Field(validation_alias="metadata_")
+    participants: list[str] | None
     created_at: datetime
+
+    model_config = {"from_attributes": True}
 
 
 # ---------- Context Build ----------
@@ -113,12 +133,12 @@ class ContextBuildRequest(BaseModel):
 
 
 class ContextBuildResponse(BaseModel):
-    evergreen_memories: list[MemoryNoteOut]
-    relevant_memories: list[MemorySearchResult]
+    evergreen_memories: list[EvergreenMemoryOut]
+    relevant_knowledge: list[KnowledgeSearchResult]
     recent_messages: list[MessageOut]
 
 
-# ---------- Memorize (new memory ingestion) ----------
+# ---------- Memorize (memory ingestion pipeline) ----------
 
 
 class MemorizeRequest(BaseModel):
@@ -133,65 +153,3 @@ class MemorizeRequest(BaseModel):
 class MemorizeResponse(BaseModel):
     memory_count: int
     status: str = "ok"
-
-
-# ---------- Episodic Memory ----------
-
-
-class EpisodicMemoryOut(BaseModel):
-    id: uuid.UUID
-    user_id: str | None
-    group_id: str | None
-    timestamp: datetime
-    title: str | None
-    episode: str
-    summary: str
-    participants: list[str] | None
-    created_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
-# ---------- Event Log ----------
-
-
-class EventLogOut(BaseModel):
-    id: uuid.UUID
-    user_id: str | None
-    group_id: str | None
-    atomic_fact: str
-    timestamp: datetime
-    parent_type: str
-    parent_id: str
-    created_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
-# ---------- Foresight ----------
-
-
-class ForesightOut(BaseModel):
-    id: uuid.UUID
-    user_id: str | None
-    group_id: str | None
-    content: str
-    evidence: str | None
-    start_time: str | None
-    end_time: str | None
-    duration_days: int | None
-    created_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
-# ---------- Retrieve ----------
-
-
-class RetrieveRequest(BaseModel):
-    query: str
-    user_id: str | None = None
-    group_id: str | None = None
-    memory_types: list[str] | None = None
-    retrieve_method: str = "hybrid"  # keyword | vector | hybrid | rrf | agentic
-    top_k: int = Field(default=20, ge=1, le=100)

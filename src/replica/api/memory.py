@@ -1,3 +1,5 @@
+"""Memory API — Evergreen CRUD, knowledge search, and context building."""
+
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -5,13 +7,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from replica.db.database import get_db
-from replica.models.memory_note import MemoryNote, NoteSource
-from replica.services.memory_service import search_memory
+from replica.models.evergreen_memory import EvergreenMemory, EvergreenSource
+from replica.services.memory_service import search_knowledge
 from replica.api.schemas import (
-    MemoryNoteCreate,
-    MemoryNoteOut,
-    MemorySearchRequest,
-    MemorySearchResult,
+    EvergreenMemoryCreate,
+    EvergreenMemoryOut,
+    KnowledgeSearchRequest,
+    KnowledgeSearchResult,
     ContextBuildRequest,
     ContextBuildResponse,
 )
@@ -19,41 +21,49 @@ from replica.api.schemas import (
 router = APIRouter()
 
 
-@router.post("/memory/search", response_model=list[MemorySearchResult])
-async def memory_search(body: MemorySearchRequest, db: AsyncSession = Depends(get_db)):
-    return await search_memory(db, body)
+# ---------- Evergreen Memory ----------
 
 
-@router.get("/users/{user_id}/memory", response_model=list[MemoryNoteOut])
-async def list_memory_notes(user_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+@router.get("/users/{user_id}/evergreen", response_model=list[EvergreenMemoryOut])
+async def list_evergreen(user_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(MemoryNote).where(MemoryNote.user_id == user_id).order_by(MemoryNote.created_at.desc())
+        select(EvergreenMemory).where(EvergreenMemory.user_id == user_id).order_by(EvergreenMemory.created_at.desc())
     )
     return result.scalars().all()
 
 
-@router.post("/users/{user_id}/memory", response_model=MemoryNoteOut, status_code=201)
-async def create_memory_note(user_id: uuid.UUID, body: MemoryNoteCreate, db: AsyncSession = Depends(get_db)):
-    note = MemoryNote(
+@router.post("/users/{user_id}/evergreen", response_model=EvergreenMemoryOut, status_code=201)
+async def create_evergreen(user_id: uuid.UUID, body: EvergreenMemoryCreate, db: AsyncSession = Depends(get_db)):
+    mem = EvergreenMemory(
         user_id=user_id,
-        note_type=body.note_type,
+        category=body.category,
         content=body.content,
-        source=NoteSource.manual,
+        source=EvergreenSource.manual,
     )
-    db.add(note)
+    db.add(mem)
     await db.commit()
-    await db.refresh(note)
-    # TODO: async chunk + embed via embedding_service
-    return note
+    await db.refresh(mem)
+    return mem
 
 
-@router.delete("/memory/{note_id}", status_code=204)
-async def delete_memory_note(note_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
-    note = await db.get(MemoryNote, note_id)
-    if not note:
-        raise HTTPException(404, "Memory note not found")
-    await db.delete(note)
+@router.delete("/evergreen/{memory_id}", status_code=204)
+async def delete_evergreen(memory_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    mem = await db.get(EvergreenMemory, memory_id)
+    if not mem:
+        raise HTTPException(404, "Evergreen memory not found")
+    await db.delete(mem)
     await db.commit()
+
+
+# ---------- Knowledge Search ----------
+
+
+@router.post("/knowledge/search", response_model=list[KnowledgeSearchResult])
+async def knowledge_search(body: KnowledgeSearchRequest, db: AsyncSession = Depends(get_db)):
+    return await search_knowledge(db, body)
+
+
+# ---------- Context Build ----------
 
 
 @router.post("/context/build", response_model=ContextBuildResponse)
