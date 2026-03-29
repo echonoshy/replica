@@ -1,144 +1,105 @@
-# Replica
+<p align="center">
+  <img src="web/public/favicon.svg" width="80" />
+</p>
 
-Memory management service for AI applications. (用于 AI 的记忆管理服务)
+<h1 align="center">Replica</h1>
 
-Replica 为 AI 应用提供长期记忆能力——管理对话上下文、自动提取和压缩记忆、并通过混合搜索在需要时高效召回相关信息。
+<p align="center">
+  <b>Memory layer for AI.</b><br/>
+  Give your AI the ability to <i>remember</i>.
+</p>
 
-## Features
+<p align="center">
+  <code>beta</code>&nbsp;&nbsp;·&nbsp;&nbsp;FastAPI&nbsp;&nbsp;·&nbsp;&nbsp;PostgreSQL + pgvector&nbsp;&nbsp;·&nbsp;&nbsp;Vue 3
+</p>
 
-- **对话管理** — 用户、会话、消息的完整生命周期管理
-- **混合记忆搜索** — 结合 pgvector 向量相似度搜索与 PostgreSQL 全文检索，并支持时间衰减和 MMR 多样性重排
-- **渐进式压缩** — 软阈值触发记忆提取，硬阈值触发消息摘要压缩，自动控制上下文窗口大小
-- **三层记忆体系**
-  - **Evergreen 记忆** — 长期持久知识，不受时间衰减影响
-  - **Daily 记忆** — 会话中自动提取的短期记忆
-  - **消息分块** — 通过向量嵌入和全文索引支持细粒度检索
-- **上下文组装** — 自动组合长期记忆、相关记忆和近期消息，为 AI 模型构建完整上下文
+---
 
-## Tech Stack
-
-- **Framework:** FastAPI + Uvicorn
-- **Database:** PostgreSQL 17 + pgvector (Docker)
-- **ORM:** SQLAlchemy (async) + asyncpg
-- **Migration:** Alembic
-- **Embedding:** vLLM (Qwen3-Embedding-4B, 1024 维)
-- **Tokenizer:** tiktoken (cl100k_base)
-- **Tooling:** uv (依赖管理) + ruff (格式化 & 代码检查) + pyrootutils (项目根路径管理)
-
-## Project Structure
+Replica 为 AI 应用提供长期记忆能力 —— 管理对话上下文、自动提取与压缩记忆，并通过混合检索在需要时高效召回相关信息。
 
 ```
-src/replica/
-├── main.py                 # FastAPI 入口，路由注册
-├── config.py               # Pydantic Settings 配置管理
-├── models/                 # SQLAlchemy ORM 模型
-│   ├── user.py             # 用户
-│   ├── session.py          # 会话
-│   ├── message.py          # 消息
-│   ├── memory_note.py      # 记忆笔记
-│   └── memory_chunk.py     # 记忆分块 (向量嵌入)
-├── api/                    # API 路由
-│   ├── schemas.py          # Pydantic 请求/响应模型
-│   ├── users.py            # 用户管理
-│   ├── sessions.py         # 会话管理
-│   ├── messages.py         # 消息管理
-│   └── memory.py           # 记忆搜索与上下文构建
-├── services/               # 业务逻辑
-│   ├── embedding_service.py    # 嵌入与分词
-│   ├── memory_service.py       # 混合记忆搜索
-│   ├── context_service.py      # 上下文组装
-│   └── compaction_service.py   # 记忆压缩与提取
-└── db/
-    └── database.py         # 异步数据库连接
+User ←→ Web UI ←→ Replica API ←→ LLM / Embedding / Reranker
+                        ↕
+              PostgreSQL + pgvector
 ```
 
-## Prerequisites
+## Quick Start
 
-### 数据库安装 (Docker)
+### 0. 前置依赖
 
-使用 Docker 一键部署 PostgreSQL + pgvector：
+| 组件 | 要求 |
+|------|------|
+| Python | >= 3.13 |
+| PostgreSQL | 17 + pgvector |
+| 包管理 | [uv](https://docs.astral.sh/uv/) |
+| LLM / Embedding | vLLM 或任何 OpenAI 兼容 API |
+
+### 1. 启动数据库
 
 ```bash
-# 启动 PostgreSQL + pgvector 容器
 docker run -d --name pgvector \
   -e POSTGRES_PASSWORD=password \
   -p 5432:5432 \
   pgvector/pgvector:pg17
 
-# 创建数据库并启用 pgvector 扩展
 docker exec -it pgvector psql -U postgres -c "CREATE DATABASE replica;"
 docker exec -it pgvector psql -U postgres -d replica -c "CREATE EXTENSION IF NOT EXISTS vector;"
 ```
 
-数据库连接信息：
-
-| 参数 | 值 |
-|------|-----|
-| Host | localhost |
-| Port | 5432 |
-| User | postgres |
-| Password | password |
-| Database | replica |
-
-## Quick Start
+### 2. 安装 & 迁移
 
 ```bash
-# 安装依赖
 uv sync
-
-# 安装开发依赖
-uv sync --extra dev
-
-# 数据库迁移
 uv run alembic upgrade head
-
-# 启动服务
-uv run uvicorn replica.main:app --reload
 ```
 
-## API Endpoints
+### 3. 配置
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/v1/users` | 创建用户 |
-| GET | `/v1/users/{user_id}` | 获取用户信息 |
-| POST | `/v1/users/{user_id}/sessions` | 创建会话 |
-| GET | `/v1/users/{user_id}/sessions` | 获取用户会话列表 |
-| POST | `/v1/sessions/{session_id}/messages` | 发送消息 |
-| GET | `/v1/sessions/{session_id}/messages` | 获取会话消息 |
-| POST | `/v1/sessions/{session_id}/archive` | 归档会话并提取记忆 |
-| POST | `/v1/memory/search` | 混合记忆搜索 |
-| GET | `/v1/users/{user_id}/memory` | 获取用户记忆列表 |
-| POST | `/v1/users/{user_id}/memory` | 手动创建记忆 |
-| DELETE | `/v1/memory/{note_id}` | 删除记忆 |
-| POST | `/v1/context/build` | 构建 AI 上下文 |
-| GET | `/health` | 健康检查 |
+编辑 `config/settings.yaml`，填入你的模型服务地址：
+
+```yaml
+llm:
+  provider: "vllm"
+  base_url: "http://localhost:19000/v1"
+  model: "Qwen3.5-122B-A10B-FP8"
+
+embedding:
+  provider: "vllm"
+  base_url: "http://localhost:19001/v1"
+  model: "Qwen3-Embedding-4B"
+```
+
+> 完整配置项见 [`config/settings.yaml`](config/settings.yaml)，详细说明见 [`docs/guide.md`](docs/guide.md)。
+
+### 4. 启动服务
+
+**API 服务** (默认端口 `8790`)：
+
+```bash
+uv run uvicorn replica.main:app --host 0.0.0.0 --port 8790 --reload
+```
+
+**Web 前端** (默认端口 `8780`)：
+
+```bash
+cd web && npm install && npm run dev
+```
+
+启动后：
+
+| 地址 | 说明 |
+|------|------|
+| `http://localhost:8780` | Web UI |
+| `http://localhost:8790/docs` | Swagger API 文档 |
+| `http://localhost:8790/health` | 健康检查 |
 
 ## Development
 
 ```bash
-# 格式化
-uv run ruff format
-
-# 代码检查
-uv run ruff check --fix
-
-# 运行测试
-uv run pytest
+uv run ruff format          # 格式化
+uv run ruff check --fix     # Lint
+uv run pytest               # 测试
 ```
-
-## Configuration
-
-所有配置存放在 `config/settings.yaml`，支持以下配置项：
-
-- **database** — 数据库连接 URL
-- **llm** — LLM 推理服务配置 (provider, model, temperature 等)
-- **embedding** — 向量嵌入服务配置
-- **rerank** — 重排序服务配置
-- **memory** — 记忆提取参数 (语言、边界检测、聚类阈值等)
-- **compaction** — 上下文压缩阈值
-- **chunking** — 分块大小
-- **search** — 混合搜索权重与参数
 
 ## License
 

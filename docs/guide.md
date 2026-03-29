@@ -236,19 +236,19 @@ uv run alembic upgrade head
 uv run uvicorn replica.main:app --reload
 
 # 指定主机和端口
-uv run uvicorn replica.main:app --host 0.0.0.0 --port 8000 --reload
+uv run uvicorn replica.main:app --host 0.0.0.0 --port 8790 --reload
 
 # 生产模式（多 worker）
-uv run uvicorn replica.main:app --host 0.0.0.0 --port 8000 --workers 4
+uv run uvicorn replica.main:app --host 0.0.0.0 --port 8790 --workers 4
 ```
 
 启动后，访问以下地址验证：
 
 | 地址 | 说明 |
 |------|------|
-| `http://localhost:8000/health` | 健康检查，返回 `{"status": "ok"}` |
-| `http://localhost:8000/docs` | Swagger UI 交互式 API 文档 |
-| `http://localhost:8000/redoc` | ReDoc 风格 API 文档 |
+| `http://localhost:8790/health` | 健康检查，返回 `{"status": "ok"}` |
+| `http://localhost:8790/docs` | Swagger UI 交互式 API 文档 |
+| `http://localhost:8790/redoc` | ReDoc 风格 API 文档 |
 
 ---
 
@@ -920,12 +920,12 @@ Step 3: 并行提取记忆
 
 ### 8.1 场景一：对话式记忆管理
 
-以下示例使用 `curl` 演示完整的对话→记忆→检索流程。将 `localhost:8000` 替换为你的实际服务地址。
+以下示例使用 `curl` 演示完整的对话→记忆→检索流程。将 `localhost:8790` 替换为你的实际服务地址。
 
 **第 1 步：创建用户**
 
 ```bash
-curl -s -X POST http://localhost:8000/v1/users \
+curl -s -X POST http://localhost:8790/v1/users \
   -H "Content-Type: application/json" \
   -d '{
     "external_id": "alice-001",
@@ -938,7 +938,7 @@ curl -s -X POST http://localhost:8000/v1/users \
 **第 2 步：创建会话**
 
 ```bash
-curl -s -X POST http://localhost:8000/v1/users/${USER_ID}/sessions \
+curl -s -X POST http://localhost:8790/v1/users/${USER_ID}/sessions \
   -H "Content-Type: application/json" \
   -d '{"metadata": {"topic": "自我介绍"}}' | python -m json.tool
 ```
@@ -949,22 +949,22 @@ curl -s -X POST http://localhost:8000/v1/users/${USER_ID}/sessions \
 
 ```bash
 # 用户消息 1
-curl -s -X POST http://localhost:8000/v1/sessions/${SESSION_ID}/messages \
+curl -s -X POST http://localhost:8790/v1/sessions/${SESSION_ID}/messages \
   -H "Content-Type: application/json" \
   -d '{"role": "user", "content": "你好！我叫 Alice，我是一名软件工程师，住在上海。"}'
 
 # 助手回复 1
-curl -s -X POST http://localhost:8000/v1/sessions/${SESSION_ID}/messages \
+curl -s -X POST http://localhost:8790/v1/sessions/${SESSION_ID}/messages \
   -H "Content-Type: application/json" \
   -d '{"role": "assistant", "content": "你好 Alice！很高兴认识你。上海是个很棒的城市！"}'
 
 # 用户消息 2
-curl -s -X POST http://localhost:8000/v1/sessions/${SESSION_ID}/messages \
+curl -s -X POST http://localhost:8790/v1/sessions/${SESSION_ID}/messages \
   -H "Content-Type: application/json" \
   -d '{"role": "user", "content": "我平时喜欢爬山，上周刚去了黄山。我还养了一只叫 Mimi 的猫。"}'
 
 # 助手回复 2
-curl -s -X POST http://localhost:8000/v1/sessions/${SESSION_ID}/messages \
+curl -s -X POST http://localhost:8790/v1/sessions/${SESSION_ID}/messages \
   -H "Content-Type: application/json" \
   -d '{"role": "assistant", "content": "黄山的风景一定很美！Mimi 是什么品种的猫呢？"}'
 ```
@@ -972,7 +972,7 @@ curl -s -X POST http://localhost:8000/v1/sessions/${SESSION_ID}/messages \
 **第 4 步：手动创建长期记忆**
 
 ```bash
-curl -s -X POST http://localhost:8000/v1/users/${USER_ID}/memory \
+curl -s -X POST http://localhost:8790/v1/users/${USER_ID}/memory \
   -H "Content-Type: application/json" \
   -d '{
     "content": "Alice 是一名住在上海的软件工程师，喜欢爬山，养了一只叫 Mimi 的猫。",
@@ -983,7 +983,7 @@ curl -s -X POST http://localhost:8000/v1/users/${USER_ID}/memory \
 **第 5 步：搜索记忆**
 
 ```bash
-curl -s -X POST http://localhost:8000/v1/memory/search \
+curl -s -X POST http://localhost:8790/v1/memory/search \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "'${USER_ID}'",
@@ -995,7 +995,7 @@ curl -s -X POST http://localhost:8000/v1/memory/search \
 **第 6 步：构建上下文**
 
 ```bash
-curl -s -X POST http://localhost:8000/v1/context/build \
+curl -s -X POST http://localhost:8790/v1/context/build \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "'${USER_ID}'",
@@ -1007,7 +1007,7 @@ curl -s -X POST http://localhost:8000/v1/context/build \
 **第 7 步：归档会话**
 
 ```bash
-curl -s -X POST http://localhost:8000/v1/sessions/${SESSION_ID}/archive | python -m json.tool
+curl -s -X POST http://localhost:8790/v1/sessions/${SESSION_ID}/archive | python -m json.tool
 ```
 
 ### 8.2 场景二：Memorize 管线记忆摄入
@@ -1015,7 +1015,7 @@ curl -s -X POST http://localhost:8000/v1/sessions/${SESSION_ID}/archive | python
 适用于批量导入已有对话数据或与外部系统集成。
 
 ```bash
-curl -s -X POST http://localhost:8000/v1/memories \
+curl -s -X POST http://localhost:8790/v1/memories \
   -H "Content-Type: application/json" \
   -d '{
     "new_raw_data_list": [
