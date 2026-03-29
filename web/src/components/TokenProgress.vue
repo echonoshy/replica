@@ -22,7 +22,7 @@ const barColor = computed(() => {
 
 const statusText = computed(() => {
   if (props.current >= hard.value) return 'Hard Compaction'
-  if (props.current >= soft.value) return 'Memory Flush'
+  if (props.current >= soft.value) return 'Soft Compaction'
   return 'Normal'
 })
 </script>

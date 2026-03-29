@@ -3,8 +3,13 @@ import { ref, computed, nextTick } from 'vue'
 import { createUser } from '../api/users'
 import { createSession, archiveSession } from '../api/sessions'
 import { sendMessage, getMessages, type Message } from '../api/messages'
-import { createMemory, searchMemory, type SearchResult } from '../api/memory'
-import { buildContext, type ContextResponse } from '../api/memory'
+import {
+  createEvergreenMemory,
+  searchKnowledge,
+  buildContext,
+  type KnowledgeSearchResult,
+  type ContextResponse,
+} from '../api/memory'
 import { chatStream } from '../api/chat'
 import ApiMonitor from '../components/ApiMonitor.vue'
 import TokenProgress from '../components/TokenProgress.vue'
@@ -37,7 +42,7 @@ const useMemory = ref(true)
 const chatMode = ref(true)
 
 const searchQuery = ref('')
-const searchResults = ref<SearchResult[]>([])
+const searchResults = ref<KnowledgeSearchResult[]>([])
 const searching = ref(false)
 
 const contextQuery = ref('')
@@ -45,10 +50,23 @@ const contextResult = ref<ContextResponse | null>(null)
 const buildingCtx = ref(false)
 
 const memoryContent = ref('')
-const memoryType = ref<'evergreen' | 'daily'>('evergreen')
+const memoryCategory = ref<'fact' | 'preference' | 'relationship' | 'goal'>('fact')
 
 const activeTab = ref<'monitor' | 'search' | 'context'>('monitor')
 const chatContainer = ref<HTMLElement>()
+
+const categoryLabels: Record<string, string> = {
+  fact: '事实',
+  preference: '偏好',
+  relationship: '关系',
+  goal: '目标',
+}
+
+const entryTypeLabels: Record<string, string> = {
+  episode: '情节',
+  event: '事件',
+  foresight: '预见',
+}
 
 const currentStep = computed(() => {
   if (!userId.value) return 0
@@ -165,7 +183,7 @@ async function scrollToBottom() {
 
 async function handleCreateMemory() {
   if (!userId.value || !memoryContent.value.trim()) return
-  await createMemory(userId.value, memoryContent.value.trim(), memoryType.value)
+  await createEvergreenMemory(userId.value, memoryContent.value.trim(), memoryCategory.value)
   memoryContent.value = ''
 }
 
@@ -173,7 +191,7 @@ async function handleSearch() {
   if (!userId.value || !searchQuery.value.trim()) return
   searching.value = true
   try {
-    const { data } = await searchMemory(userId.value, searchQuery.value.trim())
+    const { data } = await searchKnowledge(userId.value, searchQuery.value.trim())
     searchResults.value = data
     activeTab.value = 'search'
   } finally {
@@ -248,7 +266,7 @@ function onKeydown(e: KeyboardEvent) {
           <button v-if="!userId" class="btn btn-primary btn-sm" @click="handleCreateUser">
             <UserPlus :size="14" /> 创建
           </button>
-          <span v-else class="badge badge-success">✓ 完成</span>
+          <span v-else class="badge badge-success">完成</span>
         </div>
       </div>
 
@@ -270,7 +288,7 @@ function onKeydown(e: KeyboardEvent) {
           >
             <MessageSquarePlus :size="14" /> 创建
           </button>
-          <span v-else class="badge badge-success">✓ 活跃</span>
+          <span v-else class="badge badge-success">活跃</span>
         </div>
       </div>
 
@@ -278,7 +296,7 @@ function onKeydown(e: KeyboardEvent) {
       <div class="chat-section card" :class="{ disabled: currentStep < 2 }">
         <div class="chat-head">
           <h3>
-            {{ chatMode ? '💬 AI 对话' : '📝 手动消息' }}
+            {{ chatMode ? 'AI 对话' : '手动消息' }}
           </h3>
           <TokenProgress v-if="sessionId" :current="tokenCount" />
         </div>
@@ -352,16 +370,18 @@ function onKeydown(e: KeyboardEvent) {
       <!-- Tools Row -->
       <div class="actions-row">
         <div class="action-group card">
-          <h4><BookPlus :size="14" /> 创建记忆</h4>
+          <h4><BookPlus :size="14" /> 添加 Evergreen 记忆</h4>
           <div class="action-form">
-            <select v-model="memoryType" class="input" style="width: 120px">
-              <option value="evergreen">Evergreen</option>
-              <option value="daily">Daily</option>
+            <select v-model="memoryCategory" class="input" style="width: 100px">
+              <option value="fact">事实</option>
+              <option value="preference">偏好</option>
+              <option value="relationship">关系</option>
+              <option value="goal">目标</option>
             </select>
             <input
               v-model="memoryContent"
               class="input"
-              placeholder="记忆内容…"
+              placeholder="长期记忆内容…"
               :disabled="!userId"
             />
             <button
@@ -375,7 +395,7 @@ function onKeydown(e: KeyboardEvent) {
         </div>
 
         <div class="action-group card">
-          <h4><Search :size="14" /> 搜索记忆</h4>
+          <h4><Search :size="14" /> 知识库搜索</h4>
           <div class="action-form">
             <input
               v-model="searchQuery"
@@ -450,14 +470,24 @@ function onKeydown(e: KeyboardEvent) {
           <div v-if="searchResults.length === 0" class="empty-state">
             暂无搜索结果
           </div>
-          <div v-for="(r, i) in searchResults" :key="i" class="search-hit card">
+          <div v-for="r in searchResults" :key="r.id" class="search-hit card">
             <div class="hit-header">
-              <span class="badge badge-accent">Score: {{ r.score.toFixed(3) }}</span>
-              <span class="mono" style="font-size:11px; color:var(--text-tertiary)">
-                {{ r.note_id.slice(0, 8) }}…
+              <span class="badge badge-accent">{{ r.score.toFixed(3) }}</span>
+              <span
+                :class="[
+                  'badge',
+                  r.entry_type === 'episode'
+                    ? 'badge-info'
+                    : r.entry_type === 'event'
+                      ? 'badge-success'
+                      : 'badge-accent',
+                ]"
+              >
+                {{ entryTypeLabels[r.entry_type] || r.entry_type }}
               </span>
             </div>
-            <p class="hit-text">{{ r.chunk_text }}</p>
+            <p v-if="r.title" class="hit-title">{{ r.title }}</p>
+            <p class="hit-text">{{ r.content }}</p>
           </div>
         </div>
 
@@ -466,18 +496,30 @@ function onKeydown(e: KeyboardEvent) {
             暂无上下文数据
           </div>
           <template v-else>
-            <h4 class="ctx-section-title">Evergreen Memories ({{ contextResult.evergreen_memories.length }})</h4>
+            <h4 class="ctx-section-title">
+              <span class="layer-dot layer-1-dot" />
+              Layer 1 · Evergreen ({{ contextResult.evergreen_memories.length }})
+            </h4>
             <div v-for="m in contextResult.evergreen_memories" :key="m.id" class="ctx-item card">
+              <span class="badge badge-accent" style="margin-right: 6px">
+                {{ categoryLabels[m.category] || m.category }}
+              </span>
               {{ m.content }}
             </div>
 
-            <h4 class="ctx-section-title">Relevant Memories ({{ contextResult.relevant_memories.length }})</h4>
-            <div v-for="(r, i) in contextResult.relevant_memories" :key="i" class="ctx-item card">
-              <span class="badge badge-accent" style="margin-right:8px">{{ r.score.toFixed(3) }}</span>
-              {{ r.chunk_text }}
+            <h4 class="ctx-section-title">
+              <span class="layer-dot layer-3-dot" />
+              Layer 3 · Knowledge ({{ contextResult.relevant_knowledge.length }})
+            </h4>
+            <div v-for="r in contextResult.relevant_knowledge" :key="r.id" class="ctx-item card">
+              <span class="badge badge-accent" style="margin-right: 8px">{{ r.score.toFixed(3) }}</span>
+              {{ r.content }}
             </div>
 
-            <h4 class="ctx-section-title">Recent Messages ({{ contextResult.recent_messages.length }})</h4>
+            <h4 class="ctx-section-title">
+              <span class="layer-dot layer-2-dot" />
+              Layer 2 · Messages ({{ contextResult.recent_messages.length }})
+            </h4>
             <JsonViewer :data="contextResult.recent_messages" max-height="300px" />
           </template>
         </div>
@@ -829,8 +871,15 @@ function onKeydown(e: KeyboardEvent) {
 .hit-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 6px;
   margin-bottom: 8px;
+}
+
+.hit-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
 }
 
 .hit-text {
@@ -840,6 +889,9 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 .ctx-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
   font-weight: 600;
   color: var(--text-tertiary);
@@ -850,6 +902,25 @@ function onKeydown(e: KeyboardEvent) {
 
 .ctx-section-title:first-child {
   margin-top: 0;
+}
+
+.layer-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.layer-1-dot {
+  background: #d97757;
+}
+
+.layer-2-dot {
+  background: #1a7f64;
+}
+
+.layer-3-dot {
+  background: #4a7fbf;
 }
 
 .ctx-item {

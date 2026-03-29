@@ -36,7 +36,7 @@ const features = [
   },
   {
     title: 'Memory Explorer',
-    desc: '浏览和管理用户记忆，测试混合搜索，查看记忆分块和向量得分',
+    desc: '三层记忆架构可视化：Evergreen 长期记忆、Session 上下文、Knowledge 知识库检索',
     icon: Brain,
     route: '/memory',
     color: 'var(--info)',
@@ -80,22 +80,24 @@ const features = [
         <Activity :size="18" />
         系统架构
       </h2>
-      <pre class="arch-diagram mono">┌─────────────────────────────────────────────────────────┐
-│                    FastAPI HTTP Server                   │
-│                   (replica.main:app)                     │
-├──────────┬──────────┬──────────┬──────────┬──────────────┤
-│ /v1/users│/v1/sess- │/v1/sess- │/v1/memory│/v1/memories  │
-│          │ ions     │ ions/msg │ /search  │ (memorize)   │
-│          │          │          │ /context │              │
-│          │          │          │ /build   │              │
-└────┬─────┴────┬─────┴────┬─────┴────┬─────┴──────┬───────┘
-     │          │          │          │            │
-     ▼          ▼          ▼          ▼            ▼
-  ┌──────────────────────────────────────────────────────┐
-  │                  Service Layer                        │
-  │  memory_service │ context_service │ compaction_svc    │
-  │  embedding_svc  │ memorize_svc (MemorizePipeline)    │
-  └────────────────────────┬─────────────────────────────┘
+      <pre class="arch-diagram mono">┌──────────────────────────────────────────────────────────┐
+│                    FastAPI HTTP Server                    │
+│                   (replica.main:app)                      │
+├──────────┬──────────┬──────────┬───────────┬─────────────┤
+│ /v1/users│/v1/sess- │/v1/sess- │/v1/users/ │/v1/memories │
+│          │ ions     │ ions/chat│ evergreen │ (memorize)  │
+│          │          │          │/v1/knowl- │             │
+│          │          │          │ edge/     │             │
+│          │          │          │ search    │             │
+│          │          │          │/v1/context│             │
+└────┬─────┴────┬─────┴────┬─────┴─────┬─────┴──────┬──────┘
+     │          │          │           │            │
+     ▼          ▼          ▼           ▼            ▼
+  ┌───────────────────────────────────────────────────────┐
+  │                   Service Layer                        │
+  │  memory_service │ context_service │ compaction_svc     │
+  │  embedding_svc  │ memorize_svc (MemorizePipeline)     │
+  └────────────────────────┬──────────────────────────────┘
                            │
      ┌─────────────────────┼───────────────────────┐
      ▼                     ▼                       ▼
@@ -107,6 +109,10 @@ const features = [
                            ▼
               ┌──────────────────────┐
               │  PostgreSQL + pgvec  │
+              │  ├ evergreen_memories│
+              │  ├ knowledge_entries │
+              │  ├ messages/sessions │
+              │  └ memcells/users    │
               └──────────────────────┘</pre>
     </section>
 
