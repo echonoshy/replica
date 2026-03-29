@@ -6,6 +6,7 @@ import {
   Users,
   MessageSquare,
   Brain,
+  Database,
   ArrowRight,
 } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
@@ -46,6 +47,13 @@ const features = [
     icon: Users,
     route: '/sessions',
     color: 'var(--success)',
+  },
+  {
+    title: 'Database',
+    desc: '浏览 PostgreSQL 和 pgvector 表数据，查看向量维度与行内容',
+    icon: Database,
+    route: '/database',
+    color: 'var(--text-secondary)',
   },
 ]
 </script>

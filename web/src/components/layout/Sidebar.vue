@@ -5,6 +5,7 @@ import {
   MessageSquareCode,
   Brain,
   MessagesSquare,
+  Database,
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -14,6 +15,7 @@ const navItems = [
   { path: '/playground', name: 'Playground', icon: MessageSquareCode },
   { path: '/memory', name: 'Memory', icon: Brain },
   { path: '/sessions', name: 'Sessions', icon: MessagesSquare },
+  { path: '/database', name: 'Database', icon: Database },
 ]
 </script>
 

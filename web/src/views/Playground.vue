@@ -19,7 +19,6 @@ import {
   BookPlus,
   Bot,
   User as UserIcon,
-  Loader2,
   Square,
   ToggleLeft,
   ToggleRight,

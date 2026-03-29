@@ -23,6 +23,11 @@ const router = createRouter({
       name: 'sessions',
       component: () => import('../views/Sessions.vue'),
     },
+    {
+      path: '/database',
+      name: 'database',
+      component: () => import('../views/DatabaseExplorer.vue'),
+    },
   ],
 })
 
