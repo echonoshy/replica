@@ -14,10 +14,10 @@ exec uv run vllm serve "${MODEL_PATH}" \
   --port "${PORT}" \
   --served-model-name Qwen3.5-122B-A10B-FP8 \
   --tensor-parallel-size 4 \
-  --max-model-len 65536 \
+  --max-model-len 200000 \
   --reasoning-parser qwen3 \
   --enable-auto-tool-choice \
   --tool-call-parser qwen3_coder \
-  --gpu-memory-utilization 0.8 \
+  --gpu-memory-utilization 0.65 \
   --disable-custom-all-reduce \
   --trust-remote-code
