@@ -134,10 +134,10 @@ class TestSessionCRUD:
         await db.commit()
         await db.refresh(session)
 
-        session.status = SessionStatus.archived
+        session.status = SessionStatus.deleted
         await db.commit()
         await db.refresh(session)
-        assert session.status == SessionStatus.archived
+        assert session.status == SessionStatus.deleted
 
         await db.delete(session)
         await db.delete(user)
@@ -370,7 +370,6 @@ class TestMemCellCRUD:
     async def test_create_memcell(self, db: AsyncSession):
         memcell = MemCell(
             user_id="test_user_001",
-            group_id="test_group_001",
             timestamp=datetime.now(timezone.utc),
             summary="Test conversation about project planning",
             data_type="Conversation",

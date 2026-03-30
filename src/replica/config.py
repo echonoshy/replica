@@ -64,8 +64,6 @@ class MemoryConfig(BaseModel):
     language: str = "en"
     boundary_max_tokens: int = 8192
     boundary_max_messages: int = 50
-    cluster_similarity_threshold: float = 0.3
-    cluster_max_time_gap_days: int = 7
     profile_min_memcells: int = 1
     profile_min_confidence: float = 0.6
     profile_life_max_items: int = 25

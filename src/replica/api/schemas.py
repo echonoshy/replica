@@ -115,7 +115,6 @@ class KnowledgeSearchResult(BaseModel):
 class KnowledgeEntryOut(BaseModel):
     id: uuid.UUID
     user_id: str | None
-    group_id: str | None
     entry_type: EntryType
     title: str | None
     content: str
@@ -148,9 +147,6 @@ class MemorizeRequest(BaseModel):
     new_raw_data_list: list[dict]
     history_raw_data_list: list[dict] | None = None
     user_id_list: list[str] | None = None
-    group_id: str | None = None
-    group_name: str | None = None
-    scene: str = "assistant"
 
 
 class MemorizeResponse(BaseModel):

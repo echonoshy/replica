@@ -33,7 +33,6 @@ class KnowledgeEntry(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-    group_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     entry_type: Mapped[EntryType] = mapped_column(ENUM(EntryType, name="entry_type"))
     title: Mapped[str | None] = mapped_column(Text, nullable=True)
     content: Mapped[str] = mapped_column(Text)

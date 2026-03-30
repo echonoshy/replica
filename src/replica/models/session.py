@@ -11,7 +11,6 @@ from replica.db.database import Base
 
 class SessionStatus(str, enum.Enum):
     active = "active"
-    archived = "archived"
     deleted = "deleted"
 
 

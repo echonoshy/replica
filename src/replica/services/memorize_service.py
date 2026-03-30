@@ -24,8 +24,6 @@ from replica.extractors.episode_extractor import EpisodeMemoryExtractor
 from replica.extractors.event_log_extractor import EventLogExtractor
 from replica.extractors.foresight_extractor import ForesightExtractor
 from replica.extractors.profile_extractor import ProfileMemoryExtractor
-from replica.extractors.group_profile_extractor import GroupProfileExtractor
-from replica.extractors.cluster_manager import ClusterManager
 from replica.models.memcell import MemCell
 from replica.models.knowledge_entry import KnowledgeEntry, EntryType
 
@@ -41,8 +39,6 @@ class MemorizePipeline:
         self.event_log_extractor = EventLogExtractor()
         self.foresight_extractor = ForesightExtractor()
         self.profile_extractor = ProfileMemoryExtractor()
-        self.group_profile_extractor = GroupProfileExtractor()
-        self.cluster_manager = ClusterManager()
 
     async def memorize(
         self,
@@ -50,9 +46,6 @@ class MemorizePipeline:
         new_raw_data_list: list[dict],
         history_raw_data_list: list[dict] | None = None,
         user_id_list: list[str] | None = None,
-        group_id: str | None = None,
-        group_name: str | None = None,
-        scene: str = "assistant",
         force: bool = False,
     ) -> int:
         """Main memorize entry point.
@@ -68,8 +61,6 @@ class MemorizePipeline:
                 original_data=all_data,
                 timestamp=datetime.now(timezone.utc),
                 summary="",
-                group_id=group_id,
-                group_name=group_name,
                 data_type=RawDataType.CONVERSATION,
             )
         else:
@@ -80,8 +71,6 @@ class MemorizePipeline:
                 history_raw_data_list=history,
                 new_raw_data_list=new_data,
                 user_id_list=user_id_list or [],
-                group_id=group_id,
-                group_name=group_name,
             )
 
             memcell_data, status = await self.memcell_extractor.extract_memcell(request)
@@ -92,7 +81,6 @@ class MemorizePipeline:
         # Step 2: Save MemCell to DB
         memcell_db = MemCell(
             user_id=memcell_data.user_id_list[0] if memcell_data.user_id_list else None,
-            group_id=memcell_data.group_id,
             timestamp=memcell_data.timestamp or datetime.now(timezone.utc),
             summary=memcell_data.summary,
             data_type=memcell_data.data_type.value,
@@ -108,17 +96,14 @@ class MemorizePipeline:
         extract_req = MemoryExtractRequest(
             memcell=memcell_data,
             user_id=memcell_data.user_id_list[0] if memcell_data.user_id_list else None,
-            group_id=group_id,
         )
 
         # 3a: Episode extraction
-        is_group = scene == "group_chat"
-        episode = await self.episode_extractor.extract_memory(extract_req, is_group=is_group)
+        episode = await self.episode_extractor.extract_memory(extract_req)
         if episode:
             embedding = episode.extend.get("embedding") if episode.extend else None
             entry = KnowledgeEntry(
                 user_id=episode.user_id,
-                group_id=episode.group_id,
                 entry_type=EntryType.episode,
                 title=episode.title,
                 content=episode.episode,
@@ -150,7 +135,6 @@ class MemorizePipeline:
                 )
                 entry = KnowledgeEntry(
                     user_id=event_log.user_id,
-                    group_id=event_log.group_id,
                     entry_type=EntryType.event,
                     title=fact[:100] if len(fact) > 100 else fact,
                     content=fact,
@@ -171,7 +155,6 @@ class MemorizePipeline:
         for fs in foresights:
             entry = KnowledgeEntry(
                 user_id=fs.user_id,
-                group_id=fs.group_id,
                 entry_type=EntryType.foresight,
                 title=fs.content[:100] if len(fs.content) > 100 else fs.content,
                 content=fs.content,

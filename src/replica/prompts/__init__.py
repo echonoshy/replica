@@ -30,10 +30,6 @@ _PROMPT_REGISTRY: dict[str, dict[str, str]] = {
         "en": "replica.prompts.en.episode_mem_prompts",
         "zh": "replica.prompts.zh.episode_mem_prompts",
     },
-    "GROUP_EPISODE_GENERATION_PROMPT": {
-        "en": "replica.prompts.en.episode_mem_prompts",
-        "zh": "replica.prompts.zh.episode_mem_prompts",
-    },
     "DEFAULT_CUSTOM_INSTRUCTIONS": {
         "en": "replica.prompts.en.episode_mem_prompts",
         "zh": "replica.prompts.zh.episode_mem_prompts",
@@ -58,23 +54,6 @@ _PROMPT_REGISTRY: dict[str, dict[str, str]] = {
     "CONVERSATION_PROFILE_EVIDENCE_COMPLETION_PROMPT": {
         "en": "replica.prompts.en.profile_mem_evidence_completion_prompt",
         "zh": "replica.prompts.zh.profile_mem_evidence_completion_prompt",
-    },
-    # Group Profile
-    "CONTENT_ANALYSIS_PROMPT": {
-        "en": "replica.prompts.en.group_profile_prompts",
-        "zh": "replica.prompts.zh.group_profile_prompts",
-    },
-    "BEHAVIOR_ANALYSIS_PROMPT": {
-        "en": "replica.prompts.en.group_profile_prompts",
-        "zh": "replica.prompts.zh.group_profile_prompts",
-    },
-    "AGGREGATION_PROMPT": {
-        "en": "replica.prompts.en.group_profile_prompts",
-        "zh": "replica.prompts.zh.group_profile_prompts",
-    },
-    "GROUP_PROFILE_MERGE_PROMPT": {
-        "en": "replica.prompts.en.group_profile_merge_prompts",
-        "zh": "replica.prompts.zh.group_profile_merge_prompts",
     },
     # Foresight
     "FORESIGHT_GENERATION_PROMPT": {

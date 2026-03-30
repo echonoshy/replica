@@ -141,8 +141,6 @@ class ConvMemCellExtractor:
             original_data=messages,
             timestamp=ts,
             summary=summary,
-            group_id=request.group_id,
-            group_name=request.group_name,
             participants=participants,
         )
 

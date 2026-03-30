@@ -3,6 +3,8 @@
 Handles:
 - Hard compaction: when token_count >= hard_threshold, summarize old messages,
   extract knowledge from them, and soft-delete them.
+- Uses SELECT FOR UPDATE on the session row to prevent concurrent compactions.
+- Replaces any existing compaction_summary rather than stacking summaries.
 """
 
 import logging
@@ -20,8 +22,19 @@ logger = logging.getLogger(__name__)
 
 async def check_and_compact(db: AsyncSession, session: Session) -> None:
     """Check if session needs compaction and execute if so."""
-    if session.token_count >= settings.hard_threshold_tokens:
-        await compact(db, session)
+    if session.token_count < settings.hard_threshold_tokens:
+        return
+
+    locked = await db.execute(select(Session).where(Session.id == session.id).with_for_update(skip_locked=True))
+    locked_session = locked.scalar_one_or_none()
+    if locked_session is None:
+        logger.debug("Session %s already being compacted by another request, skipping", session.id)
+        return
+
+    if locked_session.token_count < settings.hard_threshold_tokens:
+        return
+
+    await compact(db, locked_session)
 
 
 async def compact(db: AsyncSession, session: Session) -> None:
@@ -36,24 +49,31 @@ async def compact(db: AsyncSession, session: Session) -> None:
     if not all_messages:
         return
 
+    chat_messages = [m for m in all_messages if m.message_type == MessageType.message]
+    old_summaries = [m for m in all_messages if m.message_type == MessageType.compaction_summary]
+
     keep = []
     kept_tokens = 0
-    for msg in reversed(all_messages):
+    for msg in reversed(chat_messages):
         if kept_tokens + msg.token_count > settings.keep_recent_tokens:
             break
         keep.append(msg)
         kept_tokens += msg.token_count
     keep_ids = {m.id for m in keep}
 
-    old_messages = [m for m in all_messages if m.id not in keep_ids]
-    if not old_messages:
+    old_chat = [m for m in chat_messages if m.id not in keep_ids]
+    if not old_chat:
+        logger.debug("No chat messages to compact for session %s, skipping", session.id)
         return
 
-    # Extract knowledge from old messages before compacting them
-    await _extract_knowledge_from_messages(db, session, old_messages)
+    await _extract_knowledge_from_messages(db, session, old_chat)
 
-    # TODO: replace with LLM summarization
-    summary_text = _format_messages_as_summary(old_messages)
+    summary_text = _build_compacted_summary(old_summaries, old_chat)
+
+    for msg in old_chat:
+        msg.is_compacted = True
+    for msg in old_summaries:
+        msg.is_compacted = True
 
     summary = Message(
         session_id=session.id,
@@ -64,12 +84,17 @@ async def compact(db: AsyncSession, session: Session) -> None:
     )
     db.add(summary)
 
-    for msg in old_messages:
-        msg.is_compacted = True
-
     session.token_count = kept_tokens + summary.token_count
     session.compaction_count += 1
     await db.commit()
+    logger.info(
+        "Compaction #%d for session %s: %d msgs compacted, token_count %d → %d",
+        session.compaction_count,
+        session.id,
+        len(old_chat) + len(old_summaries),
+        kept_tokens + sum(m.token_count for m in old_chat) + sum(m.token_count for m in old_summaries),
+        session.token_count,
+    )
 
 
 async def _extract_knowledge_from_messages(db: AsyncSession, session: Session, messages: list[Message]) -> None:
@@ -88,7 +113,6 @@ async def _extract_knowledge_from_messages(db: AsyncSession, session: Session, m
             db,
             new_raw_data_list=raw_data,
             user_id_list=[user_id_str] if user_id_str else None,
-            scene="assistant",
             force=True,
         )
         logger.info("Auto-memorize during compaction: extracted %d knowledge entries", count)
@@ -96,9 +120,20 @@ async def _extract_knowledge_from_messages(db: AsyncSession, session: Session, m
         logger.exception("Auto-memorize during compaction failed, continuing with compaction")
 
 
-def _format_messages_as_summary(messages: list[Message]) -> str:
-    """Simple formatting — replace with LLM summarization in production."""
-    lines = []
-    for msg in messages:
-        lines.append(f"[{msg.role.value}]: {msg.content}")
-    return "\n\n".join(lines)
+def _build_compacted_summary(old_summaries: list[Message], old_chat: list[Message]) -> str:
+    """Build a compacted summary from previous summaries + new chat messages.
+
+    Keeps the latest previous summary as-is (it already covers earlier history)
+    and appends only the new chat messages, avoiding the snowball effect of
+    re-including all previous summary content.
+    """
+    parts: list[str] = []
+
+    if old_summaries:
+        latest_summary = max(old_summaries, key=lambda m: m.created_at)
+        parts.append(latest_summary.content)
+
+    for msg in old_chat:
+        parts.append(f"[{msg.role.value}]: {msg.content}")
+
+    return "\n\n".join(parts)

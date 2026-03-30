@@ -61,7 +61,6 @@ class EventLogExtractor:
                     return EventLog(
                         memory_type=MemoryType.EVENT_LOG,
                         user_id=request.user_id,
-                        group_id=request.group_id or memcell.group_id,
                         timestamp=memcell.timestamp,
                         ori_event_id_list=[memcell.event_id],
                         time=time_str,

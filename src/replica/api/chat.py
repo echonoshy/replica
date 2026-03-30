@@ -183,7 +183,10 @@ async def _sse_generator(
     yield f"data: {json.dumps({'context': context_payload})}\n\n"
     yield f"data: {json.dumps({'done': True, 'message_id': str(assistant_msg.id), 'token_count': session.token_count})}\n\n"
 
-    await check_and_compact(db, session)
+    try:
+        await check_and_compact(db, session)
+    except Exception:
+        logger.exception("Compaction failed for session %s", session_id)
 
 
 @router.post("/sessions/{session_id}/chat")

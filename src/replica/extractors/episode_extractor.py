@@ -26,7 +26,6 @@ class EpisodeMemoryExtractor:
     async def extract_memory(
         self,
         request: MemoryExtractRequest,
-        is_group: bool = False,
     ) -> EpisodeMemory | None:
         """Extract an episode memory from a MemCell."""
         memcell = request.memcell
@@ -39,7 +38,7 @@ class EpisodeMemoryExtractor:
         if memcell.timestamp:
             timestamp_str = memcell.timestamp.strftime("%B %d, %Y (%A) at %I:%M %p UTC")
 
-        prompt_name = "GROUP_EPISODE_GENERATION_PROMPT" if is_group else "EPISODE_GENERATION_PROMPT"
+        prompt_name = "EPISODE_GENERATION_PROMPT"
         custom_instructions = get_prompt("DEFAULT_CUSTOM_INSTRUCTIONS")
         prompt_template = get_prompt(prompt_name)
 
@@ -69,7 +68,6 @@ class EpisodeMemoryExtractor:
                     episode = EpisodeMemory(
                         memory_type=MemoryType.EPISODIC_MEMORY,
                         user_id=request.user_id,
-                        group_id=request.group_id or memcell.group_id,
                         timestamp=memcell.timestamp,
                         ori_event_id_list=[memcell.event_id],
                         title=title,

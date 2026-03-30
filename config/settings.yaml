@@ -41,9 +41,6 @@ memory:
   # Boundary detection
   boundary_max_tokens: 8192
   boundary_max_messages: 50
-  # Clustering
-  cluster_similarity_threshold: 0.3
-  cluster_max_time_gap_days: 7
   # Profile extraction
   profile_min_memcells: 1
   profile_min_confidence: 0.6

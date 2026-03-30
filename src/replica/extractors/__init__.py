@@ -14,7 +14,6 @@ class MemoryType(str, enum.Enum):
     FORESIGHT = "foresight"
     EVENT_LOG = "event_log"
     PROFILE = "profile"
-    GROUP_PROFILE = "group_profile"
 
 
 class RetrieveMethod(str, enum.Enum):
@@ -50,8 +49,6 @@ class MemCellData:
     timestamp: datetime | None = None
     summary: str = ""
     subject: str | None = None
-    group_id: str | None = None
-    group_name: str | None = None
     participants: list[str] = field(default_factory=list)
     data_type: RawDataType = RawDataType.CONVERSATION
     keywords: list[str] | None = None
@@ -68,7 +65,6 @@ class BaseMemory:
     user_id: str | None = None
     timestamp: datetime | None = None
     ori_event_id_list: list[str] = field(default_factory=list)
-    group_id: str | None = None
     subject: str | None = None
     summary: str | None = None
 
@@ -78,7 +74,6 @@ class EpisodeMemory(BaseMemory):
     title: str = ""
     episode: str = ""
     user_name: str | None = None
-    group_name: str | None = None
     participants: list[str] = field(default_factory=list)
     memcell_event_id_list: list[str] = field(default_factory=list)
     parent_type: str | None = None
@@ -127,13 +122,6 @@ class ProfileMemory(BaseMemory):
     group_importance_evidence: dict | None = None
 
 
-@dataclass
-class GroupProfileMemory(BaseMemory):
-    group_name: str | None = None
-    topics: list[dict] = field(default_factory=list)
-    roles: dict = field(default_factory=dict)
-
-
 # ── Request types ───────────────────────────────────────────────────
 
 
@@ -142,15 +130,12 @@ class MemCellExtractRequest:
     history_raw_data_list: list[RawData]
     new_raw_data_list: list[RawData]
     user_id_list: list[str]
-    group_id: str | None = None
-    group_name: str | None = None
 
 
 @dataclass
 class MemoryExtractRequest:
     memcell: MemCellData
     user_id: str | None = None
-    group_id: str | None = None
     old_memory_list: list[BaseMemory] | None = None
 
 

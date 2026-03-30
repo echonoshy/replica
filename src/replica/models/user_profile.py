@@ -22,15 +22,13 @@ from replica.db.database import Base
 class UserProfile(Base):
     __tablename__ = "user_profiles"
     __table_args__ = (
-        UniqueConstraint("user_id", "group_id", "version", name="uq_user_profile_version"),
-        Index("ix_user_profile_latest", "user_id", "group_id", "is_latest"),
+        UniqueConstraint("user_id", "version", name="uq_user_profile_version"),
+        Index("ix_user_profile_latest", "user_id", "is_latest"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[str] = mapped_column(String(255), index=True)
     user_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    group_id: Mapped[str] = mapped_column(String(255), index=True, default="")
-    scenario: Mapped[str] = mapped_column(String(50), default="assistant")  # group_chat | assistant
 
     # Profile data stored as JSONB for flexibility (skills, personality, projects, etc.)
     profile_data: Mapped[dict] = mapped_column(JSONB, default=dict)

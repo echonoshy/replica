@@ -148,9 +148,7 @@ class TestMemorizeSchemas:
         r = MemorizeRequest(
             new_raw_data_list=[{"content": "hi", "speaker_name": "Alice"}],
         )
-        assert r.scene == "assistant"
         assert r.history_raw_data_list is None
-        assert r.group_id is None
 
     def test_memorize_response_defaults(self):
         r = MemorizeResponse(memory_count=5)

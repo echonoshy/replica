@@ -17,14 +17,10 @@ class DataType(str, enum.Enum):
 
 class MemCell(Base):
     __tablename__ = "memcells"
-    __table_args__ = (
-        Index("ix_memcells_user_deleted_ts", "user_id", "deleted_at", "timestamp"),
-        Index("ix_memcells_group_deleted_ts", "group_id", "deleted_at", "timestamp"),
-    )
+    __table_args__ = (Index("ix_memcells_user_deleted_ts", "user_id", "deleted_at", "timestamp"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-    group_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     subject: Mapped[str | None] = mapped_column(Text, nullable=True)

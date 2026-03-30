@@ -35,10 +35,6 @@ class TestGetPrompt:
         prompt = get_prompt("CONVERSATION_PROFILE_EXTRACTION_PROMPT", lang="en")
         assert isinstance(prompt, str)
 
-    def test_get_group_profile_prompt(self):
-        prompt = get_prompt("CONTENT_ANALYSIS_PROMPT", lang="en")
-        assert isinstance(prompt, str)
-
     def test_default_language_uses_config(self):
         prompt = get_prompt("EPISODE_GENERATION_PROMPT")
         assert isinstance(prompt, str)

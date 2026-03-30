@@ -31,8 +31,5 @@ async def memorize(body: MemorizeRequest, db: AsyncSession = Depends(get_db)):
         new_raw_data_list=body.new_raw_data_list,
         history_raw_data_list=body.history_raw_data_list,
         user_id_list=body.user_id_list,
-        group_id=body.group_id,
-        group_name=body.group_name,
-        scene=body.scene,
     )
     return MemorizeResponse(memory_count=count)
