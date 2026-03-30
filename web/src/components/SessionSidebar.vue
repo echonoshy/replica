@@ -159,12 +159,39 @@ async function handleDeleteUser() {
   }
 }
 
-function copyToClipboard(text: string) {
-  navigator.clipboard.writeText(text)
-  copiedId.value = text
-  setTimeout(() => {
-    copiedId.value = null
-  }, 1500)
+function fallbackCopy(text: string): boolean {
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  document.body.appendChild(textarea)
+  textarea.select()
+  try {
+    return document.execCommand('copy')
+  } finally {
+    document.body.removeChild(textarea)
+  }
+}
+
+async function copyToClipboard(text: string) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+    } else {
+      fallbackCopy(text)
+    }
+    copiedId.value = text
+    setTimeout(() => {
+      copiedId.value = null
+    }, 1500)
+  } catch {
+    if (fallbackCopy(text)) {
+      copiedId.value = text
+      setTimeout(() => {
+        copiedId.value = null
+      }, 1500)
+    }
+  }
 }
 
 function displayName(user: typeof store.currentUser): string {

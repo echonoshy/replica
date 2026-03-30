@@ -39,11 +39,37 @@ function renderMd(content: string): string {
 
 const sessionActive = computed(() => store.currentSession?.status === 'active')
 
-function copySessionId() {
+function fallbackCopy(text: string): boolean {
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  document.body.appendChild(textarea)
+  textarea.select()
+  try {
+    return document.execCommand('copy')
+  } finally {
+    document.body.removeChild(textarea)
+  }
+}
+
+async function copySessionId() {
   if (!store.currentSession) return
-  navigator.clipboard.writeText(store.currentSession.id)
-  copiedSessionId.value = true
-  setTimeout(() => { copiedSessionId.value = false }, 1500)
+  const text = store.currentSession.id
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+    } else {
+      fallbackCopy(text)
+    }
+    copiedSessionId.value = true
+    setTimeout(() => { copiedSessionId.value = false }, 1500)
+  } catch {
+    if (fallbackCopy(text)) {
+      copiedSessionId.value = true
+      setTimeout(() => { copiedSessionId.value = false }, 1500)
+    }
+  }
 }
 
 async function handleSend() {
