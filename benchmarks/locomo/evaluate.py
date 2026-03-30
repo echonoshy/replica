@@ -135,7 +135,7 @@ def evaluate_sample(
 
     for qa in qa_list:
         question = qa["question"]
-        answer = str(qa["answer"])
+        answer = str(qa.get("answer") or qa.get("adversarial_answer", ""))
         category = qa["category"]
 
         try:
