@@ -125,18 +125,19 @@ def evaluate_sample(
     user_id: str,
     top_k: int,
     entry_type: str | None,
+    pbar: tqdm | None = None,
 ) -> list[dict]:
     """Evaluate all QA pairs for a single LoCoMo sample."""
     sample_id = sample["sample_id"]
     qa_list = sample["qa"]
     results = []
+    f1_sum = 0.0
 
-    for qa in tqdm(qa_list, desc=f"Sample {sample_id}"):
+    for qa in qa_list:
         question = qa["question"]
         answer = str(qa["answer"])
         category = qa["category"]
 
-        # Step 1: Retrieve from Replica
         try:
             knowledge = search_knowledge(client, base_url, user_id, question, top_k, entry_type)
         except Exception as e:
@@ -155,7 +156,6 @@ def evaluate_sample(
 
         context = "\n".join(context_parts) if context_parts else "No relevant information found."
 
-        # Step 2: Generate answer via LLM
         if category == 5:
             prompt = QA_PROMPT_CAT5.format(context=context, question=question)
         else:
@@ -167,8 +167,8 @@ def evaluate_sample(
             logger.warning("LLM call failed for question '%s': %s", question[:50], e)
             prediction = ""
 
-        # Step 3: Evaluate
         f1 = evaluate_single_qa(prediction, answer, category)
+        f1_sum += f1
 
         result = {
             "sample_id": sample_id,
@@ -182,6 +182,11 @@ def evaluate_sample(
             "num_retrieved": len(knowledge),
         }
         results.append(result)
+
+        if pbar:
+            avg_f1 = f1_sum / len(results)
+            pbar.set_postfix_str(f"{sample_id} avg_f1={avg_f1:.3f}")
+            pbar.update(1)
 
     return results
 
@@ -215,12 +220,17 @@ def main():
     all_results = []
     t0 = time.time()
 
-    for sample in samples:
+    total_qa = sum(len(s["qa"]) for s in samples if user_mapping.get(s["sample_id"]))
+    pbar = tqdm(total=total_qa, desc="Evaluating", unit="qa")
+
+    for i, sample in enumerate(samples):
         sample_id = sample["sample_id"]
         user_id = user_mapping.get(sample_id)
         if not user_id:
             logger.warning("No user mapping for sample %s, skipping", sample_id)
             continue
+
+        pbar.set_description(f"[{i + 1}/{len(samples)}] {sample_id}")
 
         results = evaluate_sample(
             client=client,
@@ -233,14 +243,16 @@ def main():
             user_id=user_id,
             top_k=args.top_k,
             entry_type=args.entry_type,
+            pbar=pbar,
         )
         all_results.extend(results)
 
-        # Print per-sample stats
         sample_scores = aggregate_scores(results)
         logger.info(
             "Sample %s: overall=%.4f (%d questions)", sample_id, sample_scores["overall"]["accuracy"], len(results)
         )
+
+    pbar.close()
 
     total_elapsed = time.time() - t0
 

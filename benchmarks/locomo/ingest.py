@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 
 import httpx
+from tqdm import tqdm
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -38,7 +39,28 @@ def get_session_numbers(conversation: dict) -> list[int]:
     return sorted(nums)
 
 
-def ingest_sample(client: httpx.Client, base_url: str, sample: dict) -> dict:
+def get_or_create_user(client: httpx.Client, base_url: str, sample_id: str) -> tuple[str, bool]:
+    """Get existing user by external_id or create a new one. Returns (user_id, is_new)."""
+    external_id = f"locomo_{sample_id}"
+
+    resp = client.post(f"{base_url}/users", json={"external_id": external_id, "name": sample_id})
+    if resp.status_code == 201:
+        user_id = resp.json()["id"]
+        logger.info("Created user %s (id=%s)", sample_id, user_id)
+        return user_id, True
+
+    # User already exists — look up by external_id
+    resp = client.get(f"{base_url}/users")
+    resp.raise_for_status()
+    for u in resp.json():
+        if u.get("external_id") == external_id:
+            logger.info("User %s already exists (id=%s), skipping ingest", sample_id, u["id"])
+            return u["id"], False
+
+    raise RuntimeError(f"Failed to create user and could not find existing user with external_id={external_id}")
+
+
+def ingest_sample(client: httpx.Client, base_url: str, sample: dict, pbar_sessions: tqdm | None = None) -> dict:
     """Ingest a single LoCoMo sample into Replica. Returns mapping of sample_id -> user_id."""
     sample_id = sample["sample_id"]
     conversation = sample["conversation"]
@@ -47,12 +69,13 @@ def ingest_sample(client: httpx.Client, base_url: str, sample: dict) -> dict:
 
     logger.info("=== Ingesting sample %s (speakers: %s, %s) ===", sample_id, speaker_a, speaker_b)
 
-    # Step 1: Create user
-    resp = client.post(f"{base_url}/users", json={"external_id": f"locomo_{sample_id}", "name": sample_id})
-    resp.raise_for_status()
-    user = resp.json()
-    user_id = user["id"]
-    logger.info("Created user %s (id=%s)", sample_id, user_id)
+    user_id, is_new = get_or_create_user(client, base_url, sample_id)
+
+    if not is_new:
+        session_nums = get_session_numbers(conversation)
+        if pbar_sessions:
+            pbar_sessions.update(len(session_nums))
+        return {"sample_id": sample_id, "user_id": user_id}
 
     session_nums = get_session_numbers(conversation)
     total_messages = 0
@@ -64,9 +87,10 @@ def ingest_sample(client: httpx.Client, base_url: str, sample: dict) -> dict:
         date_time = conversation.get(date_key, "")
 
         if not dialogs:
+            if pbar_sessions:
+                pbar_sessions.update(1)
             continue
 
-        # Step 2: Create session
         resp = client.post(
             f"{base_url}/users/{user_id}/sessions",
             json={"metadata": {"locomo_session": sess_num, "date_time": date_time}},
@@ -97,25 +121,26 @@ def ingest_sample(client: httpx.Client, base_url: str, sample: dict) -> dict:
             msg_count += 1
 
         total_messages += msg_count
-        logger.info(
-            "  Session %d (%s): %d messages ingested",
-            sess_num,
-            date_time,
-            msg_count,
-        )
 
-        # Step 3: Memorize the session
-        logger.info("  Memorizing session %d ...", sess_num)
+        if pbar_sessions:
+            pbar_sessions.set_postfix_str(f"{sample_id}/sess_{sess_num}: memorizing...")
+
         t0 = time.time()
         resp = client.post(f"{base_url}/sessions/{session_id}/memorize")
         resp.raise_for_status()
         mem_result = resp.json()
         elapsed = time.time() - t0
         logger.info(
-            "  Memorize done: %d knowledge entries extracted (%.1fs)",
+            "  Session %d (%s): %d msgs, %d memories (%.1fs)",
+            sess_num,
+            date_time,
+            msg_count,
             mem_result.get("memory_count", 0),
             elapsed,
         )
+
+        if pbar_sessions:
+            pbar_sessions.update(1)
 
     logger.info("Sample %s complete: %d sessions, %d total messages", sample_id, len(session_nums), total_messages)
     return {"sample_id": sample_id, "user_id": user_id}
@@ -140,9 +165,15 @@ def main():
     client = httpx.Client(timeout=DEFAULT_TIMEOUT)
     mappings = []
 
-    for sample in samples:
-        mapping = ingest_sample(client, args.base_url, sample)
+    total_sessions = sum(len(get_session_numbers(s["conversation"])) for s in samples)
+    pbar_sessions = tqdm(total=total_sessions, desc="Sessions", unit="sess", position=0)
+
+    for i, sample in enumerate(samples):
+        pbar_sessions.set_description(f"[{i + 1}/{len(samples)}] {sample['sample_id']}")
+        mapping = ingest_sample(client, args.base_url, sample, pbar_sessions=pbar_sessions)
         mappings.append(mapping)
+
+    pbar_sessions.close()
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
