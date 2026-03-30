@@ -39,7 +39,8 @@ def _build_system_prompt(evergreen: list[str], relevant: list[str]) -> str:
         parts.append("\n以下是与本次对话相关的历史知识：")
         for m in relevant:
             parts.append(f"- {m}")
-    parts.append("\n请基于上述记忆和对话上下文，自然地回复用户。")
+    parts.append("\n每条记忆前的日期标注了记录时间。当信息存在冲突时，请以较新的记忆为准。")
+    parts.append("请基于上述记忆和对话上下文，自然地回复用户。")
     return "\n".join(parts)
 
 
@@ -116,7 +117,9 @@ async def _sse_generator(
             .order_by(EvergreenMemory.updated_at.desc())
         )
         evergreen_rows = result.scalars().all()
-        evergreen_texts = [n.content for n in evergreen_rows]
+        evergreen_texts = [
+            f"[{n.updated_at.strftime('%Y-%m-%d')}] {n.content}" for n in evergreen_rows
+        ]
         context_payload["evergreen"] = [
             {"id": str(n.id), "content": n.content, "category": n.category.value} for n in evergreen_rows
         ]
@@ -129,7 +132,9 @@ async def _sse_generator(
         try:
             search_req = KnowledgeSearchRequest(user_id=session.user_id, query=user_content, top_k=5)
             search_results = await search_knowledge(db, search_req)
-            relevant_texts = [r.content for r in search_results]
+            relevant_texts = [
+                f"[{r.created_at.strftime('%Y-%m-%d')}] {r.content}" for r in search_results
+            ]
             context_payload["knowledge"] = [
                 {
                     "id": str(r.id),
