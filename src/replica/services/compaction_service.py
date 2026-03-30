@@ -5,14 +5,17 @@ Handles:
   extract knowledge from them, and soft-delete them.
 - Uses SELECT FOR UPDATE on the session row to prevent concurrent compactions.
 - Replaces any existing compaction_summary rather than stacking summaries.
+- Knowledge extraction runs as a background task to avoid blocking the request.
 """
 
+import asyncio
 import logging
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from replica.config import settings
+from replica.db.database import async_session
 from replica.models.message import Message, MessageType, MessageRole
 from replica.models.session import Session
 from replica.services.embedding_service import count_tokens
@@ -66,7 +69,7 @@ async def compact(db: AsyncSession, session: Session) -> None:
         logger.debug("No chat messages to compact for session %s, skipping", session.id)
         return
 
-    await _extract_knowledge_from_messages(db, session, old_chat)
+    _schedule_knowledge_extraction(session, old_chat)
 
     summary_text = _build_compacted_summary(old_summaries, old_chat)
 
@@ -97,27 +100,32 @@ async def compact(db: AsyncSession, session: Session) -> None:
     )
 
 
-async def _extract_knowledge_from_messages(db: AsyncSession, session: Session, messages: list[Message]) -> None:
-    """Run the memorize pipeline on messages being compacted."""
+def _schedule_knowledge_extraction(session: Session, messages: list[Message]) -> None:
+    """Fire-and-forget: schedule memorize pipeline as a background task."""
     raw_data = [{"role": msg.role, "content": msg.content} for msg in messages if msg.role in ("user", "assistant")]
     if len(raw_data) < 3:
         return
 
+    user_id_str = str(session.user_id) if session.user_id else None
+    asyncio.create_task(_run_knowledge_extraction(raw_data, user_id_str))
+
+
+async def _run_knowledge_extraction(raw_data: list[dict], user_id_str: str | None) -> None:
+    """Background task: run memorize pipeline with its own DB session."""
     try:
         from replica.services.memorize_service import MemorizePipeline
 
         pipeline = MemorizePipeline()
-        user_id_str = str(session.user_id) if session.user_id else None
-
-        count = await pipeline.memorize(
-            db,
-            new_raw_data_list=raw_data,
-            user_id_list=[user_id_str] if user_id_str else None,
-            force=True,
-        )
-        logger.info("Auto-memorize during compaction: extracted %d knowledge entries", count)
+        async with async_session() as db:
+            count = await pipeline.memorize(
+                db,
+                new_raw_data_list=raw_data,
+                user_id_list=[user_id_str] if user_id_str else None,
+                force=True,
+            )
+            logger.info("Auto-memorize during compaction: extracted %d knowledge entries", count)
     except Exception:
-        logger.exception("Auto-memorize during compaction failed, continuing with compaction")
+        logger.exception("Auto-memorize during compaction failed")
 
 
 def _build_compacted_summary(old_summaries: list[Message], old_chat: list[Message]) -> str:

@@ -3,9 +3,11 @@
 Raw data → Boundary detection → MemCell → Extract memories → KnowledgeEntry.
 
 All extracted memories (episodes, events, foresights) are written to the
-unified knowledge_entries table.
+unified knowledge_entries table.  The three extractors run concurrently
+via asyncio.gather to minimise wall-clock time.
 """
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -92,14 +94,18 @@ class MemorizePipeline:
 
         memory_count = 0
 
-        # Step 3: Extract memories → write to unified knowledge_entries
+        # Step 3: Extract memories concurrently → write to unified knowledge_entries
         extract_req = MemoryExtractRequest(
             memcell=memcell_data,
             user_id=memcell_data.user_id_list[0] if memcell_data.user_id_list else None,
         )
 
-        # 3a: Episode extraction
-        episode = await self.episode_extractor.extract_memory(extract_req)
+        episode, event_log, foresights = await asyncio.gather(
+            self.episode_extractor.extract_memory(extract_req),
+            self.event_log_extractor.extract_memory(extract_req),
+            self.foresight_extractor.extract_memory(extract_req),
+        )
+
         if episode:
             embedding = episode.extend.get("embedding") if episode.extend else None
             entry = KnowledgeEntry(
@@ -124,8 +130,6 @@ class MemorizePipeline:
             memcell_db.episode = episode.episode
             memcell_db.subject = episode.title
 
-        # 3b: Event log extraction
-        event_log = await self.event_log_extractor.extract_memory(extract_req)
         if event_log and event_log.atomic_fact:
             for i, fact in enumerate(event_log.atomic_fact):
                 embedding = (
@@ -150,8 +154,6 @@ class MemorizePipeline:
                 db.add(entry)
                 memory_count += 1
 
-        # 3c: Foresight extraction
-        foresights = await self.foresight_extractor.extract_memory(extract_req)
         for fs in foresights:
             entry = KnowledgeEntry(
                 user_id=fs.user_id,

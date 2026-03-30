@@ -70,6 +70,8 @@ class VLLMProvider(LLMProvider):
         }
         if response_format:
             payload["response_format"] = response_format
+        if "qwen3" in self.cfg.model.lower():
+            payload["chat_template_kwargs"] = {"enable_thinking": False}
 
         last_error: Exception | None = None
         for attempt in range(self.cfg.max_retries):
