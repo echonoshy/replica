@@ -58,10 +58,11 @@ class MemorizePipeline:
         all_data = (history_raw_data_list or []) + new_raw_data_list
 
         if force and all_data:
+            last_ts = self._extract_timestamp(all_data)
             memcell_data = MemCellData(
                 user_id_list=user_id_list or [],
                 original_data=all_data,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=last_ts or datetime.now(timezone.utc),
                 summary="",
                 data_type=RawDataType.CONVERSATION,
             )
@@ -182,3 +183,19 @@ class MemorizePipeline:
             memcell_db.id,
         )
         return memory_count
+
+    @staticmethod
+    def _extract_timestamp(data: list[dict]) -> datetime | None:
+        """Extract the latest timestamp from raw data messages (last → first)."""
+        for msg in reversed(data):
+            ts_raw = msg.get("timestamp") if isinstance(msg, dict) else None
+            if not ts_raw:
+                continue
+            if isinstance(ts_raw, datetime):
+                return ts_raw
+            if isinstance(ts_raw, str):
+                try:
+                    return datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
+                except (ValueError, TypeError):
+                    continue
+        return None

@@ -6,16 +6,19 @@ Handles:
 - Uses SELECT FOR UPDATE on the session row to prevent concurrent compactions.
 - Replaces any existing compaction_summary rather than stacking summaries.
 - Knowledge extraction runs as a background task to avoid blocking the request.
+- Dedup: skips knowledge extraction if MemCells already cover the time range.
 """
 
 import asyncio
 import logging
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from replica.config import settings
 from replica.db.database import async_session
+from replica.models.memcell import MemCell
 from replica.models.message import Message, MessageType, MessageRole
 from replica.models.session import Session
 from replica.services.embedding_service import count_tokens
@@ -101,22 +104,67 @@ async def compact(db: AsyncSession, session: Session) -> None:
 
 
 def _schedule_knowledge_extraction(session: Session, messages: list[Message]) -> None:
-    """Fire-and-forget: schedule memorize pipeline as a background task."""
-    raw_data = [{"role": msg.role, "content": msg.content} for msg in messages if msg.role in ("user", "assistant")]
+    """Fire-and-forget: schedule memorize pipeline as a background task.
+
+    Preserves message timestamps in raw_data so that the force-memorize path
+    can use the real conversation time instead of ``datetime.now()``.
+    """
+    raw_data = [
+        {
+            "role": msg.role,
+            "content": msg.content,
+            "timestamp": msg.created_at.isoformat() if msg.created_at else None,
+        }
+        for msg in messages
+        if msg.role in ("user", "assistant")
+    ]
     if len(raw_data) < 3:
         return
 
+    chat_times = [msg.created_at for msg in messages if msg.created_at and msg.role in ("user", "assistant")]
+    start_time = min(chat_times) if chat_times else None
+    end_time = max(chat_times) if chat_times else None
+
     user_id_str = str(session.user_id) if session.user_id else None
-    asyncio.create_task(_run_knowledge_extraction(raw_data, user_id_str))
+    asyncio.create_task(_run_knowledge_extraction(raw_data, user_id_str, start_time, end_time))
 
 
-async def _run_knowledge_extraction(raw_data: list[dict], user_id_str: str | None) -> None:
-    """Background task: run memorize pipeline with its own DB session."""
+async def _run_knowledge_extraction(
+    raw_data: list[dict],
+    user_id_str: str | None,
+    start_time: datetime | None,
+    end_time: datetime | None,
+) -> None:
+    """Background task: run memorize pipeline with its own DB session.
+
+    Skips extraction when existing MemCells already cover the time range
+    (i.e. the client already called the memorize API for these messages).
+    """
     try:
         from replica.services.memorize_service import MemorizePipeline
 
-        pipeline = MemorizePipeline()
         async with async_session() as db:
+            if user_id_str and start_time and end_time:
+                result = await db.execute(
+                    select(MemCell.id)
+                    .where(
+                        MemCell.user_id == user_id_str,
+                        MemCell.timestamp >= start_time,
+                        MemCell.timestamp <= end_time,
+                        MemCell.deleted_at.is_(None),
+                    )
+                    .limit(1)
+                )
+                if result.scalar_one_or_none() is not None:
+                    logger.info(
+                        "Skipping compaction memorize: MemCell already covers user %s in range %s ~ %s",
+                        user_id_str,
+                        start_time,
+                        end_time,
+                    )
+                    return
+
+            pipeline = MemorizePipeline()
             count = await pipeline.memorize(
                 db,
                 new_raw_data_list=raw_data,
