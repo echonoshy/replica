@@ -217,3 +217,8 @@ __marimo__/
 *.swp
 *.swo
 *~
+
+
+# benchmark test results
+benchmarks/locomo/results/**
+benchmarks/locomo/data/**

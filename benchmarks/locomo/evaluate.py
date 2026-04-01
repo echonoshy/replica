@@ -10,26 +10,29 @@ Flow:
 Usage:
     python benchmarks/locomo/evaluate.py \
         --data-file benchmarks/locomo/data/locomo10.json \
-        --user-mapping benchmarks/locomo/data/user_mapping.json \
+        --user-mapping benchmarks/locomo/results/v2/user_mapping.json \
         --base-url http://localhost:8790/v1 \
         --llm-base-url http://localhost:19000/v1 \
         --llm-model Qwen3.5-122B-A10B-FP8 \
+        --version v2 \
         --top-k 10 \
         [--entry-type episode|event|foresight] \
         [--sample-ids conv-26] \
-        [--output benchmarks/locomo/data/results.json]
+        [--output benchmarks/locomo/results/v2/results.json]
 """
 
 import argparse
 import json
 import logging
+import subprocess
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
 from tqdm import tqdm
 
-from metrics import evaluate_single_qa, aggregate_scores
+from metrics import aggregate_scores, evaluate_single_qa
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -191,21 +194,43 @@ def evaluate_sample(
     return results
 
 
+def get_git_info() -> dict[str, str]:
+    """Collect current git commit hash and subject."""
+    info = {}
+    try:
+        info["commit"] = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], text=True).strip()
+        info["commit_full"] = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+        info["commit_message"] = subprocess.check_output(["git", "log", "-1", "--format=%s"], text=True).strip()
+        info["branch"] = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], text=True).strip()
+        dirty = subprocess.check_output(["git", "status", "--porcelain"], text=True).strip()
+        info["dirty"] = bool(dirty)
+    except Exception:
+        pass
+    return info
+
+
 def main():
     parser = argparse.ArgumentParser(description="Evaluate Replica on LoCoMo QA benchmark")
     parser.add_argument("--data-file", type=str, default="benchmarks/locomo/data/locomo10.json")
-    parser.add_argument("--user-mapping", type=str, default="benchmarks/locomo/data/user_mapping.json")
+    parser.add_argument("--user-mapping", type=str, default=None)
     parser.add_argument("--base-url", type=str, default="http://localhost:8790/v1")
     parser.add_argument("--llm-base-url", type=str, default="http://localhost:19000/v1")
     parser.add_argument("--llm-model", type=str, default="Qwen3.5-122B-A10B-FP8")
     parser.add_argument("--llm-api-key", type=str, default="EMPTY")
+    parser.add_argument("--version", type=str, required=True, help="Benchmark version tag (e.g. v2, v3)")
     parser.add_argument("--top-k", type=int, default=10)
     parser.add_argument("--entry-type", type=str, default=None, choices=["episode", "event", "foresight"])
     parser.add_argument("--sample-ids", nargs="*", help="Only evaluate specific sample IDs")
-    parser.add_argument("--output", type=str, default="benchmarks/locomo/data/results.json")
+    parser.add_argument("--output", type=str, default=None)
+    parser.add_argument("--description", type=str, default="", help="Description of this benchmark run")
     args = parser.parse_args()
 
-    # Load data
+    version_dir = Path(f"benchmarks/locomo/results/{args.version}")
+    if args.user_mapping is None:
+        args.user_mapping = str(version_dir / "user_mapping.json")
+    if args.output is None:
+        args.output = str(version_dir / "results.json")
+
     samples = load_data(Path(args.data_file))
     user_mapping = load_user_mapping(Path(args.user_mapping))
     logger.info("Loaded %d samples, %d user mappings", len(samples), len(user_mapping))
@@ -256,21 +281,32 @@ def main():
 
     total_elapsed = time.time() - t0
 
-    # Aggregate statistics
+    git_info = get_git_info()
+
     summary = aggregate_scores(all_results)
     summary["config"] = {
+        "version": args.version,
+        "description": args.description,
         "top_k": args.top_k,
         "entry_type": args.entry_type,
         "llm_model": args.llm_model,
         "total_questions": len(all_results),
         "elapsed_seconds": round(total_elapsed, 1),
+        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+        "git": git_info,
     }
 
-    # Print results
     logger.info("=" * 60)
-    logger.info("LoCoMo QA Evaluation Results")
+    logger.info("LoCoMo QA Evaluation Results  [%s]", args.version)
     logger.info("=" * 60)
     logger.info("Config: top_k=%d, entry_type=%s, model=%s", args.top_k, args.entry_type, args.llm_model)
+    if git_info.get("commit"):
+        logger.info(
+            "Git: %s (%s)%s",
+            git_info["commit"],
+            git_info.get("branch", ""),
+            " [dirty]" if git_info.get("dirty") else "",
+        )
     logger.info("-" * 60)
     for cat_name, cat_data in summary.items():
         if cat_name == "config":
@@ -279,7 +315,6 @@ def main():
     logger.info("-" * 60)
     logger.info("Total time: %.1fs (%.2fs per question)", total_elapsed, total_elapsed / max(len(all_results), 1))
 
-    # Save results
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 

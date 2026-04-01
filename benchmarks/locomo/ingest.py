@@ -4,6 +4,7 @@ Usage:
     python benchmarks/locomo/ingest.py \
         --data-file benchmarks/locomo/data/locomo10.json \
         --base-url http://localhost:8790/v1 \
+        --version v2 \
         [--sample-ids conv-26 conv-27]
 """
 
@@ -39,37 +40,41 @@ def get_session_numbers(conversation: dict) -> list[int]:
     return sorted(nums)
 
 
-def get_or_create_user(client: httpx.Client, base_url: str, sample_id: str) -> tuple[str, bool]:
-    """Get existing user by external_id or create a new one. Returns (user_id, is_new)."""
-    external_id = f"locomo_{sample_id}"
+def get_or_create_user(client: httpx.Client, base_url: str, sample_id: str, version: str) -> tuple[str, bool]:
+    """Get existing user by external_id or create a new one. Returns (user_id, is_new).
 
-    resp = client.post(f"{base_url}/users", json={"external_id": external_id, "name": sample_id})
+    Uses version-prefixed external_id to isolate user data across benchmark versions.
+    """
+    external_id = f"locomo_{version}_{sample_id}"
+
+    resp = client.post(f"{base_url}/users", json={"external_id": external_id, "name": f"{sample_id} ({version})"})
     if resp.status_code == 201:
         user_id = resp.json()["id"]
-        logger.info("Created user %s (id=%s)", sample_id, user_id)
+        logger.info("Created user %s/%s (id=%s)", version, sample_id, user_id)
         return user_id, True
 
-    # User already exists — look up by external_id
     resp = client.get(f"{base_url}/users")
     resp.raise_for_status()
     for u in resp.json():
         if u.get("external_id") == external_id:
-            logger.info("User %s already exists (id=%s), skipping ingest", sample_id, u["id"])
+            logger.info("User %s/%s already exists (id=%s), skipping ingest", version, sample_id, u["id"])
             return u["id"], False
 
     raise RuntimeError(f"Failed to create user and could not find existing user with external_id={external_id}")
 
 
-def ingest_sample(client: httpx.Client, base_url: str, sample: dict, pbar_sessions: tqdm | None = None) -> dict:
+def ingest_sample(
+    client: httpx.Client, base_url: str, sample: dict, version: str, pbar_sessions: tqdm | None = None
+) -> dict:
     """Ingest a single LoCoMo sample into Replica. Returns mapping of sample_id -> user_id."""
     sample_id = sample["sample_id"]
     conversation = sample["conversation"]
     speaker_a = conversation.get("speaker_a", "Speaker_A")
     speaker_b = conversation.get("speaker_b", "Speaker_B")
 
-    logger.info("=== Ingesting sample %s (speakers: %s, %s) ===", sample_id, speaker_a, speaker_b)
+    logger.info("=== Ingesting sample %s/%s (speakers: %s, %s) ===", version, sample_id, speaker_a, speaker_b)
 
-    user_id, is_new = get_or_create_user(client, base_url, sample_id)
+    user_id, is_new = get_or_create_user(client, base_url, sample_id, version)
 
     if not is_new:
         session_nums = get_session_numbers(conversation)
@@ -150,9 +155,15 @@ def main():
     parser = argparse.ArgumentParser(description="Ingest LoCoMo data into Replica")
     parser.add_argument("--data-file", type=str, default="benchmarks/locomo/data/locomo10.json")
     parser.add_argument("--base-url", type=str, default="http://localhost:8790/v1")
+    parser.add_argument("--version", type=str, required=True, help="Benchmark version tag (e.g. v2, v3)")
     parser.add_argument("--sample-ids", nargs="*", help="Only ingest specific sample IDs (e.g. conv-26 conv-27)")
-    parser.add_argument("--output", type=str, default="benchmarks/locomo/data/user_mapping.json")
+    parser.add_argument(
+        "--output", type=str, default=None, help="Output path (default: results/<version>/user_mapping.json)"
+    )
     args = parser.parse_args()
+
+    if args.output is None:
+        args.output = f"benchmarks/locomo/results/{args.version}/user_mapping.json"
 
     data_file = Path(args.data_file)
     samples = load_locomo_data(data_file)
@@ -170,7 +181,7 @@ def main():
 
     for i, sample in enumerate(samples):
         pbar_sessions.set_description(f"[{i + 1}/{len(samples)}] {sample['sample_id']}")
-        mapping = ingest_sample(client, args.base_url, sample, pbar_sessions=pbar_sessions)
+        mapping = ingest_sample(client, args.base_url, sample, version=args.version, pbar_sessions=pbar_sessions)
         mappings.append(mapping)
 
     pbar_sessions.close()
