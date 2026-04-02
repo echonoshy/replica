@@ -8,9 +8,7 @@ benchmarks/locomo/
 │   ├── v1/                     # 版本 v1 的测试结果
 │   │   ├── metadata.json       # 版本元信息（git commit、描述、时间）
 │   │   ├── user_mapping.json   # sample_id → user_id 映射
-│   │   ├── results_top5.json
-│   │   ├── results_top10.json
-│   │   └── results_top25.json
+│   │   └── results_top50.json
 │   └── v2/                     # 版本 v2 ...
 ├── metrics.py                  # 评测指标（token-level F1、归一化、词干化）
 ├── ingest.py                   # 将 LoCoMo 对话导入 Replica
@@ -37,12 +35,15 @@ bash benchmarks/locomo/run_benchmark.sh --version v2 --description "改进了 ep
 
 # 只跑评测（跳过 ingest，复用已有数据）
 bash benchmarks/locomo/run_benchmark.sh --version v2 --skip-ingest
+
+# 指定 top_k 值（默认 50）
+bash benchmarks/locomo/run_benchmark.sh --version v2 --top-k 50
 ```
 
 该脚本会自动完成：
 
 1. 导入数据（版本隔离，不同版本的用户数据互不干扰）
-2. 分别以 `top_k=5/10/25` 运行评测
+2. 以指定的 `top_k`（默认 50）运行评测
 3. 分别以 `episode/event/foresight` 三种类型运行评测
 4. 结果保存到 `results/<version>/`，自动记录 git commit 和元信息
 
@@ -62,27 +63,27 @@ python benchmarks/locomo/ingest.py \
 python benchmarks/locomo/evaluate.py \
     --base-url http://localhost:8790/v1 \
     --version v2 \
-    --top-k 10
+    --top-k 50
 ```
 
 #### 可选参数
 
 - `--entry-type episode|event|foresight`：只使用某一类记忆做检索
 - `--sample-ids conv-26 conv-27`：只评测特定对话
-- `--top-k 5`：调整检索数量
+- `--top-k 50`：调整检索数量（默认 10）
 - `--description "描述这次测试"`：添加版本描述
 
 ### 对比多版本结果
 
 ```bash
-# 对比指定版本
+
 python benchmarks/locomo/compare.py v1 v2
 
 # 对比所有版本
 python benchmarks/locomo/compare.py --all
 
-# 只看 top10 结果
-python benchmarks/locomo/compare.py --all --pattern top10
+# 只看 top50 结果
+python benchmarks/locomo/compare.py --all --pattern top50
 ```
 
 输出示例：
@@ -94,7 +95,7 @@ python benchmarks/locomo/compare.py --all --pattern top10
         v2  commit=def5678  time=2026-03-31T14:00  desc=改进 episode 提取
 
 ================================================================================
-  results_top10
+  results_top50
 ================================================================================
 Category          v1            v2
 ----------------------------------------------

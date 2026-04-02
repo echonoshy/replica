@@ -5,6 +5,7 @@
 #   bash benchmarks/locomo/run_benchmark.sh --version v2
 #   bash benchmarks/locomo/run_benchmark.sh --version v2 --description "改进了 episode 提取逻辑"
 #   bash benchmarks/locomo/run_benchmark.sh --version v2 --skip-ingest
+#   bash benchmarks/locomo/run_benchmark.sh --version v2 --top-k 50
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -17,6 +18,7 @@ source .venv/bin/activate
 VERSION=""
 DESCRIPTION=""
 SKIP_INGEST=false
+TOP_K=50
 REPLICA_URL="${REPLICA_URL:-http://localhost:8790/v1}"
 
 while [[ $# -gt 0 ]]; do
@@ -25,13 +27,14 @@ while [[ $# -gt 0 ]]; do
         --description) DESCRIPTION="$2"; shift 2 ;;
         --skip-ingest) SKIP_INGEST=true; shift ;;
         --url)        REPLICA_URL="$2"; shift 2 ;;
+        --top-k)      TOP_K="$2"; shift 2 ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
 
 if [ -z "$VERSION" ]; then
     echo "Error: --version is required"
-    echo "Usage: bash benchmarks/locomo/run_benchmark.sh --version v2 [--description \"...\"] [--skip-ingest]"
+    echo "Usage: bash benchmarks/locomo/run_benchmark.sh --version v2 [--description \"...\"] [--skip-ingest] [--top-k 50]"
     exit 1
 fi
 
@@ -45,6 +48,7 @@ echo "============================================"
 echo "  LoCoMo Benchmark for Replica"
 echo "  Version:     ${VERSION}"
 echo "  Description: ${DESCRIPTION:-<none>}"
+echo "  Top-K:       ${TOP_K}"
 echo "  Results dir: ${RESULTS_DIR}"
 echo "  Replica URL: ${REPLICA_URL}"
 echo "  Git commit:  $(git rev-parse --short HEAD 2>/dev/null || echo 'N/A')"
@@ -105,23 +109,21 @@ if [ -n "$DESCRIPTION" ]; then
     EVAL_COMMON_ARGS+=(--description "$DESCRIPTION")
 fi
 
-for TOP_K in 5 10 25; do
-    echo ""
-    echo "--- top_k=${TOP_K} ---"
-    python benchmarks/locomo/evaluate.py \
-        "${EVAL_COMMON_ARGS[@]}" \
-        --top-k "$TOP_K" \
-        --output "${RESULTS_DIR}/results_top${TOP_K}.json"
-done
+echo ""
+echo "--- top_k=${TOP_K} ---"
+python benchmarks/locomo/evaluate.py \
+    "${EVAL_COMMON_ARGS[@]}" \
+    --top-k "$TOP_K" \
+    --output "${RESULTS_DIR}/results_top${TOP_K}.json"
 
 for ENTRY_TYPE in episode event foresight; do
     echo ""
-    echo "--- entry_type=${ENTRY_TYPE}, top_k=10 ---"
+    echo "--- entry_type=${ENTRY_TYPE}, top_k=${TOP_K} ---"
     python benchmarks/locomo/evaluate.py \
         "${EVAL_COMMON_ARGS[@]}" \
-        --top-k 10 \
+        --top-k "$TOP_K" \
         --entry-type "$ENTRY_TYPE" \
-        --output "${RESULTS_DIR}/results_${ENTRY_TYPE}_top10.json"
+        --output "${RESULTS_DIR}/results_${ENTRY_TYPE}_top${TOP_K}.json"
 done
 
 echo ""
