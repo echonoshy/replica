@@ -35,24 +35,24 @@ export default function TokenProgress({
   }
 
   return (
-    <div className="flex items-center gap-3 py-3">
-      <div className="flex-1">
+    <div className="flex items-center gap-3 py-3 w-full">
+      <div className="flex-1 border-2 border-border shadow-[2px_2px_0px_0px_#111111] rounded-md overflow-hidden bg-white">
         <Progress
           value={percentage}
-          className="h-2"
+          className="h-3 rounded-none"
           indicatorClassName={cn(getProgressColor())}
         />
       </div>
       <div className="flex items-center gap-2 text-xs">
-        <span className="font-mono text-muted-foreground">
+        <span className="font-mono font-bold text-foreground bg-white px-2 py-0.5 border-2 border-border shadow-[2px_2px_0px_0px_#111111]">
           {current.toLocaleString()} / {hardThreshold.toLocaleString()}
         </span>
         <span
           className={cn(
-            'px-2 py-0.5 rounded text-[10px] font-medium',
-            status === 'hard' && 'bg-destructive/10 text-destructive',
-            status === 'soft' && 'bg-warning/10 text-warning',
-            status === 'normal' && 'bg-success/10 text-success'
+            'px-2 py-0.5 border-2 border-border shadow-[2px_2px_0px_0px_#111111] text-[10px] font-black uppercase tracking-wider',
+            status === 'hard' && 'bg-destructive text-white',
+            status === 'soft' && 'bg-warning text-black',
+            status === 'normal' && 'bg-success text-black'
           )}
         >
           {getStatusText()}

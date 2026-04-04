@@ -150,40 +150,40 @@ export default function SessionSidebar() {
   }
 
   return (
-    <div className="w-[280px] border-r bg-sidebar flex flex-col h-screen">
+    <div className="w-[320px] border-r-4 border-border bg-sidebar flex flex-col h-screen shrink-0">
       {/* Search */}
-      <div className="p-4 border-b bg-white/50">
+      <div className="p-4 border-b-4 border-border bg-accent">
         <div className="flex gap-2">
           <Input
             placeholder="搜索用户/会话 ID"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            className="text-sm"
+            className="text-sm border-2 border-border shadow-[2px_2px_0px_0px_#111111]"
           />
-          <Button size="icon" variant="ghost" onClick={handleSearch} className="hover:bg-white flex-shrink-0">
-            <Search className="h-4 w-4" />
+          <Button size="icon" variant="default" onClick={handleSearch} className="flex-shrink-0 bg-primary">
+            <Search className="h-5 w-5" />
           </Button>
         </div>
       </div>
 
       {/* Users */}
-      <div className="border-b bg-white/30">
-        <div className="flex items-center justify-between px-4 py-3">
-          <h3 className="text-sm font-semibold text-foreground">用户</h3>
+      <div className="border-b-4 border-border bg-background">
+        <div className="flex items-center justify-between px-4 py-3 bg-secondary border-b-2 border-border">
+          <h3 className="text-sm font-black uppercase tracking-widest text-foreground">用户</h3>
           <Dialog open={newUserDialog} onOpenChange={setNewUserDialog}>
             <DialogTrigger asChild>
-              <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-primary hover:text-white transition-colors rounded-lg">
-                <Plus className="h-4 w-4" />
+              <Button size="icon" variant="default" className="h-8 w-8 rounded-md bg-primary shadow-[2px_2px_0px_0px_#111111]">
+                <Plus className="h-5 w-5" />
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="border-4 border-border shadow-[8px_8px_0px_0px_#111111]">
               <DialogHeader>
-                <DialogTitle>创建新用户</DialogTitle>
+                <DialogTitle className="font-black uppercase text-xl">创建新用户</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-4">
                 <div>
-                  <label className="text-sm font-medium">外部 ID *</label>
+                  <label className="text-sm font-bold uppercase">外部 ID *</label>
                   <Input
                     value={newUserExtId}
                     onChange={(e) => setNewUserExtId(e.target.value)}
@@ -192,7 +192,7 @@ export default function SessionSidebar() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium">名称（可选）</label>
+                  <label className="text-sm font-bold uppercase">名称（可选）</label>
                   <Input
                     value={newUserName}
                     onChange={(e) => setNewUserName(e.target.value)}
@@ -200,59 +200,61 @@ export default function SessionSidebar() {
                     className="mt-1.5"
                   />
                 </div>
-                <Button onClick={handleCreateUser} className="w-full">
+                <Button onClick={handleCreateUser} className="w-full text-lg">
                   创建用户
                 </Button>
               </div>
             </DialogContent>
           </Dialog>
         </div>
-        <ScrollArea className="h-[200px]">
-          <div className="px-3 pb-3 space-y-1.5">
+        <ScrollArea className="h-[240px]">
+          <div className="px-3 py-3 space-y-3">
             {users.map((user) => (
               <div
                 key={user.id}
                 className={cn(
-                  'group flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-all',
-                  'hover:bg-white hover:shadow-sm',
-                  currentUser?.id === user.id && 'bg-white shadow-sm ring-1 ring-primary/30'
+                  'group flex items-center gap-3 p-3 rounded-md cursor-pointer transition-all border-2 border-transparent',
+                  'hover:bg-muted hover:border-border hover:shadow-[4px_4px_0px_0px_#111111]',
+                  currentUser?.id === user.id && 'bg-accent border-border shadow-[4px_4px_0px_0px_#111111]'
                 )}
                 onClick={() => handleSelectUser(user)}
               >
-                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center flex-shrink-0">
-                  <UserIcon className="h-4 w-4 text-white" />
+                <div className="w-10 h-10 rounded-md border-2 border-border bg-primary flex items-center justify-center flex-shrink-0 shadow-[2px_2px_0px_0px_#111111]">
+                  <UserIcon className="h-5 w-5 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">
+                  <p className="text-sm font-bold truncate uppercase">
                     {user.name || user.external_id}
                   </p>
-                  <p className="text-xs text-muted-foreground truncate font-mono">
+                  <p className="text-xs text-muted-foreground truncate font-mono font-bold">
                     {user.id.slice(0, 8)}...
                   </p>
                 </div>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    copyToClipboard(user.id, user.id)
-                  }}
-                >
-                  {copiedId === user.id ? (
-                    <Check className="h-3 w-3 text-success" />
-                  ) : (
-                    <Copy className="h-3 w-3" />
-                  )}
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={(e) => handleDeleteUser(user.id, e)}
-                >
-                  <Trash2 className="h-3 w-3 text-destructive" />
-                </Button>
+                <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6 hover:bg-white border-2 border-transparent hover:border-border hover:shadow-[2px_2px_0px_0px_#111111]"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      copyToClipboard(user.id, user.id)
+                    }}
+                  >
+                    {copiedId === user.id ? (
+                      <Check className="h-3 w-3 text-success" />
+                    ) : (
+                      <Copy className="h-3 w-3" />
+                    )}
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6 hover:bg-destructive hover:text-white border-2 border-transparent hover:border-border hover:shadow-[2px_2px_0px_0px_#111111]"
+                    onClick={(e) => handleDeleteUser(user.id, e)}
+                  >
+                    <Trash2 className="h-3 w-3 text-destructive group-hover/btn:text-white" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -260,29 +262,29 @@ export default function SessionSidebar() {
       </div>
 
       {/* Sessions */}
-      <div className="flex-1 flex flex-col min-h-0 bg-white/30">
-        <div className="flex items-center justify-between px-4 py-3 border-b">
-          <h3 className="text-sm font-semibold text-foreground">会话</h3>
+      <div className="flex-1 flex flex-col min-h-0 bg-background">
+        <div className="flex items-center justify-between px-4 py-3 border-b-2 border-border bg-secondary">
+          <h3 className="text-sm font-black uppercase tracking-widest text-foreground">会话</h3>
           <Button
             size="icon"
-            variant="ghost"
-            className="h-7 w-7 hover:bg-primary hover:text-white transition-colors rounded-lg"
+            variant="default"
+            className="h-8 w-8 rounded-md bg-primary shadow-[2px_2px_0px_0px_#111111]"
             onClick={handleCreateSession}
             disabled={!currentUser}
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-5 w-5" />
           </Button>
         </div>
         <ScrollArea className="flex-1">
-          <div className="px-3 py-3 space-y-1.5">
+          <div className="px-3 py-3 space-y-3">
             {!currentUser ? (
-              <p className="text-xs text-muted-foreground text-center py-8">
+              <p className="text-sm font-bold text-muted-foreground text-center py-8 uppercase">
                 请先选择用户
               </p>
             ) : loading ? (
-              <p className="text-xs text-muted-foreground text-center py-8">加载中...</p>
+              <p className="text-sm font-bold text-muted-foreground text-center py-8 uppercase animate-pulse">加载中...</p>
             ) : sessions.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-8">
+              <p className="text-sm font-bold text-muted-foreground text-center py-8 uppercase">
                 暂无会话
               </p>
             ) : (
@@ -290,30 +292,30 @@ export default function SessionSidebar() {
                 <div
                   key={session.id}
                   className={cn(
-                    'group flex flex-col gap-1.5 p-2.5 rounded-lg cursor-pointer transition-all',
-                    'hover:bg-white hover:shadow-sm',
-                    currentSession?.id === session.id && 'bg-white shadow-sm ring-1 ring-primary/30'
+                    'group flex flex-col gap-2 p-3 rounded-md cursor-pointer transition-all border-2 border-transparent relative',
+                    'hover:bg-muted hover:border-border hover:shadow-[4px_4px_0px_0px_#111111]',
+                    currentSession?.id === session.id && 'bg-accent border-border shadow-[4px_4px_0px_0px_#111111]'
                   )}
                   onClick={() => handleSelectSession(session)}
                 >
                   <div className="flex items-center gap-2">
-                    <p className="text-xs font-mono flex-1 truncate font-medium">{session.id.slice(0, 12)}...</p>
+                    <p className="text-sm font-mono flex-1 truncate font-bold">{session.id.slice(0, 12)}...</p>
                     <Badge
                       variant={session.status === 'active' ? 'default' : 'secondary'}
-                      className="text-[10px] px-1.5 py-0"
+                      className="text-[10px] px-2 py-0.5 shadow-[2px_2px_0px_0px_#111111]"
                     >
                       {session.status === 'active' ? '活跃' : '已归档'}
                     </Badge>
                   </div>
-                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                  <div className="flex items-center justify-between text-xs font-bold text-muted-foreground">
                     <span>{new Date(session.created_at).toLocaleDateString('zh-CN')}</span>
-                    <span className="font-medium">{session.token_count} tokens</span>
+                    <span className="bg-white px-2 py-0.5 border-2 border-border shadow-[2px_2px_0px_0px_#111111] text-foreground">{session.token_count} tokens</span>
                   </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 backdrop-blur-sm p-1 rounded-md border-2 border-border shadow-[2px_2px_0px_0px_#111111]">
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="h-6 w-6"
+                      className="h-6 w-6 hover:bg-white"
                       onClick={(e) => {
                         e.stopPropagation()
                         copyToClipboard(session.id, session.id)
@@ -328,10 +330,10 @@ export default function SessionSidebar() {
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="h-6 w-6"
+                      className="h-6 w-6 hover:bg-destructive hover:text-white"
                       onClick={(e) => handleDeleteSession(session.id, e)}
                     >
-                      <Trash2 className="h-3 w-3 text-destructive" />
+                      <Trash2 className="h-3 w-3 text-destructive hover:text-white" />
                     </Button>
                   </div>
                 </div>

@@ -18,19 +18,19 @@ export default function AdminView() {
   const navigate = useNavigate()
 
   return (
-    <div className="h-screen bg-background p-6">
-      <div className="max-w-7xl mx-auto h-full flex flex-col">
-        <div className="flex items-center gap-4 mb-6">
+    <div className="h-screen bg-background p-6 bg-[radial-gradient(var(--color-border)_1px,transparent_1px)] bg-[size:24px_24px]">
+      <div className="max-w-7xl mx-auto h-full flex flex-col bg-white border-4 border-border shadow-[12px_12px_0px_0px_#111111] p-6 rounded-md">
+        <div className="flex items-center gap-4 mb-6 border-b-4 border-border pb-4">
           <Button
-            variant="ghost"
+            variant="default"
             size="sm"
             onClick={() => navigate('/')}
-            className="hover:bg-muted"
+            className="bg-accent text-foreground hover:bg-accent/90 border-2 border-border shadow-[4px_4px_0px_0px_#111111]"
           >
-            <ArrowLeft className="h-4 w-4 mr-2" />
+            <ArrowLeft className="h-5 w-5 mr-2" />
             返回主界面
           </Button>
-          <h1 className="text-2xl font-bold">管理面板</h1>
+          <h1 className="text-4xl font-black uppercase tracking-widest">管理面板</h1>
         </div>
 
         <Tabs defaultValue="sessions" className="flex-1 flex flex-col min-h-0">

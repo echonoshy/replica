@@ -1,38 +1,49 @@
 @import "tailwindcss";
 
 @theme {
-  /* Claude-inspired Theme - Clean & Modern */
-  --color-background: #ffffff;
-  --color-foreground: #1a1a1a;
+  /* Neo-Brutalist Playful Theme */
+  --color-background: #fdfbf7;
+  --color-foreground: #111111;
   --color-card: #ffffff;
-  --color-card-foreground: #1a1a1a;
+  --color-card-foreground: #111111;
   --color-popover: #ffffff;
-  --color-popover-foreground: #1a1a1a;
-  --color-primary: #2563eb;
+  --color-popover-foreground: #111111;
+  
+  /* Bold Playful Colors */
+  --color-primary: #ff4911;
   --color-primary-foreground: #ffffff;
-  --color-secondary: #f8fafc;
-  --color-secondary-foreground: #1a1a1a;
-  --color-muted: #f1f5f9;
-  --color-muted-foreground: #64748b;
-  --color-accent: #3b82f6;
-  --color-accent-foreground: #ffffff;
-  --color-destructive: #ef4444;
+  --color-secondary: #c4a1ff;
+  --color-secondary-foreground: #111111;
+  --color-muted: #f0f0f0;
+  --color-muted-foreground: #555555;
+  --color-accent: #ffd83d;
+  --color-accent-foreground: #111111;
+  --color-destructive: #ff3366;
   --color-destructive-foreground: #ffffff;
-  --color-border: #e2e8f0;
+  
+  --color-border: #111111;
   --color-input: #ffffff;
-  --color-ring: #3b82f6;
-  --radius: 0.5rem;
+  --color-ring: #111111;
+  
+  --radius: 0px; /* Sharp corners for brutalism, or very rounded for playful. Let's go with slightly rounded brutalism */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
 
   /* Custom colors */
-  --color-success: #10b981;
-  --color-info: #3b82f6;
-  --color-warning: #f59e0b;
+  --color-success: #00e676;
+  --color-info: #2979ff;
+  --color-warning: #ffea00;
 
   /* Sidebar background */
-  --color-sidebar: #f8fafc;
+  --color-sidebar: #f4f0ea;
 
   /* AI message background */
-  --color-ai-bg: #f8fafc;
+  --color-ai-bg: #ffffff;
+  
+  /* Fonts */
+  --font-sans: 'Space Grotesk', 'Outfit', system-ui, sans-serif;
+  --font-mono: 'Space Mono', 'JetBrains Mono', monospace;
 }
 
 @layer base {
@@ -42,44 +53,48 @@
   }
 
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    font-family: var(--font-sans);
     background-color: var(--color-background);
     color: var(--color-foreground);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    font-size: 15px;
+    font-size: 16px;
     line-height: 1.6;
+    background-image: radial-gradient(var(--color-border) 1px, transparent 1px);
+    background-size: 24px 24px;
   }
 
-  /* Modern shadow system - Anthropic style */
+  /* Neo-brutalist shadow system */
   .shadow-sm {
-    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    box-shadow: 2px 2px 0px 0px var(--color-border);
   }
 
   .shadow {
-    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    box-shadow: 4px 4px 0px 0px var(--color-border);
   }
 
   .shadow-md {
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    box-shadow: 6px 6px 0px 0px var(--color-border);
   }
 
   .shadow-lg {
-    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    box-shadow: 8px 8px 0px 0px var(--color-border);
   }
 
-  /* Smooth transitions */
+  /* Smooth transitions but snappy */
   * {
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-timing-function: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    transition-duration: 200ms;
   }
 
   /* Markdown styles for react-markdown */
   .prose {
     color: var(--color-foreground);
+    font-family: var(--font-sans);
   }
 
   .prose p {
-    margin-bottom: 0.5rem;
+    margin-bottom: 1rem;
   }
 
   .prose p:last-child {
@@ -87,49 +102,66 @@
   }
 
   .prose code {
-    background-color: var(--color-muted);
-    padding: 0.125rem 0.375rem;
-    border-radius: 0.25rem;
-    font-size: 0.75rem;
-    font-family: 'JetBrains Mono', monospace;
+    background-color: var(--color-accent);
+    color: var(--color-foreground);
+    padding: 0.2rem 0.4rem;
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    font-family: var(--font-mono);
+    font-weight: 600;
   }
 
   .prose pre {
-    background-color: var(--color-muted);
-    padding: 0.75rem;
-    border-radius: 0.5rem;
+    background-color: var(--color-foreground);
+    color: var(--color-background);
+    padding: 1rem;
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
     overflow-x: auto;
-    margin: 0.5rem 0;
+    margin: 1rem 0;
+    box-shadow: 4px 4px 0px 0px var(--color-accent);
   }
 
   .prose pre code {
     background-color: transparent;
+    color: inherit;
     padding: 0;
-    font-size: 0.75rem;
+    border: none;
+    font-size: 0.85rem;
+    font-weight: normal;
   }
 
   .prose ul,
   .prose ol {
-    padding-left: 1.25rem;
-    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+    margin: 1rem 0;
   }
 
   .prose li {
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.5rem;
   }
 
   .prose blockquote {
-    border-left: 4px solid var(--color-border);
-    padding-left: 0.75rem;
-    color: var(--color-muted-foreground);
-    margin: 0.5rem 0;
+    border-left: 6px solid var(--color-primary);
+    background-color: var(--color-muted);
+    padding: 1rem;
+    color: var(--color-foreground);
+    margin: 1rem 0;
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    font-style: italic;
+    border-top: 2px solid var(--color-border);
+    border-right: 2px solid var(--color-border);
+    border-bottom: 2px solid var(--color-border);
+    box-shadow: 4px 4px 0px 0px var(--color-border);
   }
 
   .prose h1,
   .prose h2,
   .prose h3 {
-    font-weight: 600;
-    margin: 0.75rem 0;
+    font-weight: 800;
+    margin: 1.5rem 0 1rem;
+    letter-spacing: -0.02em;
   }
 
   .prose h1:first-child,
@@ -139,59 +171,69 @@
   }
 
   .prose h1 {
-    font-size: 1.125rem;
+    font-size: 2rem;
+    text-transform: uppercase;
   }
 
   .prose h2 {
-    font-size: 1rem;
+    font-size: 1.5rem;
   }
 
   .prose h3 {
-    font-size: 0.875rem;
+    font-size: 1.25rem;
   }
 
   .prose table {
     border-collapse: collapse;
-    margin: 0.5rem 0;
+    margin: 1rem 0;
     width: 100%;
+    border: 2px solid var(--color-border);
+    box-shadow: 4px 4px 0px 0px var(--color-border);
   }
 
   .prose th,
   .prose td {
-    border: 1px solid var(--color-border);
-    padding: 0.25rem 0.5rem;
-    font-size: 0.75rem;
+    border: 2px solid var(--color-border);
+    padding: 0.75rem;
+    font-size: 0.9rem;
   }
 
   .prose th {
-    background-color: var(--color-muted);
-    font-weight: 600;
+    background-color: var(--color-secondary);
+    font-weight: 800;
+    text-transform: uppercase;
   }
 
   .prose a {
     color: var(--color-primary);
+    font-weight: 700;
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 4px;
   }
 
   .prose a:hover {
-    text-decoration: underline;
+    background-color: var(--color-primary);
+    color: var(--color-primary-foreground);
+    text-decoration: none;
   }
 }
 
 @layer utilities {
   .scrollbar-thin::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 12px;
+    height: 12px;
   }
   .scrollbar-thin::-webkit-scrollbar-track {
-    background-color: transparent;
+    background-color: var(--color-muted);
+    border-left: 2px solid var(--color-border);
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: var(--color-border);
-    border-radius: 4px;
-    border: 2px solid transparent;
-    background-clip: padding-box;
+    background-color: var(--color-primary);
+    border: 2px solid var(--color-border);
+    border-radius: 0;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background-color: color-mix(in srgb, var(--color-primary) 30%, transparent);
+    background-color: var(--color-accent);
   }
 }

@@ -118,55 +118,55 @@ export default function MemoryPanel({ style }: { style?: React.CSSProperties }) 
   const injectedKnowledgeIds = new Set(chatContext?.knowledge.map((k) => k.id) || [])
 
   return (
-    <div className="flex flex-col h-screen bg-card border-l" style={style}>
-      <div className="p-4 border-b">
-        <h2 className="text-sm font-semibold">Memory System</h2>
+    <div className="flex flex-col h-screen bg-sidebar border-l-4 border-border shrink-0" style={style}>
+      <div className="p-4 border-b-4 border-border bg-accent">
+        <h2 className="text-sm font-black uppercase tracking-widest text-foreground">Memory System</h2>
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-4 space-y-4">
+        <div className="p-4 space-y-6">
           {/* Layer 1: Evergreen */}
-          <Card className="p-3">
+          <Card className="p-4 border-4 border-border shadow-[4px_4px_0px_0px_#111111] bg-white">
             <div
-              className="flex items-center justify-between cursor-pointer mb-2"
+              className="flex items-center justify-between cursor-pointer mb-4"
               onClick={() => toggleSection('evergreen')}
             >
               <div className="flex items-center gap-2">
                 {expandedSections.evergreen ? (
-                  <ChevronDown className="h-4 w-4" />
+                  <ChevronDown className="h-5 w-5" />
                 ) : (
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-5 w-5" />
                 )}
-                <h3 className="text-sm font-semibold">Layer 1: Evergreen</h3>
-                <Badge variant="secondary" className="text-[10px]">
+                <h3 className="text-sm font-black uppercase tracking-wider">Layer 1: Evergreen</h3>
+                <Badge variant="default" className="text-[10px] shadow-[2px_2px_0px_0px_#111111]">
                   {evergreen.length}
                 </Badge>
               </div>
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-6 w-6"
+                className="h-8 w-8 hover:bg-secondary border-2 border-transparent hover:border-border hover:shadow-[2px_2px_0px_0px_#111111]"
                 onClick={(e) => {
                   e.stopPropagation()
                   handleRefreshEvergreen()
                 }}
               >
-                <RefreshCw className="h-3 w-3" />
+                <RefreshCw className="h-4 w-4" />
               </Button>
             </div>
 
             {expandedSections.evergreen && (
-              <div className="space-y-2">
+              <div className="space-y-4">
                 {currentUser && (
-                  <div className="space-y-2">
+                  <div className="space-y-3 p-3 bg-muted border-2 border-border rounded-md shadow-[2px_2px_0px_0px_#111111]">
                     <Select
                       value={newMemoryCategory}
                       onValueChange={(v) => setNewMemoryCategory(v as EvergreenCategory)}
                     >
-                      <SelectTrigger className="h-8 text-xs">
+                      <SelectTrigger className="h-10 text-sm font-bold border-2 border-border shadow-[2px_2px_0px_0px_#111111]">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="border-2 border-border shadow-[4px_4px_0px_0px_#111111] font-bold">
                         <SelectItem value="fact">Fact</SelectItem>
                         <SelectItem value="preference">Preference</SelectItem>
                         <SelectItem value="relationship">Relationship</SelectItem>
@@ -178,42 +178,42 @@ export default function MemoryPanel({ style }: { style?: React.CSSProperties }) 
                         placeholder="Add new memory..."
                         value={newMemoryContent}
                         onChange={(e) => setNewMemoryContent(e.target.value)}
-                        className="text-xs"
+                        className="text-sm font-medium border-2 border-border shadow-[2px_2px_0px_0px_#111111]"
                       />
-                      <Button size="icon" className="h-8 w-8" onClick={handleAddEvergreen}>
-                        <Plus className="h-3 w-3" />
+                      <Button size="icon" className="h-10 w-10 shrink-0 border-2 border-border shadow-[2px_2px_0px_0px_#111111]" onClick={handleAddEvergreen}>
+                        <Plus className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
                 )}
 
                 <ScrollArea className="max-h-[300px]">
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {evergreen.map((mem) => (
                       <div
                         key={mem.id}
                         className={cn(
-                          'group p-2 rounded border text-xs',
-                          injectedEvergreenIds.has(mem.id) && 'border-l-4 border-l-primary bg-primary/5'
+                          'group p-3 rounded-md border-2 border-border text-sm shadow-[2px_2px_0px_0px_#111111] bg-white transition-all hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[4px_4px_0px_0px_#111111]',
+                          injectedEvergreenIds.has(mem.id) && 'border-l-8 border-l-primary bg-primary/5'
                         )}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <Badge
                               variant="secondary"
-                              className={cn('text-[10px] mb-1', getCategoryColor(mem.category))}
+                              className={cn('text-[10px] mb-2 uppercase tracking-wider border-2 border-border shadow-[2px_2px_0px_0px_#111111]', getCategoryColor(mem.category))}
                             >
                               {mem.category}
                             </Badge>
-                            <p className="text-xs">{mem.content}</p>
+                            <p className="text-sm font-medium leading-relaxed">{mem.content}</p>
                           </div>
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-5 w-5 opacity-0 group-hover:opacity-100"
+                            className="h-7 w-7 opacity-0 group-hover:opacity-100 hover:bg-destructive hover:text-white border-2 border-transparent hover:border-border hover:shadow-[2px_2px_0px_0px_#111111]"
                             onClick={() => handleDeleteEvergreen(mem.id)}
                           >
-                            <Trash2 className="h-3 w-3 text-destructive" />
+                            <Trash2 className="h-4 w-4 text-destructive group-hover:text-white" />
                           </Button>
                         </div>
                       </div>
@@ -225,32 +225,32 @@ export default function MemoryPanel({ style }: { style?: React.CSSProperties }) 
           </Card>
 
           {/* Layer 2: Session Context */}
-          <Card className="p-3">
+          <Card className="p-4 border-4 border-border shadow-[4px_4px_0px_0px_#111111] bg-white">
             <div
               className="flex items-center gap-2 cursor-pointer mb-2"
               onClick={() => toggleSection('session')}
             >
               {expandedSections.session ? (
-                <ChevronDown className="h-4 w-4" />
+                <ChevronDown className="h-5 w-5" />
               ) : (
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-5 w-5" />
               )}
-              <h3 className="text-sm font-semibold">Layer 2: Session Context</h3>
+              <h3 className="text-sm font-black uppercase tracking-wider">Layer 2: Session Context</h3>
             </div>
 
             {expandedSections.session && currentSession && (
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Token Count:</span>
-                  <span className="font-mono">{currentSession.token_count}</span>
+              <div className="space-y-3 text-sm mt-4 p-3 bg-muted border-2 border-border rounded-md shadow-[2px_2px_0px_0px_#111111]">
+                <div className="flex justify-between items-center border-b-2 border-border/20 pb-2">
+                  <span className="font-bold uppercase tracking-wider">Token Count:</span>
+                  <span className="font-mono font-bold bg-white px-2 py-0.5 border-2 border-border shadow-[2px_2px_0px_0px_#111111]">{currentSession.token_count}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Compactions:</span>
-                  <span className="font-mono">{currentSession.compaction_count}</span>
+                <div className="flex justify-between items-center border-b-2 border-border/20 pb-2">
+                  <span className="font-bold uppercase tracking-wider">Compactions:</span>
+                  <span className="font-mono font-bold bg-white px-2 py-0.5 border-2 border-border shadow-[2px_2px_0px_0px_#111111]">{currentSession.compaction_count}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Status:</span>
-                  <Badge variant="secondary" className="text-[10px]">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold uppercase tracking-wider">Status:</span>
+                  <Badge variant="default" className="text-[10px] shadow-[2px_2px_0px_0px_#111111]">
                     {currentSession.status}
                   </Badge>
                 </div>
@@ -259,45 +259,45 @@ export default function MemoryPanel({ style }: { style?: React.CSSProperties }) 
           </Card>
 
           {/* Layer 3: Knowledge */}
-          <Card className="p-3">
+          <Card className="p-4 border-4 border-border shadow-[4px_4px_0px_0px_#111111] bg-white">
             <div
-              className="flex items-center gap-2 cursor-pointer mb-2"
+              className="flex items-center gap-2 cursor-pointer mb-4"
               onClick={() => toggleSection('knowledge')}
             >
               {expandedSections.knowledge ? (
-                <ChevronDown className="h-4 w-4" />
+                <ChevronDown className="h-5 w-5" />
               ) : (
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-5 w-5" />
               )}
-              <h3 className="text-sm font-semibold">Layer 3: Knowledge</h3>
+              <h3 className="text-sm font-black uppercase tracking-wider">Layer 3: Knowledge</h3>
             </div>
 
             {expandedSections.knowledge && (
-              <div className="space-y-3">
+              <div className="space-y-6">
                 {/* Current context */}
                 {chatContext && chatContext.knowledge.length > 0 && (
                   <div>
-                    <p className="text-xs font-medium mb-2">本轮检索结果:</p>
+                    <p className="text-sm font-black uppercase tracking-wider mb-3 bg-accent inline-block px-2 py-1 border-2 border-border shadow-[2px_2px_0px_0px_#111111]">本轮检索结果</p>
                     <ScrollArea className="max-h-[300px]">
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {chatContext.knowledge.map((k) => (
                           <div
                             key={k.id}
-                            className="p-2 rounded border border-l-4 border-l-info bg-info/5 text-xs"
+                            className="p-3 rounded-md border-2 border-border border-l-8 border-l-info bg-white shadow-[2px_2px_0px_0px_#111111] text-sm transition-all hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[4px_4px_0px_0px_#111111]"
                           >
-                            <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center justify-between mb-2">
                               <Badge
                                 variant="secondary"
-                                className={cn('text-[10px]', getTypeColor(k.entry_type))}
+                                className={cn('text-[10px] uppercase tracking-wider border-2 border-border shadow-[2px_2px_0px_0px_#111111]', getTypeColor(k.entry_type))}
                               >
                                 {k.entry_type}
                               </Badge>
-                              <span className="text-[10px] text-muted-foreground">
+                              <span className="text-xs font-mono font-bold bg-muted px-1.5 py-0.5 border-2 border-border">
                                 {(k.score * 100).toFixed(1)}%
                               </span>
                             </div>
-                            {k.title && <p className="font-medium mb-1">{k.title}</p>}
-                            <p className="text-muted-foreground line-clamp-3">{k.content}</p>
+                            {k.title && <p className="font-bold mb-1">{k.title}</p>}
+                            <p className="text-muted-foreground line-clamp-3 font-medium">{k.content}</p>
                           </div>
                         ))}
                       </div>
@@ -307,16 +307,16 @@ export default function MemoryPanel({ style }: { style?: React.CSSProperties }) 
 
                 {/* Manual search */}
                 {currentUser && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium">手动搜索:</p>
+                  <div className="space-y-3 p-3 bg-muted border-2 border-border rounded-md shadow-[2px_2px_0px_0px_#111111]">
+                    <p className="text-sm font-black uppercase tracking-wider">手动搜索</p>
                     <Select
                       value={searchType}
                       onValueChange={(v) => setSearchType(v as EntryType | 'all')}
                     >
-                      <SelectTrigger className="h-8 text-xs">
+                      <SelectTrigger className="h-10 text-sm font-bold border-2 border-border shadow-[2px_2px_0px_0px_#111111] bg-white">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="border-2 border-border shadow-[4px_4px_0px_0px_#111111] font-bold">
                         <SelectItem value="all">All Types</SelectItem>
                         <SelectItem value="episode">Episode</SelectItem>
                         <SelectItem value="event">Event</SelectItem>
@@ -329,36 +329,36 @@ export default function MemoryPanel({ style }: { style?: React.CSSProperties }) 
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                        className="text-xs"
+                        className="text-sm font-medium border-2 border-border shadow-[2px_2px_0px_0px_#111111]"
                       />
                       <Button
                         size="icon"
-                        className="h-8 w-8"
+                        className="h-10 w-10 shrink-0 border-2 border-border shadow-[2px_2px_0px_0px_#111111]"
                         onClick={handleSearch}
                         disabled={searching}
                       >
-                        <Search className="h-3 w-3" />
+                        <Search className="h-4 w-4" />
                       </Button>
                     </div>
 
                     {searchResults.length > 0 && (
-                      <ScrollArea className="max-h-[300px]">
-                        <div className="space-y-2">
+                      <ScrollArea className="max-h-[300px] mt-4">
+                        <div className="space-y-3">
                           {searchResults.map((result) => (
-                            <div key={result.id} className="p-2 rounded border text-xs">
-                              <div className="flex items-center justify-between mb-1">
+                            <div key={result.id} className="p-3 rounded-md border-2 border-border bg-white shadow-[2px_2px_0px_0px_#111111] text-sm transition-all hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[4px_4px_0px_0px_#111111]">
+                              <div className="flex items-center justify-between mb-2">
                                 <Badge
                                   variant="secondary"
-                                  className={cn('text-[10px]', getTypeColor(result.entry_type))}
+                                  className={cn('text-[10px] uppercase tracking-wider border-2 border-border shadow-[2px_2px_0px_0px_#111111]', getTypeColor(result.entry_type))}
                                 >
                                   {result.entry_type}
                                 </Badge>
-                                <span className="text-[10px] text-muted-foreground">
+                                <span className="text-xs font-mono font-bold bg-muted px-1.5 py-0.5 border-2 border-border">
                                   {(result.score * 100).toFixed(1)}%
                                 </span>
                               </div>
-                              {result.title && <p className="font-medium mb-1">{result.title}</p>}
-                              <p className="text-muted-foreground line-clamp-3">{result.content}</p>
+                              {result.title && <p className="font-bold mb-1">{result.title}</p>}
+                              <p className="text-muted-foreground line-clamp-3 font-medium">{result.content}</p>
                             </div>
                           ))}
                         </div>

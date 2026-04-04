@@ -26,6 +26,7 @@ export default function ChatPanel() {
   const [msgInput, setMsgInput] = useState('')
   const [sending, setSending] = useState(false)
   const [streamingText, setStreamingText] = useState('')
+  const streamingTextRef = useRef('')
   const [useMemory, setUseMemory] = useState(true)
   const [memorizing, setMemorizing] = useState(false)
   const [memorizeResult, setMemorizeResult] = useState<string | null>(null)
@@ -43,7 +44,12 @@ export default function ChatPanel() {
 
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+      // Use requestAnimationFrame to ensure DOM has updated before scrolling
+      requestAnimationFrame(() => {
+        if (chatContainerRef.current) {
+          chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+        }
+      })
     }
   }
 
@@ -69,6 +75,7 @@ export default function ChatPanel() {
     addMessage(userMsg)
 
     setStreamingText('')
+    streamingTextRef.current = ''
     const ctrl = new AbortController()
     abortCtrlRef.current = ctrl
 
@@ -79,6 +86,7 @@ export default function ChatPanel() {
       {
         onToken: (token) => {
           setStreamingText((prev) => prev + token)
+          streamingTextRef.current += token
         },
         onContext: (ctx) => {
           setChatContext(ctx)
@@ -89,7 +97,7 @@ export default function ChatPanel() {
             session_id: currentSession.id,
             parent_id: null,
             role: 'assistant',
-            content: streamingText,
+            content: streamingTextRef.current,
             token_count: 0,
             message_type: 'message',
             is_compacted: false,
@@ -97,6 +105,7 @@ export default function ChatPanel() {
           }
           addMessage(aiMsg)
           setStreamingText('')
+          streamingTextRef.current = ''
           setSending(false)
           abortCtrlRef.current = null
           if (tokenCount !== undefined) {
@@ -105,6 +114,7 @@ export default function ChatPanel() {
         },
         onError: (err) => {
           setStreamingText((prev) => prev + `\n[错误: ${err}]`)
+          streamingTextRef.current += `\n[错误: ${err}]`
           setSending(false)
           abortCtrlRef.current = null
         },
@@ -115,13 +125,13 @@ export default function ChatPanel() {
 
   const handleStop = () => {
     abortCtrlRef.current?.abort()
-    if (streamingText) {
+    if (streamingTextRef.current) {
       const stoppedMsg: Message = {
         id: 'temp-stopped-' + Date.now(),
         session_id: currentSession!.id,
         parent_id: null,
         role: 'assistant',
-        content: streamingText + '\n[已中止]',
+        content: streamingTextRef.current + '\n[已中止]',
         token_count: 0,
         message_type: 'message',
         is_compacted: false,
@@ -129,6 +139,7 @@ export default function ChatPanel() {
       }
       addMessage(stoppedMsg)
       setStreamingText('')
+      streamingTextRef.current = ''
     }
     setSending(false)
     abortCtrlRef.current = null
@@ -173,14 +184,14 @@ export default function ChatPanel() {
 
   if (!hasSession) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 text-muted-foreground px-8">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center">
-          <Bot className="h-8 w-8 text-primary" />
+      <div className="flex-1 flex flex-col items-center justify-center gap-6 text-foreground px-8 bg-background">
+        <div className="w-32 h-32 rounded-md border-4 border-border bg-secondary flex items-center justify-center shadow-[12px_12px_0px_0px_#111111] hover:scale-105 transition-transform cursor-pointer">
+          <Bot className="h-16 w-16 text-foreground animate-pulse" />
         </div>
-        <h2 className="text-xl font-semibold text-foreground">
+        <h2 className="text-4xl font-black uppercase tracking-tighter text-foreground bg-accent px-6 py-2 border-4 border-border shadow-[6px_6px_0px_0px_#111111] -rotate-2">
           {currentUser ? '开始新对话' : '欢迎使用 Replica'}
         </h2>
-        <p className="text-sm text-center max-w-md">
+        <p className="text-lg text-center max-w-md font-bold bg-white p-4 border-2 border-border shadow-[4px_4px_0px_0px_#111111]">
           {currentUser
             ? '在左侧选择已有会话，或点击 + 创建新会话开始对话'
             : '请先在左侧选择用户，或创建新用户开始使用'}
@@ -192,34 +203,34 @@ export default function ChatPanel() {
   return (
     <div className="flex-1 flex flex-col h-screen bg-background">
       {/* Token bar */}
-      <div className="px-6 py-3.5 border-b bg-white/80 backdrop-blur-sm">
+      <div className="px-6 py-3 border-b-4 border-border bg-accent">
         <div className="flex items-center gap-3">
           <TokenProgress current={currentSession.token_count} />
           <Button
-            variant="ghost"
+            variant="default"
             size="sm"
             onClick={copySessionId}
-            className="flex items-center gap-1.5 text-xs hover:bg-muted rounded-lg px-2.5 py-1.5"
+            className="flex items-center gap-1.5 text-xs bg-white text-foreground border-2 border-border shadow-[2px_2px_0px_0px_#111111] hover:bg-muted hover:shadow-[4px_4px_0px_0px_#111111] px-3 py-1.5"
           >
-            <span className="font-mono text-muted-foreground text-[11px]">{currentSession.id.slice(0, 12)}...</span>
+            <span className="font-mono font-bold text-[11px]">{currentSession.id.slice(0, 12)}...</span>
             {copiedSessionId ? (
               <Check className="h-3 w-3 text-success" />
             ) : (
-              <Copy className="h-3 w-3 text-muted-foreground" />
+              <Copy className="h-3 w-3 text-foreground" />
             )}
           </Button>
         </div>
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1" ref={chatContainerRef}>
+      <ScrollArea className="flex-1" viewportRef={chatContainerRef}>
         <div className="max-w-4xl mx-auto px-6 py-6">
           {messages.length === 0 && !streamingText && (
-            <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground py-24">
-              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center">
-                <Bot className="h-7 w-7 text-primary" />
+            <div className="flex flex-col items-center justify-center h-full gap-6 text-foreground py-24">
+              <div className="w-24 h-24 rounded-md border-4 border-border bg-accent flex items-center justify-center shadow-[8px_8px_0px_0px_#111111] rotate-[-5deg] hover:rotate-0 transition-transform cursor-pointer">
+                <Bot className="h-12 w-12 text-foreground" />
               </div>
-              <p className="text-sm">输入消息开始对话</p>
+              <p className="text-xl font-bold uppercase tracking-widest bg-primary text-white px-4 py-2 border-2 border-border shadow-[4px_4px_0px_0px_#111111]">输入消息开始对话</p>
             </div>
           )}
 
@@ -228,34 +239,34 @@ export default function ChatPanel() {
               key={msg.id}
               className={cn(
                 'flex gap-4 py-8 transition-colors group',
-                msg.role === 'assistant' && 'bg-ai-bg/50 -mx-6 px-6'
+                msg.role === 'assistant' && 'bg-ai-bg border-y-2 border-border -mx-6 px-6 shadow-[0px_4px_0px_0px_#111111] mb-4'
               )}
             >
               <div
                 className={cn(
-                  'w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0',
-                  msg.role === 'user' && 'bg-gradient-to-br from-primary to-primary/80 text-white',
-                  msg.role === 'assistant' && 'bg-gradient-to-br from-accent to-accent/80 text-white',
+                  'w-10 h-10 rounded-md border-2 border-border flex items-center justify-center flex-shrink-0 shadow-[2px_2px_0px_0px_#111111]',
+                  msg.role === 'user' && 'bg-primary text-white',
+                  msg.role === 'assistant' && 'bg-secondary text-secondary-foreground',
                   msg.role === 'system' && 'bg-muted text-muted-foreground'
                 )}
               >
                 {msg.role === 'assistant' ? (
-                  <Bot className="h-4 w-4" />
+                  <Bot className="h-6 w-6" />
                 ) : msg.role === 'user' ? (
-                  <UserIcon className="h-4 w-4" />
+                  <UserIcon className="h-6 w-6" />
                 ) : (
-                  <span className="text-xs font-semibold">S</span>
+                  <span className="text-sm font-bold">SYS</span>
                 )}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-medium text-foreground">
+              <div className="flex-1 min-w-0 pt-1">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-sm font-bold uppercase tracking-wider text-foreground">
                     {msg.role === 'user' ? '你' : msg.role === 'assistant' ? 'AI 助手' : '系统'}
                   </span>
                   {msg.message_type !== 'message' && (
                     <Badge
                       variant={msg.message_type === 'compaction_summary' ? 'destructive' : 'secondary'}
-                      className="text-[10px] px-1.5 py-0"
+                      className="text-[10px] px-2 py-0.5"
                     >
                       {msg.message_type}
                     </Badge>
@@ -268,7 +279,7 @@ export default function ChatPanel() {
                     </ReactMarkdown>
                   </div>
                 ) : (
-                  <div className="text-[15px] whitespace-pre-wrap leading-relaxed">{msg.content}</div>
+                  <div className="text-[16px] whitespace-pre-wrap leading-relaxed font-medium">{msg.content}</div>
                 )}
               </div>
             </div>
@@ -276,14 +287,14 @@ export default function ChatPanel() {
 
           {/* Streaming message */}
           {streamingText && (
-            <div className="flex gap-3 py-6 px-4 border-t bg-muted/30">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-sm animate-pulse">
-                <Bot className="h-4 w-4" />
+            <div className="flex gap-4 py-8 px-6 border-y-2 border-border bg-accent/20 mb-4 shadow-[0px_4px_0px_0px_#111111] -mx-6">
+              <div className="w-10 h-10 rounded-md border-2 border-border flex items-center justify-center flex-shrink-0 bg-secondary text-secondary-foreground shadow-[2px_2px_0px_0px_#111111] animate-bounce">
+                <Bot className="h-6 w-6" />
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-semibold">AI</span>
-                  <Badge variant="secondary" className="text-[10px] shadow-sm">
+              <div className="flex-1 min-w-0 pt-1">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-sm font-bold uppercase tracking-wider text-foreground">AI 助手</span>
+                  <Badge variant="secondary" className="text-[10px] shadow-[2px_2px_0px_0px_#111111]">
                     生成中...
                   </Badge>
                 </div>
@@ -291,7 +302,7 @@ export default function ChatPanel() {
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
                     {streamingText}
                   </ReactMarkdown>
-                  <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-1 rounded-sm">▍</span>
+                  <span className="inline-block w-3 h-5 bg-primary animate-pulse ml-1 rounded-sm align-middle"></span>
                 </div>
               </div>
             </div>
@@ -300,31 +311,31 @@ export default function ChatPanel() {
       </ScrollArea>
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-6 py-2 border-t">
+      <div className="flex items-center justify-between px-6 py-3 border-t-4 border-border bg-secondary">
         <div className="flex gap-2">
           <Button
             variant={useMemory ? 'default' : 'outline'}
             size="sm"
             onClick={() => setUseMemory(!useMemory)}
-            className="text-xs"
+            className={cn("text-xs font-black uppercase tracking-wider", useMemory ? "bg-primary" : "bg-white text-foreground")}
           >
-            {useMemory ? <ToggleRight className="h-3 w-3 mr-1" /> : <ToggleLeft className="h-3 w-3 mr-1" />}
+            {useMemory ? <ToggleRight className="h-4 w-4 mr-1" /> : <ToggleLeft className="h-4 w-4 mr-1" />}
             记忆 {useMemory ? 'ON' : 'OFF'}
           </Button>
         </div>
         <div className="flex gap-2">
           {sessionActive && (
             <Button
-              variant="outline"
+              variant="default"
               size="sm"
               onClick={handleMemorize}
               disabled={memorizing || messages.length === 0}
-              className="text-xs"
+              className="text-xs font-black uppercase tracking-wider bg-accent text-foreground hover:bg-accent/90"
             >
               {memorizing ? (
-                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
               ) : (
-                <Sparkles className="h-3 w-3 mr-1" />
+                <Sparkles className="h-4 w-4 mr-1" />
               )}
               提取记忆
             </Button>
@@ -334,34 +345,34 @@ export default function ChatPanel() {
 
       {/* Memorize result toast */}
       {memorizeResult && (
-        <div className="px-6 py-2 text-xs text-center bg-success/10 text-success border-t">
+        <div className="px-6 py-3 text-sm font-bold uppercase tracking-wider text-center bg-success text-black border-t-4 border-border shadow-[inset_0px_4px_0px_0px_rgba(0,0,0,0.1)]">
           {memorizeResult}
         </div>
       )}
 
       {/* Input area */}
-      <div className="flex gap-3 p-4 border-t bg-white/80 backdrop-blur-sm">
+      <div className="flex gap-3 p-4 border-t-2 border-border bg-white/80 backdrop-blur-sm">
         <textarea
           value={msgInput}
           onChange={(e) => setMsgInput(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder="输入消息，按 Enter 发送，Shift + Enter 换行..."
           disabled={!sessionActive}
-          className="flex-1 resize-none min-h-[48px] max-h-[200px] px-4 py-3 bg-input border border-border rounded-xl text-[15px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-transparent disabled:opacity-50 transition-all placeholder:text-muted-foreground/60"
+          className="flex-1 resize-none min-h-[48px] max-h-[200px] px-4 py-3 bg-input border-2 border-border rounded-md text-[15px] font-medium leading-relaxed focus:outline-none focus:ring-0 disabled:opacity-50 transition-all placeholder:text-muted-foreground/60 shadow-[4px_4px_0px_0px_#111111]"
           rows={1}
         />
         {sending ? (
-          <Button size="icon" onClick={handleStop} variant="destructive" className="h-12 w-12 rounded-xl shadow-sm hover:shadow-md transition-all">
-            <Square className="h-4 w-4" />
+          <Button size="icon" onClick={handleStop} variant="destructive" className="h-12 w-12 shrink-0">
+            <Square className="h-5 w-5" />
           </Button>
         ) : (
           <Button
             size="icon"
             onClick={handleSend}
             disabled={!sessionActive || !msgInput.trim()}
-            className="h-12 w-12 rounded-xl shadow-sm hover:shadow-md transition-all"
+            className="h-12 w-12 shrink-0"
           >
-            <Send className="h-4 w-4" />
+            <Send className="h-5 w-5" />
           </Button>
         )}
       </div>

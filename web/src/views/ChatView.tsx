@@ -47,16 +47,16 @@ export default function ChatView() {
       {/* Resize handle */}
       <div
         className={cn(
-          'w-1.5 cursor-col-resize flex items-center justify-center flex-shrink-0 relative z-10 transition-colors hover:bg-primary/20',
-          isDragging && 'bg-primary/20'
+          'w-3 cursor-col-resize flex items-center justify-center flex-shrink-0 relative z-10 transition-colors bg-border hover:bg-primary',
+          isDragging && 'bg-primary'
         )}
         onMouseDown={handleMouseDown}
       >
         <div
           className={cn(
-            'w-0.5 h-8 rounded-full bg-border transition-all',
-            'hover:bg-primary hover:h-12',
-            isDragging && 'bg-primary h-12'
+            'w-1 h-12 bg-white transition-all',
+            'hover:h-16',
+            isDragging && 'h-16'
           )}
         />
       </div>
@@ -65,12 +65,12 @@ export default function ChatView() {
 
       {/* Admin button - fixed at bottom left */}
       <Button
-        variant="ghost"
-        size="sm"
+        variant="default"
+        size="default"
         onClick={() => navigate('/admin')}
-        className="fixed bottom-4 left-4 z-50 shadow-lg hover:shadow-xl transition-all bg-white/90 backdrop-blur-sm border border-border"
+        className="fixed bottom-6 left-6 z-50 shadow-[4px_4px_0px_0px_#111111] hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_#111111] transition-all bg-white text-foreground border-2 border-border font-black uppercase tracking-wider"
       >
-        <Settings className="h-4 w-4 mr-2" />
+        <Settings className="h-5 w-5 mr-2" />
         管理面板
       </Button>
     </div>
