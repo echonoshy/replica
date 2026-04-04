@@ -173,15 +173,17 @@ export default function ChatPanel() {
 
   if (!hasSession) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground">
-        <Bot className="h-12 w-12 opacity-30" />
-        <h2 className="text-lg font-semibold text-foreground">
-          {currentUser ? '选择或创建会话开始对话' : '选择或创建用户'}
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 text-muted-foreground px-8">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center">
+          <Bot className="h-8 w-8 text-primary" />
+        </div>
+        <h2 className="text-xl font-semibold text-foreground">
+          {currentUser ? '开始新对话' : '欢迎使用 Replica'}
         </h2>
-        <p className="text-sm">
+        <p className="text-sm text-center max-w-md">
           {currentUser
-            ? '在左侧栏点击已有会话，或点击 + 创建新会话'
-            : '在左侧栏选择已有用户，或创建新用户开始使用'}
+            ? '在左侧选择已有会话，或点击 + 创建新会话开始对话'
+            : '请先在左侧选择用户，或创建新用户开始使用'}
         </p>
       </div>
     )
@@ -190,20 +192,20 @@ export default function ChatPanel() {
   return (
     <div className="flex-1 flex flex-col h-screen bg-background">
       {/* Token bar */}
-      <div className="px-6 border-b">
+      <div className="px-6 py-3.5 border-b bg-white/80 backdrop-blur-sm">
         <div className="flex items-center gap-3">
           <TokenProgress current={currentSession.token_count} />
           <Button
             variant="ghost"
             size="sm"
             onClick={copySessionId}
-            className="flex items-center gap-1 text-xs"
+            className="flex items-center gap-1.5 text-xs hover:bg-muted rounded-lg px-2.5 py-1.5"
           >
-            <span className="font-mono">{currentSession.id.slice(0, 12)}...</span>
+            <span className="font-mono text-muted-foreground text-[11px]">{currentSession.id.slice(0, 12)}...</span>
             {copiedSessionId ? (
               <Check className="h-3 w-3 text-success" />
             ) : (
-              <Copy className="h-3 w-3" />
+              <Copy className="h-3 w-3 text-muted-foreground" />
             )}
           </Button>
         </div>
@@ -211,11 +213,13 @@ export default function ChatPanel() {
 
       {/* Messages */}
       <ScrollArea className="flex-1" ref={chatContainerRef}>
-        <div className="px-6 py-4">
+        <div className="max-w-4xl mx-auto px-6 py-6">
           {messages.length === 0 && !streamingText && (
-            <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground py-20">
-              <Bot className="h-8 w-8 opacity-30" />
-              <p className="text-sm">输入消息，开始对话</p>
+            <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground py-24">
+              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center">
+                <Bot className="h-7 w-7 text-primary" />
+              </div>
+              <p className="text-sm">输入消息开始对话</p>
             </div>
           )}
 
@@ -223,15 +227,15 @@ export default function ChatPanel() {
             <div
               key={msg.id}
               className={cn(
-                'flex gap-3 py-4 border-t first:border-t-0',
-                msg.role === 'assistant' && 'bg-muted/30'
+                'flex gap-4 py-8 transition-colors group',
+                msg.role === 'assistant' && 'bg-ai-bg/50 -mx-6 px-6'
               )}
             >
               <div
                 className={cn(
-                  'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0',
-                  msg.role === 'user' && 'bg-primary/10 text-primary',
-                  msg.role === 'assistant' && 'bg-info/10 text-info',
+                  'w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0',
+                  msg.role === 'user' && 'bg-gradient-to-br from-primary to-primary/80 text-white',
+                  msg.role === 'assistant' && 'bg-gradient-to-br from-accent to-accent/80 text-white',
                   msg.role === 'system' && 'bg-muted text-muted-foreground'
                 )}
               >
@@ -244,14 +248,14 @@ export default function ChatPanel() {
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-semibold text-foreground">
-                    {msg.role === 'user' ? '用户' : msg.role === 'assistant' ? 'AI' : msg.role}
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-medium text-foreground">
+                    {msg.role === 'user' ? '你' : msg.role === 'assistant' ? 'AI 助手' : '系统'}
                   </span>
                   {msg.message_type !== 'message' && (
                     <Badge
                       variant={msg.message_type === 'compaction_summary' ? 'destructive' : 'secondary'}
-                      className="text-[10px]"
+                      className="text-[10px] px-1.5 py-0"
                     >
                       {msg.message_type}
                     </Badge>
@@ -264,7 +268,7 @@ export default function ChatPanel() {
                     </ReactMarkdown>
                   </div>
                 ) : (
-                  <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
+                  <div className="text-[15px] whitespace-pre-wrap leading-relaxed">{msg.content}</div>
                 )}
               </div>
             </div>
@@ -272,14 +276,14 @@ export default function ChatPanel() {
 
           {/* Streaming message */}
           {streamingText && (
-            <div className="flex gap-3 py-4 border-t bg-muted/30">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-info/10 text-info animate-pulse">
+            <div className="flex gap-3 py-6 px-4 border-t bg-muted/30">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-sm animate-pulse">
                 <Bot className="h-4 w-4" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-xs font-semibold">AI</span>
-                  <Badge variant="secondary" className="text-[10px]">
+                  <Badge variant="secondary" className="text-[10px] shadow-sm">
                     生成中...
                   </Badge>
                 </div>
@@ -287,7 +291,7 @@ export default function ChatPanel() {
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
                     {streamingText}
                   </ReactMarkdown>
-                  <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-1">▍</span>
+                  <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-1 rounded-sm">▍</span>
                 </div>
               </div>
             </div>
@@ -336,18 +340,18 @@ export default function ChatPanel() {
       )}
 
       {/* Input area */}
-      <div className="flex gap-2 p-4 border-t bg-card">
+      <div className="flex gap-3 p-4 border-t bg-white/80 backdrop-blur-sm">
         <textarea
           value={msgInput}
           onChange={(e) => setMsgInput(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="输入消息，按 Enter 发送..."
+          placeholder="输入消息，按 Enter 发送，Shift + Enter 换行..."
           disabled={!sessionActive}
-          className="flex-1 resize-none min-h-[44px] max-h-[150px] px-3 py-2 bg-input border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+          className="flex-1 resize-none min-h-[48px] max-h-[200px] px-4 py-3 bg-input border border-border rounded-xl text-[15px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-transparent disabled:opacity-50 transition-all placeholder:text-muted-foreground/60"
           rows={1}
         />
         {sending ? (
-          <Button size="icon" onClick={handleStop} variant="destructive">
+          <Button size="icon" onClick={handleStop} variant="destructive" className="h-12 w-12 rounded-xl shadow-sm hover:shadow-md transition-all">
             <Square className="h-4 w-4" />
           </Button>
         ) : (
@@ -355,6 +359,7 @@ export default function ChatPanel() {
             size="icon"
             onClick={handleSend}
             disabled={!sessionActive || !msgInput.trim()}
+            className="h-12 w-12 rounded-xl shadow-sm hover:shadow-md transition-all"
           >
             <Send className="h-4 w-4" />
           </Button>

@@ -1,11 +1,12 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { ChevronLeft, ChevronRight, Copy, Check, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Copy, Check, Trash2, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react'
 import { getSessions, deleteSession } from '@/api/sessions'
 import { getMessages } from '@/api/messages'
 import { getUserKnowledge, deleteKnowledgeEntry, getKnowledgeCount } from '@/api/memory'
@@ -14,16 +15,29 @@ import { cn } from '@/lib/utils'
 import type { Session, Message, KnowledgeEntry, KnowledgeCount, TableInfo, TableDataResponse } from '@/types'
 
 export default function AdminView() {
+  const navigate = useNavigate()
+
   return (
     <div className="h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto h-full flex flex-col">
-        <h1 className="text-2xl font-bold mb-6">Admin Panel</h1>
+        <div className="flex items-center gap-4 mb-6">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/')}
+            className="hover:bg-muted"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            返回主界面
+          </Button>
+          <h1 className="text-2xl font-bold">管理面板</h1>
+        </div>
 
         <Tabs defaultValue="sessions" className="flex-1 flex flex-col min-h-0">
           <TabsList>
-            <TabsTrigger value="sessions">Sessions</TabsTrigger>
-            <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
-            <TabsTrigger value="database">Database</TabsTrigger>
+            <TabsTrigger value="sessions">会话管理</TabsTrigger>
+            <TabsTrigger value="knowledge">知识库</TabsTrigger>
+            <TabsTrigger value="database">数据库</TabsTrigger>
           </TabsList>
 
           <TabsContent value="sessions" className="flex-1 mt-4">
@@ -110,13 +124,13 @@ function SessionsTab() {
       <Card className="p-4 flex flex-col">
         <div className="flex gap-2 mb-4">
           <Input
-            placeholder="User ID"
+            placeholder="用户 ID"
             value={userId}
             onChange={(e) => setUserId(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && loadSessions()}
           />
           <Button onClick={loadSessions} disabled={loading}>
-            Load
+            加载
           </Button>
         </div>
 
@@ -126,14 +140,14 @@ function SessionsTab() {
               <div
                 key={session.id}
                 className={cn(
-                  'p-3 rounded border cursor-pointer hover:bg-muted transition-colors',
+                  'p-3 rounded-lg border cursor-pointer hover:bg-muted transition-colors',
                   selectedSession?.id === session.id && 'bg-muted border-primary'
                 )}
                 onClick={() => handleSelectSession(session)}
               >
                 <div className="flex items-center justify-between mb-2">
                   <Badge variant={session.status === 'active' ? 'default' : 'secondary'}>
-                    {session.status}
+                    {session.status === 'active' ? '活跃' : '已归档'}
                   </Badge>
                   <div className="flex gap-1">
                     <Button
@@ -166,11 +180,11 @@ function SessionsTab() {
                 </div>
                 <p className="text-xs font-mono mb-1">{session.id.slice(0, 16)}...</p>
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>{new Date(session.created_at).toLocaleString()}</span>
+                  <span>{new Date(session.created_at).toLocaleString('zh-CN')}</span>
                   <span>{session.token_count} tokens</span>
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Compactions: {session.compaction_count}
+                  压缩次数: {session.compaction_count}
                 </div>
               </div>
             ))}
@@ -182,14 +196,14 @@ function SessionsTab() {
         {selectedSession ? (
           <>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">Messages Timeline</h3>
+              <h3 className="font-semibold">消息时间线</h3>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setShowCompacted(!showCompacted)}
               >
                 {showCompacted ? <ChevronUp className="h-3 w-3 mr-1" /> : <ChevronDown className="h-3 w-3 mr-1" />}
-                {showCompacted ? 'Hide' : 'Show'} Compacted
+                {showCompacted ? '隐藏' : '显示'} 已压缩
               </Button>
             </div>
 
@@ -199,19 +213,19 @@ function SessionsTab() {
                   <div
                     key={msg.id}
                     className={cn(
-                      'p-3 rounded border',
+                      'p-3 rounded-lg border',
                       msg.is_compacted && 'bg-muted/50 opacity-60'
                     )}
                   >
                     <div className="flex items-center gap-2 mb-2">
-                      <Badge variant="outline">{msg.role}</Badge>
+                      <Badge variant="outline">{msg.role === 'user' ? '用户' : msg.role === 'assistant' ? '助手' : '系统'}</Badge>
                       {msg.message_type !== 'message' && (
                         <Badge variant={msg.message_type === 'compaction_summary' ? 'destructive' : 'secondary'}>
                           {msg.message_type}
                         </Badge>
                       )}
                       <span className="text-xs text-muted-foreground ml-auto">
-                        {new Date(msg.created_at).toLocaleString()}
+                        {new Date(msg.created_at).toLocaleString('zh-CN')}
                       </span>
                       <span className="text-xs text-muted-foreground">{msg.token_count} tokens</span>
                     </div>
@@ -223,7 +237,7 @@ function SessionsTab() {
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            Select a session to view messages
+            选择一个会话以查看消息
           </div>
         )}
       </Card>
@@ -292,32 +306,32 @@ function KnowledgeTab() {
       <Card className="p-4 mb-4">
         <div className="flex gap-2 mb-4">
           <Input
-            placeholder="User ID"
+            placeholder="用户 ID"
             value={userId}
             onChange={(e) => setUserId(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && loadKnowledge()}
           />
           <Button onClick={loadKnowledge} disabled={loading}>
-            Load
+            加载
           </Button>
         </div>
 
         {stats && (
           <div className="flex gap-4 text-sm">
             <div>
-              <span className="text-muted-foreground">Episode:</span>{' '}
+              <span className="text-muted-foreground">情节:</span>{' '}
               <span className="font-semibold">{stats.episode}</span>
             </div>
             <div>
-              <span className="text-muted-foreground">Event:</span>{' '}
+              <span className="text-muted-foreground">事件:</span>{' '}
               <span className="font-semibold">{stats.event}</span>
             </div>
             <div>
-              <span className="text-muted-foreground">Foresight:</span>{' '}
+              <span className="text-muted-foreground">预见:</span>{' '}
               <span className="font-semibold">{stats.foresight}</span>
             </div>
             <div>
-              <span className="text-muted-foreground">Total:</span>{' '}
+              <span className="text-muted-foreground">总计:</span>{' '}
               <span className="font-semibold">{stats.total}</span>
             </div>
           </div>
@@ -335,7 +349,7 @@ function KnowledgeTab() {
               setPage(0)
             }}
           >
-            {type.charAt(0).toUpperCase() + type.slice(1)}
+            {type === 'all' ? '全部' : type === 'episode' ? '情节' : type === 'event' ? '事件' : '预见'}
           </Button>
         ))}
       </div>
@@ -346,11 +360,13 @@ function KnowledgeTab() {
             {paginatedKnowledge.map((entry) => {
               const isExpanded = expandedIds.has(entry.id)
               return (
-                <div key={entry.id} className="p-3 rounded border">
+                <div key={entry.id} className="p-3 rounded-lg border">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="outline">{entry.entry_type}</Badge>
+                        <Badge variant="outline">
+                          {entry.entry_type === 'episode' ? '情节' : entry.entry_type === 'event' ? '事件' : '预见'}
+                        </Badge>
                         {entry.title && <span className="text-sm font-medium">{entry.title}</span>}
                       </div>
                       <p className={cn('text-sm', !isExpanded && 'line-clamp-2')}>
@@ -358,11 +374,11 @@ function KnowledgeTab() {
                       </p>
                       {entry.participants && entry.participants.length > 0 && (
                         <p className="text-xs text-muted-foreground mt-1">
-                          Participants: {entry.participants.join(', ')}
+                          参与者: {entry.participants.join(', ')}
                         </p>
                       )}
                       <p className="text-xs text-muted-foreground mt-1">
-                        {new Date(entry.created_at).toLocaleString()}
+                        {new Date(entry.created_at).toLocaleString('zh-CN')}
                       </p>
                     </div>
                     <div className="flex gap-1">
@@ -403,10 +419,10 @@ function KnowledgeTab() {
               disabled={page === 0}
             >
               <ChevronLeft className="h-4 w-4 mr-1" />
-              Previous
+              上一页
             </Button>
             <span className="text-sm text-muted-foreground">
-              Page {page + 1} of {totalPages}
+              第 {page + 1} 页，共 {totalPages} 页
             </span>
             <Button
               variant="outline"
@@ -414,7 +430,7 @@ function KnowledgeTab() {
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
               disabled={page === totalPages - 1}
             >
-              Next
+              下一页
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           </div>
@@ -472,9 +488,9 @@ function DatabaseTab() {
     <div className="grid grid-cols-4 gap-4 h-full">
       <Card className="p-4 flex flex-col">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold">Tables</h3>
+          <h3 className="font-semibold">数据表</h3>
           <Button size="sm" onClick={loadTables} disabled={loading}>
-            Load
+            加载
           </Button>
         </div>
 
@@ -484,13 +500,13 @@ function DatabaseTab() {
               <div
                 key={table.name}
                 className={cn(
-                  'p-2 rounded cursor-pointer hover:bg-muted transition-colors',
+                  'p-2 rounded-lg cursor-pointer hover:bg-muted transition-colors',
                   selectedTable === table.name && 'bg-muted'
                 )}
                 onClick={() => handleSelectTable(table.name)}
               >
                 <p className="text-sm font-medium">{table.name}</p>
-                <p className="text-xs text-muted-foreground">{table.row_count} rows</p>
+                <p className="text-xs text-muted-foreground">{table.row_count} 行</p>
               </div>
             ))}
           </div>
@@ -539,10 +555,10 @@ function DatabaseTab() {
                   disabled={page === 0}
                 >
                   <ChevronLeft className="h-4 w-4 mr-1" />
-                  Previous
+                  上一页
                 </Button>
                 <span className="text-sm text-muted-foreground">
-                  Page {page + 1} of {totalPages} ({tableData.total} total rows)
+                  第 {page + 1} 页，共 {totalPages} 页（总计 {tableData.total} 行）
                 </span>
                 <Button
                   variant="outline"
@@ -550,7 +566,7 @@ function DatabaseTab() {
                   onClick={() => handlePageChange(page + 1)}
                   disabled={page === totalPages - 1}
                 >
-                  Next
+                  下一页
                   <ChevronRight className="h-4 w-4 ml-1" />
                 </Button>
               </div>
@@ -558,7 +574,7 @@ function DatabaseTab() {
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            Select a table to view data
+            选择一个数据表以查看数据
           </div>
         )}
       </Card>

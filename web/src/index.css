@@ -1,45 +1,81 @@
 @import "tailwindcss";
 
+@theme {
+  /* Claude-inspired Theme - Clean & Modern */
+  --color-background: #ffffff;
+  --color-foreground: #1a1a1a;
+  --color-card: #ffffff;
+  --color-card-foreground: #1a1a1a;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #1a1a1a;
+  --color-primary: #2563eb;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f8fafc;
+  --color-secondary-foreground: #1a1a1a;
+  --color-muted: #f1f5f9;
+  --color-muted-foreground: #64748b;
+  --color-accent: #3b82f6;
+  --color-accent-foreground: #ffffff;
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #e2e8f0;
+  --color-input: #ffffff;
+  --color-ring: #3b82f6;
+  --radius: 0.5rem;
+
+  /* Custom colors */
+  --color-success: #10b981;
+  --color-info: #3b82f6;
+  --color-warning: #f59e0b;
+
+  /* Sidebar background */
+  --color-sidebar: #f8fafc;
+
+  /* AI message background */
+  --color-ai-bg: #f8fafc;
+}
+
 @layer base {
   :root {
-    --color-background: 40 20% 98%;
-    --color-foreground: 0 0% 10%;
-    --color-card: 0 0% 100%;
-    --color-card-foreground: 0 0% 10%;
-    --color-popover: 0 0% 100%;
-    --color-popover-foreground: 0 0% 10%;
-    --color-primary: 15 70% 60%;
-    --color-primary-foreground: 0 0% 100%;
-    --color-secondary: 40 20% 94%;
-    --color-secondary-foreground: 0 0% 10%;
-    --color-muted: 40 15% 94%;
-    --color-muted-foreground: 0 0% 42%;
-    --color-accent: 15 70% 60%;
-    --color-accent-foreground: 0 0% 100%;
-    --color-destructive: 0 72% 51%;
-    --color-destructive-foreground: 0 0% 100%;
-    --color-border: 40 15% 87%;
-    --color-input: 0 0% 100%;
-    --color-ring: 15 70% 60%;
-    --radius: 0.75rem;
-
-    /* Custom colors from original design */
-    --color-success: 162 63% 31%;
-    --color-info: 211 46% 51%;
-    --color-warning: 45 85% 47%;
+    background-color: var(--color-background);
+    color: var(--color-foreground);
   }
 
   body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    background-color: hsl(var(--color-background));
-    color: hsl(var(--color-foreground));
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    background-color: var(--color-background);
+    color: var(--color-foreground);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* Modern shadow system - Anthropic style */
+  .shadow-sm {
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  }
+
+  .shadow {
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  }
+
+  .shadow-md {
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  }
+
+  .shadow-lg {
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  }
+
+  /* Smooth transitions */
+  * {
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   /* Markdown styles for react-markdown */
   .prose {
-    color: hsl(var(--color-foreground));
+    color: var(--color-foreground);
   }
 
   .prose p {
@@ -51,7 +87,7 @@
   }
 
   .prose code {
-    background-color: hsl(var(--color-muted));
+    background-color: var(--color-muted);
     padding: 0.125rem 0.375rem;
     border-radius: 0.25rem;
     font-size: 0.75rem;
@@ -59,7 +95,7 @@
   }
 
   .prose pre {
-    background-color: hsl(var(--color-muted));
+    background-color: var(--color-muted);
     padding: 0.75rem;
     border-radius: 0.5rem;
     overflow-x: auto;
@@ -83,9 +119,9 @@
   }
 
   .prose blockquote {
-    border-left: 4px solid hsl(var(--color-border));
+    border-left: 4px solid var(--color-border);
     padding-left: 0.75rem;
-    color: hsl(var(--color-muted-foreground));
+    color: var(--color-muted-foreground);
     margin: 0.5rem 0;
   }
 
@@ -122,18 +158,18 @@
 
   .prose th,
   .prose td {
-    border: 1px solid hsl(var(--color-border));
+    border: 1px solid var(--color-border);
     padding: 0.25rem 0.5rem;
     font-size: 0.75rem;
   }
 
   .prose th {
-    background-color: hsl(var(--color-muted));
+    background-color: var(--color-muted);
     font-weight: 600;
   }
 
   .prose a {
-    color: hsl(var(--color-primary));
+    color: var(--color-primary);
   }
 
   .prose a:hover {
@@ -143,17 +179,19 @@
 
 @layer utilities {
   .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
   }
   .scrollbar-thin::-webkit-scrollbar-track {
-    background-color: hsl(var(--color-background));
+    background-color: transparent;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--color-border));
-    border-radius: 3px;
+    background-color: var(--color-border);
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--color-muted-foreground));
+    background-color: color-mix(in srgb, var(--color-primary) 30%, transparent);
   }
 }
