@@ -10,6 +10,9 @@ import { getEvergreenMemories } from '@/api/memory'
 import { Send, Square, Bot, User as UserIcon, Sparkles, ToggleLeft, ToggleRight, Loader2, Copy, Check } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
+import 'katex/dist/katex.min.css'
 import { cn } from '@/lib/utils'
 import type { Message } from '@/types'
 
@@ -274,7 +277,10 @@ export default function ChatPanel() {
                 </div>
                 {msg.role === 'assistant' ? (
                   <div className="prose prose-sm max-w-none">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm, remarkMath]}
+                      rehypePlugins={[rehypeKatex]}
+                    >
                       {msg.content}
                     </ReactMarkdown>
                   </div>
@@ -299,7 +305,10 @@ export default function ChatPanel() {
                   </Badge>
                 </div>
                 <div className="prose prose-sm max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm, remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
+                  >
                     {streamingText}
                   </ReactMarkdown>
                   <span className="inline-block w-3 h-5 bg-primary animate-pulse ml-1 rounded-sm align-middle"></span>
