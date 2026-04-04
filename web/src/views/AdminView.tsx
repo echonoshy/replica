@@ -12,14 +12,14 @@ import { getMessages } from '@/api/messages'
 import { getUserKnowledge, deleteKnowledgeEntry, getKnowledgeCount } from '@/api/memory'
 import { getTables, getTableData } from '@/api/admin'
 import { cn } from '@/lib/utils'
-import type { Session, Message, KnowledgeEntry, KnowledgeCount, TableInfo, TableDataResponse } from '@/types'
+import type { Session, Message, KnowledgeEntry, TableInfo, TableDataResponse } from '@/types'
 
 export default function AdminView() {
   const navigate = useNavigate()
 
   return (
-    <div className="h-screen bg-background p-6 bg-[radial-gradient(var(--color-border)_1px,transparent_1px)] bg-[size:24px_24px]">
-      <div className="max-w-7xl mx-auto h-full flex flex-col bg-white border-4 border-border shadow-[12px_12px_0px_0px_#111111] p-6 rounded-md">
+    <div className="h-screen bg-background p-6 bg-[radial-gradient(var(--color-border)_1px,transparent_1px)] bg-[size:24px_24px] overflow-hidden">
+      <div className="w-[95%] max-w-[1600px] mx-auto h-full flex flex-col bg-white border-4 border-border shadow-[12px_12px_0px_0px_#111111] p-6 rounded-md">
         <div className="flex items-center gap-4 mb-6 border-b-4 border-border pb-4">
           <Button
             variant="default"
@@ -40,15 +40,15 @@ export default function AdminView() {
             <TabsTrigger value="database">数据库</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="sessions" className="flex-1 mt-4">
+          <TabsContent value="sessions" className="flex-1 mt-4 min-h-0">
             <SessionsTab />
           </TabsContent>
 
-          <TabsContent value="knowledge" className="flex-1 mt-4">
+          <TabsContent value="knowledge" className="flex-1 mt-4 min-h-0">
             <KnowledgeTab />
           </TabsContent>
 
-          <TabsContent value="database" className="flex-1 mt-4">
+          <TabsContent value="database" className="flex-1 mt-4 min-h-0">
             <DatabaseTab />
           </TabsContent>
         </Tabs>
@@ -81,7 +81,7 @@ function SessionsTab() {
 
   const loadMessages = async (sessionId: string) => {
     try {
-      const { data } = await getMessages(sessionId, 1000)
+      const { data } = await getMessages(sessionId, 200, 0, true)
       setMessages(data)
     } catch (error) {
       console.error('Failed to load messages:', error)
@@ -120,8 +120,8 @@ function SessionsTab() {
   const filteredMessages = showCompacted ? messages : messages.filter((m) => !m.is_compacted)
 
   return (
-    <div className="grid grid-cols-3 gap-4 h-full">
-      <Card className="p-4 flex flex-col">
+    <div className="grid grid-cols-3 gap-4 h-full min-h-0">
+      <Card className="p-4 flex flex-col min-h-0">
         <div className="flex gap-2 mb-4">
           <Input
             placeholder="用户 ID"
@@ -192,7 +192,7 @@ function SessionsTab() {
         </ScrollArea>
       </Card>
 
-      <Card className="col-span-2 p-4 flex flex-col">
+      <Card className="col-span-2 p-4 flex flex-col min-h-0">
         {selectedSession ? (
           <>
             <div className="flex items-center justify-between mb-4">
@@ -248,7 +248,7 @@ function SessionsTab() {
 function KnowledgeTab() {
   const [userId, setUserId] = useState('')
   const [knowledge, setKnowledge] = useState<KnowledgeEntry[]>([])
-  const [stats, setStats] = useState<KnowledgeCount | null>(null)
+  const [stats, setStats] = useState<{ total: number; by_type: { episode?: number; event?: number; foresight?: number } } | null>(null)
   const [page, setPage] = useState(0)
   const [typeFilter, setTypeFilter] = useState<'all' | 'episode' | 'event' | 'foresight'>('all')
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
@@ -261,7 +261,7 @@ function KnowledgeTab() {
     setLoading(true)
     try {
       const [knowledgeRes, countRes] = await Promise.all([
-        getUserKnowledge(userId.trim(), 1000),
+        getUserKnowledge(userId.trim(), 200),
         getKnowledgeCount(userId.trim()),
       ])
       setKnowledge(knowledgeRes.data)
@@ -302,8 +302,8 @@ function KnowledgeTab() {
   const totalPages = Math.ceil(filteredKnowledge.length / pageSize)
 
   return (
-    <div className="flex flex-col h-full">
-      <Card className="p-4 mb-4">
+    <div className="flex flex-col h-full min-h-0">
+      <Card className="p-4 mb-4 shrink-0">
         <div className="flex gap-2 mb-4">
           <Input
             placeholder="用户 ID"
@@ -320,25 +320,25 @@ function KnowledgeTab() {
           <div className="flex gap-4 text-sm">
             <div>
               <span className="text-muted-foreground">情节:</span>{' '}
-              <span className="font-semibold">{stats.episode}</span>
+              <span className="font-semibold">{stats.by_type.episode || 0}</span>
             </div>
             <div>
               <span className="text-muted-foreground">事件:</span>{' '}
-              <span className="font-semibold">{stats.event}</span>
+              <span className="font-semibold">{stats.by_type.event || 0}</span>
             </div>
             <div>
               <span className="text-muted-foreground">预见:</span>{' '}
-              <span className="font-semibold">{stats.foresight}</span>
+              <span className="font-semibold">{stats.by_type.foresight || 0}</span>
             </div>
             <div>
               <span className="text-muted-foreground">总计:</span>{' '}
-              <span className="font-semibold">{stats.total}</span>
+              <span className="font-semibold">{stats.total || 0}</span>
             </div>
           </div>
         )}
       </Card>
 
-      <div className="flex gap-2 mb-4">
+      <div className="flex gap-2 mb-4 shrink-0">
         {(['all', 'episode', 'event', 'foresight'] as const).map((type) => (
           <Button
             key={type}
@@ -453,7 +453,7 @@ function DatabaseTab() {
     setLoading(true)
     try {
       const { data } = await getTables()
-      setTables(data)
+      setTables(data.tables)
     } catch (error) {
       console.error('Failed to load tables:', error)
     } finally {
@@ -485,8 +485,8 @@ function DatabaseTab() {
   const totalPages = tableData ? Math.ceil(tableData.total / pageSize) : 0
 
   return (
-    <div className="grid grid-cols-4 gap-4 h-full">
-      <Card className="p-4 flex flex-col">
+    <div className="grid grid-cols-4 gap-4 h-full min-h-0">
+      <Card className="p-4 flex flex-col min-h-0">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold">数据表</h3>
           <Button size="sm" onClick={loadTables} disabled={loading}>
@@ -513,7 +513,7 @@ function DatabaseTab() {
         </ScrollArea>
       </Card>
 
-      <Card className="col-span-3 p-4 flex flex-col">
+      <Card className="col-span-3 p-4 flex flex-col min-h-0">
         {tableData ? (
           <>
             <h3 className="font-semibold mb-4">{tableData.table_name}</h3>
@@ -526,7 +526,7 @@ function DatabaseTab() {
                       {tableData.columns.map((col) => (
                         <th key={col.name} className="text-left p-2 font-medium">
                           <div>{col.name}</div>
-                          <div className="text-xs text-muted-foreground font-normal">{col.type}</div>
+                          <div className="text-xs text-muted-foreground font-normal">{(col as any).data_type || (col as any).type}</div>
                         </th>
                       ))}
                     </tr>

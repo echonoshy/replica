@@ -79,7 +79,7 @@ export function getUserKnowledge(
 }
 
 export function getKnowledgeCount(userId: string) {
-  return client.get<{ episode: number; event: number; foresight: number; total: number }>(
+  return client.get<{ total: number; by_type: { episode?: number; event?: number; foresight?: number } }>(
     `/v1/users/${userId}/knowledge/count`
   )
 }

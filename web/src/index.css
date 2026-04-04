@@ -82,7 +82,7 @@
   }
 
   /* Smooth transitions but snappy */
-  * {
+  button, a, input, select, textarea, .transition-all, .transition-colors, .transition-transform, .transition-opacity {
     transition-timing-function: cubic-bezier(0.175, 0.885, 0.32, 1.275);
     transition-duration: 200ms;
   }

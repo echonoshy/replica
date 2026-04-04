@@ -32,6 +32,8 @@ export default function SessionSidebar() {
   const [newUserName, setNewUserName] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [userHeight, setUserHeight] = useState(360)
+  const [isDragging, setIsDragging] = useState(false)
 
   useEffect(() => {
     loadUsers()
@@ -97,7 +99,7 @@ export default function SessionSidebar() {
   const handleSelectSession = async (session: typeof sessions[0]) => {
     setCurrentSession(session)
     try {
-      const { data } = await getMessages(session.id, 200)
+      const { data } = await getMessages(session.id, 200, 0, true)
       setMessages(data)
     } catch (error) {
       console.error('Failed to load messages:', error)
@@ -149,8 +151,37 @@ export default function SessionSidebar() {
     }
   }
 
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+    const startY = e.clientY
+    const startHeight = userHeight
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      const delta = ev.clientY - startY
+      setUserHeight(Math.max(120, Math.min(600, startHeight + delta)))
+    }
+
+    const handleMouseUp = () => {
+      setIsDragging(false)
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }
+
   return (
-    <div className="w-[320px] border-r-4 border-border bg-sidebar flex flex-col h-screen shrink-0">
+    <div className={cn('w-[320px] border-r-4 border-border bg-sidebar flex flex-col h-screen shrink-0', isDragging && 'select-none')}>
+      {/* Logo and Title */}
+      <div className="p-4 border-b-4 border-border bg-primary flex items-center gap-3">
+        <div className="w-12 h-12 rounded-lg border-4 border-border bg-white flex items-center justify-center shadow-[4px_4px_0px_0px_#111111] overflow-hidden">
+          <span className="text-3xl leading-none select-none">👾</span>
+        </div>
+        <h1 className="text-2xl font-black uppercase tracking-wider text-white">replica</h1>
+      </div>
+
       {/* Search */}
       <div className="p-4 border-b-4 border-border bg-accent">
         <div className="flex gap-2">
@@ -168,7 +199,7 @@ export default function SessionSidebar() {
       </div>
 
       {/* Users */}
-      <div className="border-b-4 border-border bg-background">
+      <div className="border-b-4 border-border bg-background" style={{ height: `${userHeight}px`, minHeight: `${userHeight}px` }}>
         <div className="flex items-center justify-between px-4 py-3 bg-secondary border-b-2 border-border">
           <h3 className="text-sm font-black uppercase tracking-widest text-foreground">用户</h3>
           <Dialog open={newUserDialog} onOpenChange={setNewUserDialog}>
@@ -207,7 +238,7 @@ export default function SessionSidebar() {
             </DialogContent>
           </Dialog>
         </div>
-        <ScrollArea className="h-[240px]">
+        <ScrollArea style={{ height: `${userHeight - 52}px` }}>
           <div className="px-3 py-3 space-y-3">
             {users.map((user) => (
               <div
@@ -259,6 +290,23 @@ export default function SessionSidebar() {
             ))}
           </div>
         </ScrollArea>
+      </div>
+
+      {/* Resize handle */}
+      <div
+        className={cn(
+          'h-3 cursor-row-resize flex items-center justify-center flex-shrink-0 relative z-10 transition-colors bg-border hover:bg-primary',
+          isDragging && 'bg-primary'
+        )}
+        onMouseDown={handleMouseDown}
+      >
+        <div
+          className={cn(
+            'h-1 w-12 bg-white transition-all',
+            'hover:w-16',
+            isDragging && 'w-16'
+          )}
+        />
       </div>
 
       {/* Sessions */}

@@ -120,7 +120,7 @@ export default function MemoryPanel({ style }: { style?: React.CSSProperties }) 
   return (
     <div className="flex flex-col h-screen bg-sidebar border-l-4 border-border shrink-0" style={style}>
       <div className="p-4 border-b-4 border-border bg-accent">
-        <h2 className="text-sm font-black uppercase tracking-widest text-foreground">Memory System</h2>
+        <h2 className="text-sm font-black uppercase tracking-widest text-foreground">记忆系统</h2>
       </div>
 
       <ScrollArea className="flex-1">
@@ -137,7 +137,7 @@ export default function MemoryPanel({ style }: { style?: React.CSSProperties }) 
                 ) : (
                   <ChevronRight className="h-5 w-5" />
                 )}
-                <h3 className="text-sm font-black uppercase tracking-wider">Layer 1: Evergreen</h3>
+                <h3 className="text-sm font-black uppercase tracking-wider">第一层：长期记忆</h3>
                 <Badge variant="default" className="text-[10px] shadow-[2px_2px_0px_0px_#111111]">
                   {evergreen.length}
                 </Badge>
@@ -167,15 +167,15 @@ export default function MemoryPanel({ style }: { style?: React.CSSProperties }) 
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="border-2 border-border shadow-[4px_4px_0px_0px_#111111] font-bold">
-                        <SelectItem value="fact">Fact</SelectItem>
-                        <SelectItem value="preference">Preference</SelectItem>
-                        <SelectItem value="relationship">Relationship</SelectItem>
-                        <SelectItem value="goal">Goal</SelectItem>
+                        <SelectItem value="fact">事实 (Fact)</SelectItem>
+                        <SelectItem value="preference">偏好 (Preference)</SelectItem>
+                        <SelectItem value="relationship">关系 (Relationship)</SelectItem>
+                        <SelectItem value="goal">目标 (Goal)</SelectItem>
                       </SelectContent>
                     </Select>
                     <div className="flex gap-2">
                       <Input
-                        placeholder="Add new memory..."
+                        placeholder="添加新记忆..."
                         value={newMemoryContent}
                         onChange={(e) => setNewMemoryContent(e.target.value)}
                         className="text-sm font-medium border-2 border-border shadow-[2px_2px_0px_0px_#111111]"
@@ -235,21 +235,21 @@ export default function MemoryPanel({ style }: { style?: React.CSSProperties }) 
               ) : (
                 <ChevronRight className="h-5 w-5" />
               )}
-              <h3 className="text-sm font-black uppercase tracking-wider">Layer 2: Session Context</h3>
+              <h3 className="text-sm font-black uppercase tracking-wider">第二层：会话上下文</h3>
             </div>
 
             {expandedSections.session && currentSession && (
               <div className="space-y-3 text-sm mt-4 p-3 bg-muted border-2 border-border rounded-md shadow-[2px_2px_0px_0px_#111111]">
                 <div className="flex justify-between items-center border-b-2 border-border/20 pb-2">
-                  <span className="font-bold uppercase tracking-wider">Token Count:</span>
+                  <span className="font-bold uppercase tracking-wider">Token 数量:</span>
                   <span className="font-mono font-bold bg-white px-2 py-0.5 border-2 border-border shadow-[2px_2px_0px_0px_#111111]">{currentSession.token_count}</span>
                 </div>
                 <div className="flex justify-between items-center border-b-2 border-border/20 pb-2">
-                  <span className="font-bold uppercase tracking-wider">Compactions:</span>
+                  <span className="font-bold uppercase tracking-wider">压缩次数:</span>
                   <span className="font-mono font-bold bg-white px-2 py-0.5 border-2 border-border shadow-[2px_2px_0px_0px_#111111]">{currentSession.compaction_count}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="font-bold uppercase tracking-wider">Status:</span>
+                  <span className="font-bold uppercase tracking-wider">状态:</span>
                   <Badge variant="default" className="text-[10px] shadow-[2px_2px_0px_0px_#111111]">
                     {currentSession.status}
                   </Badge>
@@ -269,7 +269,7 @@ export default function MemoryPanel({ style }: { style?: React.CSSProperties }) 
               ) : (
                 <ChevronRight className="h-5 w-5" />
               )}
-              <h3 className="text-sm font-black uppercase tracking-wider">Layer 3: Knowledge</h3>
+              <h3 className="text-sm font-black uppercase tracking-wider">第三层：知识库</h3>
             </div>
 
             {expandedSections.knowledge && (
@@ -317,15 +317,15 @@ export default function MemoryPanel({ style }: { style?: React.CSSProperties }) 
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="border-2 border-border shadow-[4px_4px_0px_0px_#111111] font-bold">
-                        <SelectItem value="all">All Types</SelectItem>
-                        <SelectItem value="episode">Episode</SelectItem>
-                        <SelectItem value="event">Event</SelectItem>
-                        <SelectItem value="foresight">Foresight</SelectItem>
+                        <SelectItem value="all">所有类型 (All Types)</SelectItem>
+                        <SelectItem value="episode">片段 (Episode)</SelectItem>
+                        <SelectItem value="event">事件 (Event)</SelectItem>
+                        <SelectItem value="foresight">预见 (Foresight)</SelectItem>
                       </SelectContent>
                     </Select>
                     <div className="flex gap-2">
                       <Input
-                        placeholder="Search knowledge..."
+                        placeholder="搜索知识库..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
