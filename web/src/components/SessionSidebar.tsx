@@ -34,6 +34,22 @@ export default function SessionSidebar() {
   const [loading, setLoading] = useState(false)
   const [userHeight, setUserHeight] = useState(360)
   const [isDragging, setIsDragging] = useState(false)
+  const [, setClickCount] = useState(0)
+  const [isEasterEggActive, setIsEasterEggActive] = useState(false)
+
+  const handleTitleClick = () => {
+    setClickCount(prev => {
+      const newCount = prev + 1
+      if (newCount === 5) {
+        setIsEasterEggActive(true)
+        setTimeout(() => {
+          setIsEasterEggActive(false)
+          setClickCount(0)
+        }, 5000)
+      }
+      return newCount
+    })
+  }
 
   useEffect(() => {
     loadUsers()
@@ -175,11 +191,28 @@ export default function SessionSidebar() {
   return (
     <div className={cn('w-[320px] border-r-4 border-border bg-sidebar flex flex-col h-screen shrink-0', isDragging && 'select-none')}>
       {/* Logo and Title */}
-      <div className="p-4 border-b-4 border-border bg-primary flex items-center gap-3">
-        <div className="w-12 h-12 rounded-lg border-4 border-border bg-white flex items-center justify-center shadow-[4px_4px_0px_0px_#111111] overflow-hidden">
-          <span className="text-3xl leading-none select-none">👾</span>
+      <div 
+        className="p-4 border-b-4 border-border bg-primary flex items-center gap-3 cursor-pointer select-none"
+        onClick={handleTitleClick}
+        title="Click me 5 times for a surprise!"
+      >
+        <div className={cn(
+          "w-12 h-12 rounded-lg border-4 border-border bg-white flex items-center justify-center shadow-[4px_4px_0px_0px_#111111] overflow-hidden transition-all duration-500",
+          isEasterEggActive && "rotate-180 scale-110 shadow-[6px_6px_0px_0px_#111111]"
+        )}>
+          <span className={cn("text-3xl leading-none select-none transition-all duration-500", isEasterEggActive && "animate-bounce")}>
+            {isEasterEggActive ? "🎉" : "👾"}
+          </span>
         </div>
-        <h1 className="text-2xl font-black uppercase tracking-wider text-white">replica</h1>
+        <h1 
+          className={cn(
+            "text-2xl font-black tracking-wider text-white transition-all duration-500",
+            isEasterEggActive && "text-yellow-300 tracking-widest scale-110 ml-2"
+          )}
+          style={{ fontFamily: '"Comic Sans MS", "Chalkboard SE", "Comic Neue", cursive' }}
+        >
+          {isEasterEggActive ? "SURPRISE!" : "replica"}
+        </h1>
       </div>
 
       {/* Search */}
