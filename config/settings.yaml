@@ -38,6 +38,7 @@ rerank:
 # Memory extraction
 memory:
   language: "en"                     # en | zh
+  min_messages_for_extraction: 3
   # Boundary detection
   boundary_max_tokens: 8192
   boundary_max_messages: 50
@@ -48,10 +49,8 @@ memory:
 
 # Compaction
 compaction:
-  soft_threshold_tokens: 12000
-  hard_threshold_tokens: 16000
-  keep_recent_tokens: 4000
-  session_end_extract_messages: 15
+  hard_threshold_tokens: 64000
+  keep_recent_tokens: 32000
 
 # Chunking
 chunking:

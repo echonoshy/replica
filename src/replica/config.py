@@ -62,6 +62,7 @@ class RerankConfig(BaseModel):
 
 class MemoryConfig(BaseModel):
     language: str = "en"
+    min_messages_for_extraction: int = 3
     boundary_max_tokens: int = 8192
     boundary_max_messages: int = 50
     profile_min_memcells: int = 1
@@ -70,10 +71,8 @@ class MemoryConfig(BaseModel):
 
 
 class CompactionConfig(BaseModel):
-    soft_threshold_tokens: int = 12000
-    hard_threshold_tokens: int = 16000
-    keep_recent_tokens: int = 4000
-    session_end_extract_messages: int = 15
+    hard_threshold_tokens: int = 64000
+    keep_recent_tokens: int = 32000
 
 
 class ChunkingConfig(BaseModel):
@@ -112,20 +111,12 @@ class Settings(BaseSettings):
     # ── backwards-compat flat accessors (used by existing services) ──
 
     @property
-    def soft_threshold_tokens(self) -> int:
-        return self.compaction.soft_threshold_tokens
-
-    @property
     def hard_threshold_tokens(self) -> int:
         return self.compaction.hard_threshold_tokens
 
     @property
     def keep_recent_tokens(self) -> int:
         return self.compaction.keep_recent_tokens
-
-    @property
-    def session_end_extract_messages(self) -> int:
-        return self.compaction.session_end_extract_messages
 
     @property
     def chunk_size_tokens(self) -> int:

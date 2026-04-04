@@ -54,10 +54,7 @@ def upgrade() -> None:
     op.execute("UPDATE sessions SET status = 'deleted' WHERE status = 'archived'")
     op.execute("ALTER TYPE session_status RENAME TO session_status_old")
     op.execute("CREATE TYPE session_status AS ENUM ('active', 'deleted')")
-    op.execute(
-        "ALTER TABLE sessions ALTER COLUMN status TYPE session_status "
-        "USING status::text::session_status"
-    )
+    op.execute("ALTER TABLE sessions ALTER COLUMN status TYPE session_status USING status::text::session_status")
     op.execute("DROP TYPE session_status_old")
 
 
@@ -65,10 +62,7 @@ def downgrade() -> None:
     # 5. Restore 'archived' to session_status enum
     op.execute("ALTER TYPE session_status RENAME TO session_status_old")
     op.execute("CREATE TYPE session_status AS ENUM ('active', 'archived', 'deleted')")
-    op.execute(
-        "ALTER TABLE sessions ALTER COLUMN status TYPE session_status "
-        "USING status::text::session_status"
-    )
+    op.execute("ALTER TABLE sessions ALTER COLUMN status TYPE session_status USING status::text::session_status")
     op.execute("DROP TYPE session_status_old")
 
     # 4. Restore user_profiles columns and constraints

@@ -43,8 +43,7 @@ class TestNestedConfig:
 
     def test_compaction_config(self):
         s = get_settings()
-        assert s.compaction.soft_threshold_tokens > 0
-        assert s.compaction.hard_threshold_tokens > s.compaction.soft_threshold_tokens
+        assert s.compaction.hard_threshold_tokens > 0
         assert s.compaction.keep_recent_tokens > 0
 
     def test_chunking_config(self):
@@ -62,10 +61,6 @@ class TestNestedConfig:
 
 class TestFlatPropertyAccessors:
     """Verify backward-compatible flat property access matches nested config."""
-
-    def test_soft_threshold_tokens(self):
-        s = get_settings()
-        assert s.soft_threshold_tokens == s.compaction.soft_threshold_tokens
 
     def test_hard_threshold_tokens(self):
         s = get_settings()

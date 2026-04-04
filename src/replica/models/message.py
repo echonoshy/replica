@@ -21,6 +21,12 @@ class MessageType(str, enum.Enum):
     compaction_summary = "compaction_summary"
 
 
+class ExtractionStatus(str, enum.Enum):
+    pending = "pending"
+    extracted = "extracted"
+    skipped = "skipped"
+
+
 class Message(Base):
     __tablename__ = "messages"
     __table_args__ = (Index("ix_messages_session_created", "session_id", "created_at"),)
@@ -35,6 +41,9 @@ class Message(Base):
         ENUM(MessageType, name="message_type"), default=MessageType.message
     )
     is_compacted: Mapped[bool] = mapped_column(default=False)
+    extraction_status: Mapped[ExtractionStatus] = mapped_column(
+        ENUM(ExtractionStatus, name="extraction_status"), default=ExtractionStatus.pending
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     session: Mapped["Session"] = relationship(back_populates="messages")  # noqa: F821

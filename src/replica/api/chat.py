@@ -117,9 +117,7 @@ async def _sse_generator(
             .order_by(EvergreenMemory.updated_at.desc())
         )
         evergreen_rows = result.scalars().all()
-        evergreen_texts = [
-            f"[{n.updated_at.strftime('%Y-%m-%d')}] {n.content}" for n in evergreen_rows
-        ]
+        evergreen_texts = [f"[{n.updated_at.strftime('%Y-%m-%d')}] {n.content}" for n in evergreen_rows]
         context_payload["evergreen"] = [
             {"id": str(n.id), "content": n.content, "category": n.category.value} for n in evergreen_rows
         ]
@@ -132,9 +130,7 @@ async def _sse_generator(
         try:
             search_req = KnowledgeSearchRequest(user_id=session.user_id, query=user_content, top_k=5)
             search_results = await search_knowledge(db, search_req)
-            relevant_texts = [
-                f"[{r.created_at.strftime('%Y-%m-%d')}] {r.content}" for r in search_results
-            ]
+            relevant_texts = [f"[{r.created_at.strftime('%Y-%m-%d')}] {r.content}" for r in search_results]
             context_payload["knowledge"] = [
                 {
                     "id": str(r.id),
