@@ -18,7 +18,7 @@ from replica.models.session import Session
 from replica.models.message import Message
 from replica.models.evergreen_memory import EvergreenMemory
 from replica.services.embedding_service import count_tokens
-from replica.services.compaction_service import check_and_compact
+from replica.services.semantic_compaction_service import check_and_compact_auto
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -185,9 +185,9 @@ async def _sse_generator(
     yield f"data: {json.dumps({'done': True, 'message_id': str(assistant_msg.id), 'token_count': session.token_count})}\n\n"
 
     try:
-        await check_and_compact(db, session)
+        await check_and_compact_auto(db, session)
     except Exception:
-        logger.exception("Compaction failed for session %s", session_id)
+        logger.exception("Auto compaction check failed for session %s", session_id)
 
 
 @router.post("/sessions/{session_id}/chat")

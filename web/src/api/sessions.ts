@@ -38,9 +38,30 @@ export function memorizeSession(sessionId: string) {
 }
 
 export function compactSession(sessionId: string) {
-  return client.post<{ compacted_count: number; token_count: number; compaction_count: number }>(
+  return client.post<{ task_id: string; status: string; message: string }>(
     `/v1/sessions/${sessionId}/compact`,
   )
+}
+
+export function getTaskStatus(taskId: string) {
+  return client.get<{
+    task_id: string
+    task_type: string
+    session_id: string | null
+    status: 'pending' | 'processing' | 'completed' | 'failed'
+    created_at: string
+    started_at: string | null
+    completed_at: string | null
+    result: {
+      compacted_count: number
+      summary_count: number
+      token_reduction: number
+      compression_ratio: string
+      old_token_count: number
+      new_token_count: number
+    } | null
+    error: string | null
+  }>(`/v1/tasks/${taskId}`)
 }
 
 export function getCompactionConfig() {

@@ -26,15 +26,6 @@ embedding:
   max_retries: 3
   batch_size: 10
 
-# Rerank Provider Configuration
-rerank:
-  provider: "vllm"                   # vllm | openai
-  base_url: "http://localhost:19002/v1"
-  api_key: ""
-  model: "Qwen3-Reranker-4B"
-  timeout: 30
-  max_retries: 3
-
 # Memory extraction
 memory:
   language: "en"                     # en | zh

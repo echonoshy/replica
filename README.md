@@ -23,10 +23,20 @@
 Replica 为 AI 应用提供长期记忆能力 —— 管理对话上下文、自动提取与压缩记忆，并通过混合检索在需要时高效召回相关信息。
 
 ```
-User ←→ Web UI ←→ Replica API ←→ LLM / Embedding / Reranker
+User ←→ Web UI ←→ Replica API ←→ LLM / Embedding
                         ↕
               PostgreSQL + pgvector
 ```
+
+## 核心特性
+
+- **自动记忆提取** - 从对话中智能提取 Episode、Event、Foresight 三类记忆
+- **混合检索** - 向量检索 + 全文检索 + RRF 融合，精准召回相关信息
+- **时间衰减** - 基于指数衰减模型，优先展示新鲜内容
+- **MMR 多样性重排** - 避免返回重复相似的结果，提升检索质量
+- **上下文压缩** - 自动压缩长对话历史，保持上下文在 token 限制内
+- **用户画像** - 自动构建和更新用户兴趣、偏好、技能等画像信息
+- **Web UI** - 开箱即用的聊天界面，支持实时对话和记忆管理
 
 ## Quick Start
 
@@ -98,6 +108,62 @@ cd web && npm install && npm run dev
 | `http://localhost:8790/docs` | Swagger API 文档 |
 | `http://localhost:8790/health` | 健康检查 |
 
+## 核心概念
+
+### 记忆类型
+
+| 类型 | 说明 | 示例 |
+|------|------|------|
+| **Episode** | 对话片段摘要 | "用户询问了 Python 异步编程的最佳实践" |
+| **Event** | 具体事件记录 | "用户提到明天下午 3 点有会议" |
+| **Foresight** | 未来计划或意图 | "用户计划下周学习 Rust" |
+| **UserProfile** | 用户画像 | 兴趣、技能、偏好等长期特征 |
+
+### 检索策略
+
+1. **向量检索** - 基于语义相似度的向量搜索（pgvector）
+2. **全文检索** - PostgreSQL 全文搜索（tsvector + GIN 索引）
+3. **RRF 融合** - Reciprocal Rank Fusion 融合两种检索结果
+4. **时间衰减** - 根据记忆创建时间应用指数衰减权重
+5. **MMR 重排** - Maximal Marginal Relevance 增加结果多样性
+
+## API 示例
+
+### 记忆化对话
+
+```python
+import httpx
+
+async with httpx.AsyncClient() as client:
+    # 发送对话消息，自动提取记忆
+    response = await client.post(
+        "http://localhost:8790/v1/memorize",
+        json={
+            "user_id": "user_123",
+            "messages": [
+                {"role": "user", "content": "我明天要去北京出差"},
+                {"role": "assistant", "content": "好的，祝您旅途愉快！"}
+            ]
+        }
+    )
+    print(response.json())
+```
+
+### 检索记忆
+
+```python
+# 搜索相关记忆
+response = await client.post(
+    "http://localhost:8790/v1/knowledge/search",
+    json={
+        "user_id": "user_123",
+        "query": "我的出差计划",
+        "top_k": 10
+    }
+)
+memories = response.json()
+```
+
 ## Development
 
 ```bash
@@ -105,6 +171,11 @@ uv run ruff format          # 格式化
 uv run ruff check --fix     # Lint
 uv run pytest               # 测试
 ```
+
+## 文档
+
+- [完整使用指南](docs/guide.md) - 详细的配置说明和使用教程
+- [API 文档](http://localhost:8790/docs) - Swagger 交互式 API 文档
 
 ## License
 

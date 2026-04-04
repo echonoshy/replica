@@ -9,9 +9,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from replica.db.database import get_db
 from replica.models.session import Session
 from replica.models.message import Message
-from replica.api.schemas import SessionCreate, SessionOut, MemorizeResponse, CompactionResponse
+from replica.api.schemas import (
+    SessionCreate,
+    SessionOut,
+    MemorizeResponse,
+    CompactionTaskResponse,
+    TaskStatusResponse,
+)
 from replica.services.extraction_service import ExtractionService
-from replica.services.compaction_service import compact
+from replica.services.task_manager import task_manager
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -120,38 +126,49 @@ async def manual_extract_memory(session_id: uuid.UUID, db: AsyncSession = Depend
     return MemorizeResponse(memory_count=count)
 
 
-@router.post("/sessions/{session_id}/compact", response_model=CompactionResponse)
+@router.post("/sessions/{session_id}/compact", response_model=CompactionTaskResponse)
 async def manual_compact_session(session_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
-    """Manually trigger compaction for a session.
+    """Manually trigger semantic compaction.
 
-    For manual compaction, we keep only the most recent 10 messages (approximately 5000 tokens)
-    to make the compaction more aggressive and visible to users.
+    Returns a task_id immediately. Use GET /tasks/{task_id} to check status.
     """
     session = await db.get(Session, session_id)
     if not session:
         raise HTTPException(404, "Session not found")
 
-    # Get message count before compaction
-    result = await db.execute(
-        select(Message).where(Message.session_id == session_id, Message.is_compacted == False)  # noqa: E712
+    # Create task
+    task_id = await task_manager.create_task("semantic_compaction", str(session_id))
+
+    # Start background compaction
+    from replica.services.semantic_compaction_service import _compact_with_new_session
+
+    import asyncio
+
+    asyncio.create_task(_compact_with_new_session(session_id, task_id, mode="manual"))
+
+    logger.info("Async semantic compaction task %s created for session %s", task_id, session_id)
+    return CompactionTaskResponse(
+        task_id=task_id,
+        status="processing",
+        message="Compaction started. Use GET /tasks/{task_id} to check status.",
     )
-    messages_before = len(result.scalars().all())
 
-    # Perform compaction with aggressive threshold (keep only ~5000 tokens for manual compaction)
-    await compact(db, session, keep_tokens=5000)
-    await db.refresh(session)
 
-    # Get message count after compaction
-    result = await db.execute(
-        select(Message).where(Message.session_id == session_id, Message.is_compacted == False)  # noqa: E712
-    )
-    messages_after = len(result.scalars().all())
+@router.get("/tasks/{task_id}", response_model=TaskStatusResponse)
+async def get_task_status(task_id: str):
+    """Get status of an async task (compaction, extraction, etc.)."""
+    task = await task_manager.get_task(task_id)
+    if not task:
+        raise HTTPException(404, "Task not found")
 
-    compacted_count = messages_before - messages_after
-
-    logger.info("Manual compaction for session %s: %d messages compacted", session_id, compacted_count)
-    return CompactionResponse(
-        compacted_count=compacted_count,
-        token_count=session.token_count,
-        compaction_count=session.compaction_count,
+    return TaskStatusResponse(
+        task_id=task.task_id,
+        task_type=task.task_type,
+        session_id=task.session_id,
+        status=task.status.value,
+        created_at=task.created_at.isoformat(),
+        started_at=task.started_at.isoformat() if task.started_at else None,
+        completed_at=task.completed_at.isoformat() if task.completed_at else None,
+        result=task.result,
+        error=task.error,
     )

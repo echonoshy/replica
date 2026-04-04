@@ -1,11 +1,10 @@
-"""Provider layer tests — call real LLM / Embedding / Rerank APIs."""
+"""Provider layer tests — call real LLM / Embedding APIs."""
 
 import pytest
 
 from replica.config import get_settings
 from replica.providers.llm_provider import VLLMProvider, get_llm_provider, set_llm_provider
 from replica.providers.embedding_provider import VLLMEmbeddingProvider, get_embedding_provider, set_embedding_provider
-from replica.providers.rerank_provider import VLLMRerankProvider, get_rerank_provider
 
 
 def _fresh_llm() -> VLLMProvider:
@@ -14,10 +13,6 @@ def _fresh_llm() -> VLLMProvider:
 
 def _fresh_embedding() -> VLLMEmbeddingProvider:
     return VLLMEmbeddingProvider(get_settings().embedding)
-
-
-def _fresh_reranker() -> VLLMRerankProvider:
-    return VLLMRerankProvider(get_settings().rerank)
 
 
 class TestLLMProvider:
@@ -84,67 +79,6 @@ class TestEmbeddingProvider:
         provider = _fresh_embedding()
         embeddings = await provider.embed_texts(["cat", "quantum physics"])
         assert embeddings[0] != embeddings[1]
-        await provider.close()
-
-
-class TestRerankProvider:
-    def test_get_provider_returns_instance(self):
-        provider = get_rerank_provider()
-        assert isinstance(provider, VLLMRerankProvider)
-
-    async def test_rerank_empty_documents(self):
-        provider = _fresh_reranker()
-        results = await provider.rerank("test query", [])
-        assert results == []
-        await provider.close()
-
-    async def test_rerank_basic(self):
-        provider = _fresh_reranker()
-        results = await provider.rerank(
-            "What is Python?", ["Python is a programming language.", "Java is also popular."]
-        )
-        assert isinstance(results, list)
-        assert len(results) == 2
-        for item in results:
-            assert "index" in item
-            assert "relevance_score" in item
-            assert 0.0 <= item["relevance_score"] <= 1.0
-        await provider.close()
-
-    async def test_rerank_relevance_ordering(self):
-        provider = _fresh_reranker()
-        results = await provider.rerank(
-            "capital of France",
-            ["Paris is the capital of France.", "Tokyo is in Japan.", "Berlin is in Germany."],
-        )
-        assert len(results) == 3
-        scores = [r["relevance_score"] for r in results]
-        assert scores == sorted(scores, reverse=True)
-        assert results[0]["index"] == 0
-        await provider.close()
-
-    async def test_rerank_top_k(self):
-        provider = _fresh_reranker()
-        docs = [f"Document number {i} about various topics." for i in range(10)]
-        results = await provider.rerank("specific topic", docs, top_k=3)
-        assert len(results) <= 3
-        for item in results:
-            assert "index" in item
-            assert "relevance_score" in item
-        await provider.close()
-
-    async def test_rerank_score_range(self):
-        """Relevant document should score higher than irrelevant one."""
-        provider = _fresh_reranker()
-        results = await provider.rerank(
-            "什么是机器学习？",
-            [
-                "机器学习是人工智能的一个分支，它使计算机系统能够从数据中学习和改进。",
-                "今天北京天气晴朗，最高气温32度，适合户外活动。",
-            ],
-        )
-        score_map = {r["index"]: r["relevance_score"] for r in results}
-        assert score_map[0] > score_map[1]
         await provider.close()
 
 

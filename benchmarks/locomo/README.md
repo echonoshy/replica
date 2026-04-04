@@ -22,7 +22,7 @@ benchmarks/locomo/
 ### 前置条件
 
 - Replica 服务已启动（例如：`uvicorn replica.main:app --port 8790`）
-- LLM / Embedding / Rerank 服务可用（按 `config/settings.yaml` 配置）
+- LLM / Embedding 服务可用（按 `config/settings.yaml` 配置）
 
 ### 方式一：一键运行（推荐）
 

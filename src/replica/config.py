@@ -51,15 +51,6 @@ class EmbeddingConfig(BaseModel):
     batch_size: int = 10
 
 
-class RerankConfig(BaseModel):
-    provider: str = "vllm"
-    base_url: str = "http://localhost:8003/v1"
-    api_key: str = ""
-    model: str = "Qwen/Qwen3-Reranker-4B"
-    timeout: int = 30
-    max_retries: int = 3
-
-
 class MemoryConfig(BaseModel):
     language: str = "en"
     min_messages_for_extraction: int = 3
@@ -102,7 +93,6 @@ class Settings(BaseSettings):
     # Sub-configs
     llm: LLMConfig = LLMConfig()
     embedding: EmbeddingConfig = EmbeddingConfig()
-    rerank: RerankConfig = RerankConfig()
     memory: MemoryConfig = MemoryConfig()
     compaction: CompactionConfig = CompactionConfig()
     chunking: ChunkingConfig = ChunkingConfig()
@@ -175,7 +165,6 @@ def get_settings() -> Settings:
     for section in (
         "llm",
         "embedding",
-        "rerank",
         "memory",
         "compaction",
         "chunking",

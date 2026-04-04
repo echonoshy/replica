@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import TokenProgress from './TokenProgress'
 import { chatStream } from '@/api/chat'
-import { memorizeSession, compactSession, getCompactionConfig } from '@/api/sessions'
+import { memorizeSession, compactSession, getTaskStatus, getCompactionConfig } from '@/api/sessions'
 import { getEvergreenMemories } from '@/api/memory'
 import { Send, Square, Bot, User as UserIcon, Sparkles, ToggleLeft, ToggleRight, Loader2, Copy, Check, Trash2, Eye, EyeOff } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -185,14 +185,54 @@ export default function ChatPanel() {
     setCompacting(true)
     setCompactResult(null)
     try {
-      const { data } = await compactSession(currentSession.id)
-      setCompactResult(`压缩完成，压缩了 ${data.compacted_count} 条消息`)
-      updateSessionTokenCount(data.token_count)
-      // Reload messages to reflect compaction
-      useAppStore.getState().loadMessages(currentSession.id, showCompacted)
+      // Start async compaction
+      const { data: taskData } = await compactSession(currentSession.id)
+      setCompactResult(`压缩任务已启动 (${taskData.task_id.slice(0, 8)}...)，正在处理...`)
+
+      // Poll task status
+      const pollInterval = setInterval(async () => {
+        try {
+          const { data: status } = await getTaskStatus(taskData.task_id)
+
+          if (status.status === 'completed') {
+            clearInterval(pollInterval)
+            const result = status.result
+            if (result) {
+              setCompactResult(
+                `压缩完成！压缩了 ${result.compacted_count} 条消息，生成 ${result.summary_count} 条总结。` +
+                `Token: ${result.old_token_count} → ${result.new_token_count} (${result.compression_ratio})`
+              )
+              updateSessionTokenCount(result.new_token_count)
+              // Reload messages to reflect compaction
+              useAppStore.getState().loadMessages(currentSession.id, showCompacted)
+            }
+            setCompacting(false)
+            setTimeout(() => setCompactResult(null), 8000)
+          } else if (status.status === 'failed') {
+            clearInterval(pollInterval)
+            setCompactResult(`压缩失败: ${status.error || '未知错误'}`)
+            setCompacting(false)
+            setTimeout(() => setCompactResult(null), 5000)
+          }
+        } catch (e: any) {
+          clearInterval(pollInterval)
+          setCompactResult(`查询状态失败: ${e.message}`)
+          setCompacting(false)
+          setTimeout(() => setCompactResult(null), 5000)
+        }
+      }, 2000) // Poll every 2 seconds
+
+      // Timeout after 5 minutes
+      setTimeout(() => {
+        clearInterval(pollInterval)
+        if (compacting) {
+          setCompactResult('压缩超时，请稍后查看结果')
+          setCompacting(false)
+        }
+      }, 300000)
+
     } catch (e: any) {
-      setCompactResult(`压缩失败: ${e.response?.data?.detail ?? e.message}`)
-    } finally {
+      setCompactResult(`启动压缩失败: ${e.response?.data?.detail ?? e.message}`)
       setCompacting(false)
       setTimeout(() => setCompactResult(null), 5000)
     }

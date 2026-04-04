@@ -157,7 +157,39 @@ class MemorizeResponse(BaseModel):
 # ---------- Compaction ----------
 
 
+class SegmentDetail(BaseModel):
+    segment_id: int
+    original_count: int
+    original_tokens: int
+    summary_tokens: int
+    compression_ratio: str
+    time_range: dict
+
+
 class CompactionResponse(BaseModel):
     compacted_count: int
+    summary_count: int
     token_count: int
     compaction_count: int
+    token_reduction: int | None = None
+    compression_ratio: str | None = None
+    segments: list[SegmentDetail] | None = None
+    message: str | None = None
+
+
+class CompactionTaskResponse(BaseModel):
+    task_id: str
+    status: str
+    message: str
+
+
+class TaskStatusResponse(BaseModel):
+    task_id: str
+    task_type: str
+    session_id: str | None
+    status: str
+    created_at: str
+    started_at: str | None
+    completed_at: str | None
+    result: dict | None
+    error: str | None

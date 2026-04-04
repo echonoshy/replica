@@ -153,6 +153,45 @@ export interface MemorizeResponse {
   status: string
 }
 
+// Compaction types
+export interface CompactionTaskResponse {
+  task_id: string
+  status: string
+  message: string
+}
+
+export interface SegmentDetail {
+  segment_id: number
+  original_count: number
+  original_tokens: number
+  summary_tokens: number
+  compression_ratio: string
+  time_range: {
+    start: string | null
+    end: string | null
+  }
+}
+
+export interface TaskStatusResponse {
+  task_id: string
+  task_type: string
+  session_id: string | null
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  created_at: string
+  started_at: string | null
+  completed_at: string | null
+  result: {
+    compacted_count: number
+    summary_count: number
+    segments: SegmentDetail[]
+    token_reduction: number
+    compression_ratio: string
+    old_token_count: number
+    new_token_count: number
+  } | null
+  error: string | null
+}
+
 // Chat Stream types
 export interface ChatStreamCallbacks {
   onToken: (token: string) => void

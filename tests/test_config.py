@@ -30,11 +30,6 @@ class TestNestedConfig:
         assert isinstance(s.embedding.model, str)
         assert s.embedding.batch_size >= 1
 
-    def test_rerank_config(self):
-        s = get_settings()
-        assert isinstance(s.rerank.model, str)
-        assert s.rerank.timeout > 0
-
     def test_memory_config(self):
         s = get_settings()
         assert s.memory.language in ("en", "zh")
