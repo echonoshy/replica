@@ -3,34 +3,29 @@ import { cn } from '@/lib/utils'
 
 interface TokenProgressProps {
   current: number
-  softThreshold?: number
-  hardThreshold?: number
+  hardThreshold: number
 }
 
 export default function TokenProgress({
   current,
-  softThreshold = 12000,
-  hardThreshold = 16000,
+  hardThreshold,
 }: TokenProgressProps) {
   const percentage = Math.min((current / hardThreshold) * 100, 100)
 
   const getStatus = () => {
     if (current >= hardThreshold) return 'hard'
-    if (current >= softThreshold) return 'soft'
     return 'normal'
   }
 
   const status = getStatus()
 
   const getStatusText = () => {
-    if (status === 'hard') return 'Hard Compaction'
-    if (status === 'soft') return 'Soft Compaction'
+    if (status === 'hard') return 'Compaction'
     return 'Normal'
   }
 
   const getProgressColor = () => {
     if (status === 'hard') return 'bg-destructive'
-    if (status === 'soft') return 'bg-warning'
     return 'bg-success'
   }
 
@@ -51,7 +46,6 @@ export default function TokenProgress({
           className={cn(
             'px-2 py-0.5 border-2 border-border shadow-[2px_2px_0px_0px_#111111] text-[10px] font-black uppercase tracking-wider',
             status === 'hard' && 'bg-destructive text-white',
-            status === 'soft' && 'bg-warning text-black',
             status === 'normal' && 'bg-success text-black'
           )}
         >

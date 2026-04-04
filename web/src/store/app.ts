@@ -31,6 +31,7 @@ interface AppState {
   updateSessionTokenCount: (count: number) => void
   setMessages: (messages: Message[]) => void
   addMessage: (message: Message) => void
+  loadMessages: (sessionId: string, includeCompacted: boolean) => Promise<void>
   setEvergreen: (evergreen: EvergreenMemory[]) => void
   setChatContext: (context: ChatContext | null) => void
   addApiLog: (log: ApiLog) => void
@@ -89,6 +90,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => ({
       messages: [...state.messages, message],
     })),
+
+  loadMessages: async (sessionId, includeCompacted) => {
+    const { getMessages } = await import('@/api/messages')
+    const { data } = await getMessages(sessionId, 200, 0, includeCompacted)
+    set({ messages: data })
+  },
 
   setEvergreen: (evergreen) => set({ evergreen }),
 

@@ -35,11 +35,19 @@ async def check_and_compact(db: AsyncSession, session: Session) -> None:
     await compact(db, locked_session)
 
 
-async def compact(db: AsyncSession, session: Session) -> None:
+async def compact(db: AsyncSession, session: Session, keep_tokens: int | None = None) -> None:
     """Simple compaction: keep recent messages, mark old ones as compacted.
 
     No LLM summarization, no memory extraction.
+
+    Args:
+        db: Database session
+        session: Session to compact
+        keep_tokens: Override keep_recent_tokens (useful for manual compaction)
     """
+    if keep_tokens is None:
+        keep_tokens = settings.keep_recent_tokens
+
     result = await db.execute(
         select(Message)
         .where(Message.session_id == session.id, Message.is_compacted == False)  # noqa: E712
@@ -57,11 +65,11 @@ async def compact(db: AsyncSession, session: Session) -> None:
         logger.debug("No chat messages to compact for session %s, skipping", session.id)
         return
 
-    # Keep recent messages up to keep_recent_tokens
+    # Keep recent messages up to keep_tokens
     keep = []
     kept_tokens = 0
     for msg in reversed(chat_messages):
-        if kept_tokens + msg.token_count > settings.keep_recent_tokens:
+        if kept_tokens + msg.token_count > keep_tokens:
             break
         keep.append(msg)
         kept_tokens += msg.token_count

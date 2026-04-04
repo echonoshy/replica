@@ -152,3 +152,12 @@ class MemorizeRequest(BaseModel):
 class MemorizeResponse(BaseModel):
     memory_count: int
     status: str = "ok"
+
+
+# ---------- Compaction ----------
+
+
+class CompactionResponse(BaseModel):
+    compacted_count: int
+    token_count: int
+    compaction_count: int

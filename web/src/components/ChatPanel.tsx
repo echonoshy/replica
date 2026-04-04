@@ -5,9 +5,9 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import TokenProgress from './TokenProgress'
 import { chatStream } from '@/api/chat'
-import { memorizeSession } from '@/api/sessions'
+import { memorizeSession, compactSession, getCompactionConfig } from '@/api/sessions'
 import { getEvergreenMemories } from '@/api/memory'
-import { Send, Square, Bot, User as UserIcon, Sparkles, ToggleLeft, ToggleRight, Loader2, Copy, Check } from 'lucide-react'
+import { Send, Square, Bot, User as UserIcon, Sparkles, ToggleLeft, ToggleRight, Loader2, Copy, Check, Trash2, Eye, EyeOff } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
@@ -34,6 +34,10 @@ export default function ChatPanel() {
   const [memorizing, setMemorizing] = useState(false)
   const [memorizeResult, setMemorizeResult] = useState<string | null>(null)
   const [copiedSessionId, setCopiedSessionId] = useState(false)
+  const [compacting, setCompacting] = useState(false)
+  const [compactResult, setCompactResult] = useState<string | null>(null)
+  const [showCompacted, setShowCompacted] = useState(false)
+  const [hardThreshold, setHardThreshold] = useState(64000)
 
   const abortCtrlRef = useRef<AbortController | null>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
@@ -44,6 +48,15 @@ export default function ChatPanel() {
   useEffect(() => {
     scrollToBottom()
   }, [messages, streamingText])
+
+  useEffect(() => {
+    // Load compaction config on mount
+    getCompactionConfig().then(({ data }) => {
+      setHardThreshold(data.hard_threshold_tokens)
+    }).catch(err => {
+      console.error('Failed to load compaction config:', err)
+    })
+  }, [])
 
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
@@ -167,6 +180,24 @@ export default function ChatPanel() {
     }
   }
 
+  const handleCompact = async () => {
+    if (!currentSession || compacting) return
+    setCompacting(true)
+    setCompactResult(null)
+    try {
+      const { data } = await compactSession(currentSession.id)
+      setCompactResult(`压缩完成，压缩了 ${data.compacted_count} 条消息`)
+      updateSessionTokenCount(data.token_count)
+      // Reload messages to reflect compaction
+      useAppStore.getState().loadMessages(currentSession.id, showCompacted)
+    } catch (e: any) {
+      setCompactResult(`压缩失败: ${e.response?.data?.detail ?? e.message}`)
+    } finally {
+      setCompacting(false)
+      setTimeout(() => setCompactResult(null), 5000)
+    }
+  }
+
   const copySessionId = async () => {
     if (!currentSession) return
     try {
@@ -208,7 +239,7 @@ export default function ChatPanel() {
       {/* Token bar */}
       <div className="px-6 py-3 border-b-4 border-border bg-accent">
         <div className="flex items-center gap-3">
-          <TokenProgress current={currentSession.token_count} />
+          <TokenProgress current={currentSession.token_count} hardThreshold={hardThreshold} />
           <Button
             variant="default"
             size="sm"
@@ -242,7 +273,8 @@ export default function ChatPanel() {
               key={msg.id}
               className={cn(
                 'flex gap-4 py-8 transition-colors group',
-                msg.role === 'assistant' && 'bg-ai-bg border-y-2 border-border -mx-6 px-6 shadow-[0px_4px_0px_0px_#111111] mb-4'
+                msg.role === 'assistant' && 'bg-ai-bg border-y-2 border-border -mx-6 px-6 shadow-[0px_4px_0px_0px_#111111] mb-4',
+                msg.is_compacted && 'opacity-50 bg-muted/30'
               )}
             >
               <div
@@ -266,6 +298,11 @@ export default function ChatPanel() {
                   <span className="text-sm font-bold uppercase tracking-wider text-foreground">
                     {msg.role === 'user' ? '你' : msg.role === 'assistant' ? 'AI 助手' : '系统'}
                   </span>
+                  {msg.is_compacted && (
+                    <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-muted">
+                      已压缩
+                    </Badge>
+                  )}
                   {msg.message_type !== 'message' && (
                     <Badge
                       variant={msg.message_type === 'compaction_summary' ? 'destructive' : 'secondary'}
@@ -331,31 +368,66 @@ export default function ChatPanel() {
             {useMemory ? <ToggleRight className="h-4 w-4 mr-1" /> : <ToggleLeft className="h-4 w-4 mr-1" />}
             记忆 {useMemory ? 'ON' : 'OFF'}
           </Button>
+          <Button
+            variant={showCompacted ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => {
+              setShowCompacted(!showCompacted)
+              if (currentSession) {
+                useAppStore.getState().loadMessages(currentSession.id, !showCompacted)
+              }
+            }}
+            className="text-xs font-black uppercase tracking-wider"
+          >
+            {showCompacted ? <Eye className="h-4 w-4 mr-1" /> : <EyeOff className="h-4 w-4 mr-1" />}
+            {showCompacted ? '隐藏已压缩' : '显示已压缩'}
+          </Button>
         </div>
         <div className="flex gap-2">
           {sessionActive && (
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleMemorize}
-              disabled={memorizing || messages.length === 0}
-              className="text-xs font-black uppercase tracking-wider bg-accent text-foreground hover:bg-accent/90"
-            >
-              {memorizing ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4 mr-1" />
-              )}
-              提取记忆
-            </Button>
+            <>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleCompact}
+                disabled={compacting || messages.length === 0}
+                className="text-xs font-black uppercase tracking-wider bg-destructive text-white hover:bg-destructive/90"
+              >
+                {compacting ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4 mr-1" />
+                )}
+                压缩会话
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleMemorize}
+                disabled={memorizing || messages.length === 0}
+                className="text-xs font-black uppercase tracking-wider bg-accent text-foreground hover:bg-accent/90"
+              >
+                {memorizing ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4 mr-1" />
+                )}
+                提取记忆
+              </Button>
+            </>
           )}
         </div>
       </div>
 
-      {/* Memorize result toast */}
+      {/* Result toasts */}
       {memorizeResult && (
         <div className="px-6 py-3 text-sm font-bold uppercase tracking-wider text-center bg-success text-black border-t-4 border-border shadow-[inset_0px_4px_0px_0px_rgba(0,0,0,0.1)]">
           {memorizeResult}
+        </div>
+      )}
+      {compactResult && (
+        <div className="px-6 py-3 text-sm font-bold uppercase tracking-wider text-center bg-warning text-black border-t-4 border-border shadow-[inset_0px_4px_0px_0px_rgba(0,0,0,0.1)]">
+          {compactResult}
         </div>
       )}
 

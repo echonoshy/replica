@@ -9,8 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from replica.db.database import get_db
 from replica.models.session import Session
 from replica.models.message import Message
-from replica.api.schemas import SessionCreate, SessionOut, MemorizeResponse
+from replica.api.schemas import SessionCreate, SessionOut, MemorizeResponse, CompactionResponse
 from replica.services.extraction_service import ExtractionService
+from replica.services.compaction_service import compact
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -117,3 +118,40 @@ async def manual_extract_memory(session_id: uuid.UUID, db: AsyncSession = Depend
 
     logger.info("Manual extraction for session %s: %d memories extracted", session_id, count)
     return MemorizeResponse(memory_count=count)
+
+
+@router.post("/sessions/{session_id}/compact", response_model=CompactionResponse)
+async def manual_compact_session(session_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    """Manually trigger compaction for a session.
+
+    For manual compaction, we keep only the most recent 10 messages (approximately 5000 tokens)
+    to make the compaction more aggressive and visible to users.
+    """
+    session = await db.get(Session, session_id)
+    if not session:
+        raise HTTPException(404, "Session not found")
+
+    # Get message count before compaction
+    result = await db.execute(
+        select(Message).where(Message.session_id == session_id, Message.is_compacted == False)  # noqa: E712
+    )
+    messages_before = len(result.scalars().all())
+
+    # Perform compaction with aggressive threshold (keep only ~5000 tokens for manual compaction)
+    await compact(db, session, keep_tokens=5000)
+    await db.refresh(session)
+
+    # Get message count after compaction
+    result = await db.execute(
+        select(Message).where(Message.session_id == session_id, Message.is_compacted == False)  # noqa: E712
+    )
+    messages_after = len(result.scalars().all())
+
+    compacted_count = messages_before - messages_after
+
+    logger.info("Manual compaction for session %s: %d messages compacted", session_id, compacted_count)
+    return CompactionResponse(
+        compacted_count=compacted_count,
+        token_count=session.token_count,
+        compaction_count=session.compaction_count,
+    )

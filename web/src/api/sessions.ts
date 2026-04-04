@@ -36,3 +36,15 @@ export function memorizeSession(sessionId: string) {
     { timeout: 300000 },
   )
 }
+
+export function compactSession(sessionId: string) {
+  return client.post<{ compacted_count: number; token_count: number; compaction_count: number }>(
+    `/v1/sessions/${sessionId}/compact`,
+  )
+}
+
+export function getCompactionConfig() {
+  return client.get<{ hard_threshold_tokens: number; keep_recent_tokens: number }>(
+    '/v1/config/compaction',
+  )
+}
