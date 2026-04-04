@@ -1,18 +1,20 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { ChevronLeft, ChevronRight, Copy, Check, Trash2, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Copy, Check, Trash2, ChevronDown, ChevronUp, ArrowLeft, Filter, X } from 'lucide-react'
 import { getSessions, deleteSession } from '@/api/sessions'
 import { getMessages } from '@/api/messages'
 import { getUserKnowledge, deleteKnowledgeEntry, getKnowledgeCount } from '@/api/memory'
 import { getTables, getTableData } from '@/api/admin'
 import { cn } from '@/lib/utils'
 import type { Session, Message, KnowledgeEntry, TableInfo, TableDataResponse } from '@/types'
+import type { TableFilter } from '@/api/admin'
 
 export default function AdminView() {
   const navigate = useNavigate()
@@ -446,6 +448,10 @@ function DatabaseTab() {
   const [tableData, setTableData] = useState<TableDataResponse | null>(null)
   const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [filter, setFilter] = useState<TableFilter | null>(null)
+  const [filterField, setFilterField] = useState('')
+  const [filterOp, setFilterOp] = useState<'eq' | 'contains' | 'gt' | 'lt' | 'gte' | 'lte'>('eq')
+  const [filterValue, setFilterValue] = useState('')
 
   const pageSize = 50
 
@@ -461,9 +467,9 @@ function DatabaseTab() {
     }
   }
 
-  const loadTableData = async (tableName: string, offset: number = 0) => {
+  const loadTableData = async (tableName: string, offset: number = 0, currentFilter: TableFilter | null = null) => {
     try {
-      const { data } = await getTableData(tableName, pageSize, offset)
+      const { data } = await getTableData(tableName, pageSize, offset, currentFilter || undefined)
       setTableData(data)
     } catch (error) {
       console.error('Failed to load table data:', error)
@@ -473,13 +479,33 @@ function DatabaseTab() {
   const handleSelectTable = (tableName: string) => {
     setSelectedTable(tableName)
     setPage(0)
-    loadTableData(tableName, 0)
+    setFilter(null)
+    setFilterField('')
+    setFilterValue('')
+    loadTableData(tableName, 0, null)
   }
 
   const handlePageChange = (newPage: number) => {
     if (!selectedTable) return
     setPage(newPage)
-    loadTableData(selectedTable, newPage * pageSize)
+    loadTableData(selectedTable, newPage * pageSize, filter)
+  }
+
+  const handleApplyFilter = () => {
+    if (!selectedTable || !filterField || !filterValue) return
+    const newFilter: TableFilter = { field: filterField, op: filterOp, value: filterValue }
+    setFilter(newFilter)
+    setPage(0)
+    loadTableData(selectedTable, 0, newFilter)
+  }
+
+  const handleClearFilter = () => {
+    if (!selectedTable) return
+    setFilter(null)
+    setFilterField('')
+    setFilterValue('')
+    setPage(0)
+    loadTableData(selectedTable, 0, null)
   }
 
   const totalPages = tableData ? Math.ceil(tableData.total / pageSize) : 0
@@ -516,7 +542,71 @@ function DatabaseTab() {
       <Card className="col-span-3 p-4 flex flex-col min-h-0">
         {tableData ? (
           <>
-            <h3 className="font-semibold mb-4">{tableData.table_name}</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold">{tableData.table_name}</h3>
+              {filter && (
+                <Badge variant="secondary" className="gap-2">
+                  <Filter className="h-3 w-3" />
+                  {filter.field} {filter.op} "{filter.value}"
+                </Badge>
+              )}
+            </div>
+
+            <Card className="p-3 mb-4 shrink-0">
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <label className="text-xs text-muted-foreground mb-1 block">字段</label>
+                  <Select value={filterField} onValueChange={setFilterField}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="选择字段" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tableData.columns.map((col) => (
+                        <SelectItem key={col.name} value={col.name}>
+                          {col.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-32">
+                  <label className="text-xs text-muted-foreground mb-1 block">操作符</label>
+                  <Select value={filterOp} onValueChange={(v) => setFilterOp(v as any)}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="eq">等于 (=)</SelectItem>
+                      <SelectItem value="contains">包含</SelectItem>
+                      <SelectItem value="gt">大于 (&gt;)</SelectItem>
+                      <SelectItem value="lt">小于 (&lt;)</SelectItem>
+                      <SelectItem value="gte">大于等于 (≥)</SelectItem>
+                      <SelectItem value="lte">小于等于 (≤)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-muted-foreground mb-1 block">值</label>
+                  <Input
+                    placeholder="筛选值"
+                    value={filterValue}
+                    onChange={(e) => setFilterValue(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleApplyFilter()}
+                    className="h-9"
+                  />
+                </div>
+                <Button onClick={handleApplyFilter} disabled={!filterField || !filterValue} size="sm">
+                  <Filter className="h-4 w-4 mr-1" />
+                  筛选
+                </Button>
+                {filter && (
+                  <Button onClick={handleClearFilter} variant="outline" size="sm">
+                    <X className="h-4 w-4 mr-1" />
+                    清除
+                  </Button>
+                )}
+              </div>
+            </Card>
 
             <ScrollArea className="flex-1">
               <div className="overflow-x-auto">

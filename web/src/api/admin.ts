@@ -24,8 +24,23 @@ export function getTables() {
   return client.get<{ tables: TableInfo[] }>('/v1/admin/tables')
 }
 
-export function getTableData(tableName: string, limit = 50, offset = 0) {
-  return client.get<TableDataResponse>(`/v1/admin/tables/${tableName}`, {
-    params: { limit, offset },
-  })
+export interface TableFilter {
+  field: string
+  op: 'eq' | 'contains' | 'gt' | 'lt' | 'gte' | 'lte'
+  value: string
+}
+
+export function getTableData(
+  tableName: string,
+  limit = 50,
+  offset = 0,
+  filter?: TableFilter
+) {
+  const params: Record<string, string | number> = { limit, offset }
+  if (filter) {
+    params.filter_field = filter.field
+    params.filter_op = filter.op
+    params.filter_value = filter.value
+  }
+  return client.get<TableDataResponse>(`/v1/admin/tables/${tableName}`, { params })
 }

@@ -35,8 +35,11 @@ async def get_table_data(
     table_name: str,
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    filter_field: str | None = Query(default=None),
+    filter_op: str | None = Query(default=None),
+    filter_value: str | None = Query(default=None),
 ):
-    """Get paginated data from a specific table with column metadata."""
+    """Get paginated data from a specific table with column metadata and optional filtering."""
     async with engine.connect() as conn:
         check = await conn.execute(
             text("SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = :name"),
@@ -56,7 +59,37 @@ async def get_table_data(
         )
         columns = [{"name": r[0], "data_type": r[1], "udt_name": r[2]} for r in col_result.fetchall()]
 
-        count_result = await conn.execute(text(f'SELECT COUNT(*) FROM "{table_name}"'))  # noqa: S608
+        where_clause = ""
+        params = {"limit": limit, "offset": offset}
+
+        if filter_field and filter_op and filter_value is not None:
+            valid_columns = {c["name"] for c in columns}
+            if filter_field not in valid_columns:
+                raise HTTPException(400, f"Invalid filter field: {filter_field}")
+
+            if filter_op == "eq":
+                where_clause = f' WHERE "{filter_field}"::text = :filter_value'
+                params["filter_value"] = filter_value
+            elif filter_op == "contains":
+                where_clause = f' WHERE "{filter_field}"::text ILIKE :filter_value'
+                params["filter_value"] = f"%{filter_value}%"
+            elif filter_op == "gt":
+                where_clause = f' WHERE "{filter_field}"::text > :filter_value'
+                params["filter_value"] = filter_value
+            elif filter_op == "lt":
+                where_clause = f' WHERE "{filter_field}"::text < :filter_value'
+                params["filter_value"] = filter_value
+            elif filter_op == "gte":
+                where_clause = f' WHERE "{filter_field}"::text >= :filter_value'
+                params["filter_value"] = filter_value
+            elif filter_op == "lte":
+                where_clause = f' WHERE "{filter_field}"::text <= :filter_value'
+                params["filter_value"] = filter_value
+            else:
+                raise HTTPException(400, f"Invalid filter operator: {filter_op}")
+
+        count_query = f'SELECT COUNT(*) FROM "{table_name}"{where_clause}'  # noqa: S608
+        count_result = await conn.execute(text(count_query), params)
         total = count_result.scalar()
 
         vector_cols = {c["name"] for c in columns if c["udt_name"] == "vector"}
@@ -74,8 +107,10 @@ async def get_table_data(
                 select_parts.append(f'"{col_name}"')
 
         select_sql = ", ".join(select_parts)
-        query = text(f'SELECT {select_sql} FROM "{table_name}" ORDER BY 1 DESC LIMIT :limit OFFSET :offset')  # noqa: S608
-        data_result = await conn.execute(query, {"limit": limit, "offset": offset})
+        query = text(
+            f'SELECT {select_sql} FROM "{table_name}"{where_clause} ORDER BY 1 DESC LIMIT :limit OFFSET :offset'
+        )  # noqa: S608
+        data_result = await conn.execute(query, params)
 
         rows = [dict(zip([c["name"] for c in columns], row)) for row in data_result.fetchall()]
 
