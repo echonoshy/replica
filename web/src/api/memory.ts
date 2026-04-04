@@ -19,13 +19,9 @@ export function getEvergreenMemories(userId: string) {
 
 export function createEvergreenMemory(
   userId: string,
-  content: string,
-  category: string = 'fact',
+  data: { content: string; category: string }
 ) {
-  return client.post<EvergreenMemory>(`/v1/users/${userId}/evergreen`, {
-    content,
-    category,
-  })
+  return client.post<EvergreenMemory>(`/v1/users/${userId}/evergreen`, data)
 }
 
 export function deleteEvergreenMemory(memoryId: string) {
@@ -43,18 +39,13 @@ export interface KnowledgeSearchResult {
   created_at: string
 }
 
-export function searchKnowledge(
-  userId: string,
-  query: string,
-  topK = 10,
-  entryType?: string,
-) {
-  return client.post<KnowledgeSearchResult[]>('/v1/knowledge/search', {
-    user_id: userId,
-    query,
-    top_k: topK,
-    entry_type: entryType ?? null,
-  })
+export function searchKnowledge(data: {
+  user_id: string
+  query: string
+  top_k?: number
+  entry_type?: string
+}) {
+  return client.post<KnowledgeSearchResult[]>('/v1/knowledge/search', data)
 }
 
 // ---------- Knowledge List (Admin) ----------
@@ -87,8 +78,10 @@ export function getUserKnowledge(
   })
 }
 
-export function getUserKnowledgeCount(userId: string) {
-  return client.get<KnowledgeCountResponse>(`/v1/users/${userId}/knowledge/count`)
+export function getKnowledgeCount(userId: string) {
+  return client.get<{ episode: number; event: number; foresight: number; total: number }>(
+    `/v1/users/${userId}/knowledge/count`
+  )
 }
 
 export function deleteKnowledgeEntry(knowledgeId: string) {

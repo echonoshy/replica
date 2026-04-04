@@ -27,6 +27,10 @@ export function onApiLog(cb: ApiLogCallback) {
   logCallback = cb
 }
 
+export function registerApiLogListener(cb: ApiLogCallback) {
+  logCallback = cb
+}
+
 client.interceptors.request.use((config) => {
   const id = `req-${++logIdCounter}`
   ;(config as any)._logId = id

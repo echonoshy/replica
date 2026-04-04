@@ -8,16 +8,16 @@ export interface User {
   created_at: string
 }
 
-export function listUsers() {
+export function getUsers() {
   return client.get<User[]>('/v1/users')
 }
 
-export function createUser(
-  external_id: string,
-  name?: string,
-  metadata?: Record<string, unknown>,
-) {
-  return client.post<User>('/v1/users', { external_id, name, metadata })
+export function createUser(data: {
+  external_id: string
+  name?: string | null
+  metadata?: Record<string, unknown> | null
+}) {
+  return client.post<User>('/v1/users', data)
 }
 
 export function getUser(userId: string) {

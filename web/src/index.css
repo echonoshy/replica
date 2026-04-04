@@ -1,0 +1,159 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-background: 40 20% 98%;
+    --color-foreground: 0 0% 10%;
+    --color-card: 0 0% 100%;
+    --color-card-foreground: 0 0% 10%;
+    --color-popover: 0 0% 100%;
+    --color-popover-foreground: 0 0% 10%;
+    --color-primary: 15 70% 60%;
+    --color-primary-foreground: 0 0% 100%;
+    --color-secondary: 40 20% 94%;
+    --color-secondary-foreground: 0 0% 10%;
+    --color-muted: 40 15% 94%;
+    --color-muted-foreground: 0 0% 42%;
+    --color-accent: 15 70% 60%;
+    --color-accent-foreground: 0 0% 100%;
+    --color-destructive: 0 72% 51%;
+    --color-destructive-foreground: 0 0% 100%;
+    --color-border: 40 15% 87%;
+    --color-input: 0 0% 100%;
+    --color-ring: 15 70% 60%;
+    --radius: 0.75rem;
+
+    /* Custom colors from original design */
+    --color-success: 162 63% 31%;
+    --color-info: 211 46% 51%;
+    --color-warning: 45 85% 47%;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: hsl(var(--color-background));
+    color: hsl(var(--color-foreground));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Markdown styles for react-markdown */
+  .prose {
+    color: hsl(var(--color-foreground));
+  }
+
+  .prose p {
+    margin-bottom: 0.5rem;
+  }
+
+  .prose p:last-child {
+    margin-bottom: 0;
+  }
+
+  .prose code {
+    background-color: hsl(var(--color-muted));
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .prose pre {
+    background-color: hsl(var(--color-muted));
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    overflow-x: auto;
+    margin: 0.5rem 0;
+  }
+
+  .prose pre code {
+    background-color: transparent;
+    padding: 0;
+    font-size: 0.75rem;
+  }
+
+  .prose ul,
+  .prose ol {
+    padding-left: 1.25rem;
+    margin: 0.5rem 0;
+  }
+
+  .prose li {
+    margin-bottom: 0.25rem;
+  }
+
+  .prose blockquote {
+    border-left: 4px solid hsl(var(--color-border));
+    padding-left: 0.75rem;
+    color: hsl(var(--color-muted-foreground));
+    margin: 0.5rem 0;
+  }
+
+  .prose h1,
+  .prose h2,
+  .prose h3 {
+    font-weight: 600;
+    margin: 0.75rem 0;
+  }
+
+  .prose h1:first-child,
+  .prose h2:first-child,
+  .prose h3:first-child {
+    margin-top: 0;
+  }
+
+  .prose h1 {
+    font-size: 1.125rem;
+  }
+
+  .prose h2 {
+    font-size: 1rem;
+  }
+
+  .prose h3 {
+    font-size: 0.875rem;
+  }
+
+  .prose table {
+    border-collapse: collapse;
+    margin: 0.5rem 0;
+    width: 100%;
+  }
+
+  .prose th,
+  .prose td {
+    border: 1px solid hsl(var(--color-border));
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  .prose th {
+    background-color: hsl(var(--color-muted));
+    font-weight: 600;
+  }
+
+  .prose a {
+    color: hsl(var(--color-primary));
+  }
+
+  .prose a:hover {
+    text-decoration: underline;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background-color: hsl(var(--color-background));
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--color-border));
+    border-radius: 3px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--color-muted-foreground));
+  }
+}
