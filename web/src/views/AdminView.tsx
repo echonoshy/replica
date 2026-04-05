@@ -27,8 +27,8 @@ export default function AdminView() {
   const navigate = useNavigate()
 
   return (
-    <div className="h-screen bg-background p-6 bg-[radial-gradient(var(--color-border)_1px,transparent_1px)] bg-[size:24px_24px] overflow-hidden font-sans">
-      <div className="w-[95%] max-w-[1600px] mx-auto h-full flex flex-col bg-white border-4 border-border shadow-[12px_12px_0px_0px_#111111] p-6 rounded-xl">
+    <div className="h-screen bg-background bg-[radial-gradient(var(--color-border)_1px,transparent_1px)] bg-[size:24px_24px] overflow-hidden font-sans">
+      <div className="w-full h-full flex flex-col bg-white p-6">
         <div className="flex items-center gap-4 mb-6 border-b-4 border-border pb-6">
           <Button
             variant="default"
@@ -774,28 +774,28 @@ function DatabaseTab() {
         )}
 
         <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-          <DialogContent className="max-w-6xl max-h-[80vh] overflow-hidden flex flex-col border-4 border-border shadow-[8px_8px_0px_0px_#111111] p-0 rounded-xl bg-white">
-            <DialogHeader className="p-6 border-b-4 border-border bg-[#fef08a] shrink-0">
-              <DialogTitle className="text-xl font-extrabold uppercase tracking-widest">记录详情</DialogTitle>
+          <DialogContent className="max-w-6xl max-h-[80vh] flex flex-col border-4 border-border shadow-[8px_8px_0px_0px_#111111] p-0 !rounded-2xl bg-white">
+            <DialogHeader className="p-4 border-b-4 border-border bg-[#fef08a] shrink-0">
+              <DialogTitle className="text-lg font-extrabold uppercase tracking-widest">记录详情</DialogTitle>
             </DialogHeader>
-            <ScrollArea className="flex-1 p-6">
+            <ScrollArea className="flex-1 p-4 overflow-auto">
               {selectedRow && tableData && (
-                <div className="divide-y-2 divide-border border-2 border-border rounded-lg overflow-hidden bg-white shadow-sm">
+                <div className="divide-y-2 divide-border border-2 border-border rounded-xl overflow-hidden bg-white shadow-sm">
                   {tableData.columns.map((col) => (
-                    <div key={col.name} className="flex flex-col sm:flex-row sm:items-start p-5 hover:bg-gray-50 transition-colors">
-                      <div className="w-full sm:w-1/3 shrink-0 mb-2 sm:mb-0 pr-6">
-                        <div className="font-extrabold text-base text-black mb-1.5">{col.name}</div>
-                        <Badge variant="outline" className="border-2 border-border font-bold bg-white text-xs px-2 py-0.5">
+                    <div key={col.name} className="flex flex-col sm:flex-row sm:items-start p-3 hover:bg-gray-50 transition-colors">
+                      <div className="w-full sm:w-1/3 shrink-0 mb-1.5 sm:mb-0 pr-4">
+                        <div className="font-extrabold text-sm text-black mb-1">{col.name}</div>
+                        <Badge variant="outline" className="border-2 border-border font-bold bg-white text-[10px] px-1.5 py-0">
                           {(col as any).data_type || (col as any).type}
                         </Badge>
                       </div>
                       <div className="flex-1 min-w-0">
                         {typeof selectedRow[col.name] === 'object' && selectedRow[col.name] !== null ? (
-                          <pre className="whitespace-pre-wrap break-words font-mono text-sm bg-gray-100 p-4 rounded-md border-2 border-border max-h-[300px] overflow-auto">
+                          <pre className="whitespace-pre-wrap break-words font-mono text-xs bg-gray-100 p-3 rounded-lg border-2 border-border max-h-[300px] overflow-auto">
                             {JSON.stringify(selectedRow[col.name], null, 2)}
                           </pre>
                         ) : (
-                          <div className="whitespace-pre-wrap break-words text-base font-medium pt-0.5 max-h-[300px] overflow-auto">
+                          <div className="whitespace-pre-wrap break-words text-sm font-medium pt-0.5 max-h-[300px] overflow-auto">
                             {String(selectedRow[col.name] ?? '')}
                           </div>
                         )}
