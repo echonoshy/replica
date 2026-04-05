@@ -18,23 +18,23 @@ import type { Session, Message, KnowledgeEntry, TableInfo, TableDataResponse } f
 import type { TableFilter } from '@/api/admin'
 
 // 抽取复用的新粗野主义风格类名
-const brutalistCard = "border-2 border-border shadow-[4px_4px_0px_0px_#111111] bg-white rounded-md"
-const brutalistButton = "border-2 border-border shadow-[2px_2px_0px_0px_#111111] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_0px_#111111] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all"
-const brutalistInput = "border-2 border-border shadow-[2px_2px_0px_0px_#111111] focus-visible:ring-0 focus-visible:translate-x-[1px] focus-visible:translate-y-[1px] focus-visible:shadow-[1px_1px_0px_0px_#111111] transition-all rounded-md"
-const brutalistItem = "border-2 border-border shadow-[2px_2px_0px_0px_#111111] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_0px_#111111] transition-all bg-white rounded-md"
+const brutalistCard = "border-2 border-border shadow-[4px_4px_0px_0px_#111111] bg-card rounded-md"
+const brutalistButton = "border-2 border-border shadow-[2px_2px_0px_0px_#111111] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_0px_#111111] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all font-bold"
+const brutalistInput = "border-2 border-border shadow-[2px_2px_0px_0px_#111111] focus-visible:ring-0 focus-visible:translate-x-[1px] focus-visible:translate-y-[1px] focus-visible:shadow-[1px_1px_0px_0px_#111111] transition-all rounded-md bg-input"
+const brutalistItem = "border-2 border-border shadow-[2px_2px_0px_0px_#111111] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_0px_#111111] transition-all bg-card rounded-md"
 
 export default function AdminView() {
   const navigate = useNavigate()
 
   return (
     <div className="h-screen bg-background bg-[radial-gradient(var(--color-border)_1px,transparent_1px)] bg-[size:24px_24px] overflow-hidden font-sans">
-      <div className="w-full h-full flex flex-col bg-white p-6">
+      <div className="w-full h-full flex flex-col bg-card p-6">
         <div className="flex items-center gap-4 mb-6 border-b-4 border-border pb-6">
           <Button
             variant="default"
             size="sm"
             onClick={() => navigate('/')}
-            className={cn("bg-white text-foreground hover:bg-gray-50", brutalistButton)}
+            className={cn("bg-card text-foreground hover:bg-muted", brutalistButton)}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             <span className="font-bold text-sm">返回主界面</span>
@@ -43,10 +43,10 @@ export default function AdminView() {
         </div>
 
         <Tabs defaultValue="sessions" className="flex-1 flex flex-col min-h-0">
-          <TabsList className="bg-[#fef08a] border-2 border-border shadow-[4px_4px_0px_0px_#111111] p-1 h-auto rounded-md inline-flex w-fit mb-6">
-            <TabsTrigger value="sessions" className="data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-none rounded-sm px-5 py-1.5 text-sm font-bold transition-all">会话管理</TabsTrigger>
-            <TabsTrigger value="knowledge" className="data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-none rounded-sm px-5 py-1.5 text-sm font-bold transition-all">知识库</TabsTrigger>
-            <TabsTrigger value="database" className="data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-none rounded-sm px-5 py-1.5 text-sm font-bold transition-all">数据库</TabsTrigger>
+          <TabsList className="bg-accent border-2 border-border shadow-[4px_4px_0px_0px_#111111] p-1 h-auto rounded-md inline-flex w-fit mb-6">
+            <TabsTrigger value="sessions" className="data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-none rounded-sm px-5 py-1.5 text-sm font-bold transition-all">会话管理</TabsTrigger>
+            <TabsTrigger value="knowledge" className="data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-none rounded-sm px-5 py-1.5 text-sm font-bold transition-all">知识库</TabsTrigger>
+            <TabsTrigger value="database" className="data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-none rounded-sm px-5 py-1.5 text-sm font-bold transition-all">数据库</TabsTrigger>
           </TabsList>
 
           <TabsContent value="sessions" className="flex-1 mt-0 min-h-0 data-[state=active]:flex flex-col">
@@ -74,6 +74,8 @@ function SessionsTab() {
   const [showCompacted, setShowCompacted] = useState(true)
   const [loading, setLoading] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [leftWidth, setLeftWidth] = useState(400)
+  const [isDragging, setIsDragging] = useState(false)
 
   const loadSessions = async () => {
     if (!userId.trim()) return
@@ -126,11 +128,32 @@ function SessionsTab() {
     }
   }
 
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+    const startX = e.clientX
+    const startWidth = leftWidth
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      const delta = ev.clientX - startX
+      setLeftWidth(Math.max(280, Math.min(800, startWidth + delta)))
+    }
+
+    const handleMouseUp = () => {
+      setIsDragging(false)
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }
+
   const filteredMessages = showCompacted ? messages : messages.filter((m) => !m.is_compacted)
 
   return (
-    <div className="grid grid-cols-3 gap-6 h-full min-h-0">
-      <Card className={cn("p-4 flex flex-col min-h-0 bg-[#f8fafc]", brutalistCard)}>
+    <div className={cn("flex gap-0 h-full min-h-0", isDragging && "select-none")}>
+      <Card className={cn("p-4 flex flex-col min-h-0 bg-muted/30 shrink-0", brutalistCard)} style={{ width: `${leftWidth}px` }}>
         <div className="flex gap-2 mb-4">
           <Input
             placeholder="输入用户 ID..."
@@ -139,7 +162,7 @@ function SessionsTab() {
             onKeyDown={(e) => e.key === 'Enter' && loadSessions()}
             className={cn("text-sm", brutalistInput)}
           />
-          <Button onClick={loadSessions} disabled={loading} className={cn("font-bold text-sm bg-[#3b82f6] text-white hover:bg-blue-600", brutalistButton)}>
+          <Button onClick={loadSessions} disabled={loading} className={cn("text-sm bg-info text-background hover:bg-info/90", brutalistButton)}>
             加载
           </Button>
         </div>
@@ -152,26 +175,26 @@ function SessionsTab() {
                 className={cn(
                   'p-3 cursor-pointer',
                   brutalistItem,
-                  selectedSession?.id === session.id ? 'bg-[#bfdbfe] border-black shadow-none translate-x-[2px] translate-y-[2px]' : 'bg-white'
+                  selectedSession?.id === session.id ? 'bg-info/20 border-black shadow-none translate-x-[2px] translate-y-[2px]' : 'bg-card'
                 )}
                 onClick={() => handleSelectSession(session)}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <Badge variant={session.status === 'active' ? 'default' : 'secondary'} className={cn("border-2 border-border font-bold text-xs", session.status === 'active' ? 'bg-black text-white' : 'bg-gray-200 text-black')}>
+                  <Badge variant={session.status === 'active' ? 'default' : 'secondary'} className={cn("border-2 border-border font-bold text-xs", session.status === 'active' ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground')}>
                     {session.status === 'active' ? '活跃' : '已归档'}
                   </Badge>
                   <div className="flex gap-1.5">
                     <Button
                       size="icon"
                       variant="outline"
-                      className={cn("h-6 w-6 bg-white", brutalistButton)}
+                      className={cn("h-6 w-6 bg-card", brutalistButton)}
                       onClick={(e) => {
                         e.stopPropagation()
                         copyToClipboard(session.id, session.id)
                       }}
                     >
                       {copiedId === session.id ? (
-                        <Check className="h-3 w-3 text-green-600 font-bold" />
+                        <Check className="h-3 w-3 text-success font-bold" />
                       ) : (
                         <Copy className="h-3 w-3" />
                       )}
@@ -179,7 +202,7 @@ function SessionsTab() {
                     <Button
                       size="icon"
                       variant="outline"
-                      className={cn("h-6 w-6 bg-white hover:bg-red-50 hover:text-red-600", brutalistButton)}
+                      className={cn("h-6 w-6 bg-card hover:bg-destructive/10 hover:text-destructive", brutalistButton)}
                       onClick={(e) => {
                         e.stopPropagation()
                         handleDeleteSession(session.id)
@@ -189,10 +212,10 @@ function SessionsTab() {
                     </Button>
                   </div>
                 </div>
-                <p className="text-xs font-mono font-bold mb-2 bg-white/50 p-1 rounded border-2 border-border inline-block">{session.id.slice(0, 16)}...</p>
+                <p className="text-xs font-mono font-bold mb-2 bg-card/50 p-1 rounded border-2 border-border inline-block">{session.id.slice(0, 16)}...</p>
                 <div className="flex justify-between text-xs font-medium text-muted-foreground mt-1">
                   <span>{new Date(session.created_at).toLocaleString('zh-CN')}</span>
-                  <span className="bg-white/50 px-1.5 py-0.5 rounded border-2 border-border text-black">{session.token_count} tk</span>
+                  <span className="bg-card/50 px-1.5 py-0.5 rounded border-2 border-border text-foreground">{session.token_count} tk</span>
                 </div>
                 <div className="text-xs font-medium text-muted-foreground mt-2 flex items-center gap-2">
                   <span>压缩次数:</span>
@@ -201,7 +224,7 @@ function SessionsTab() {
               </div>
             ))}
             {sessions.length === 0 && !loading && (
-              <div className="text-center py-8 text-sm text-muted-foreground font-bold border-2 border-dashed border-border rounded-lg bg-white">
+              <div className="text-center py-8 text-sm text-muted-foreground font-bold border-2 border-dashed border-border rounded-lg bg-card">
                 暂无会话数据
               </div>
             )}
@@ -209,7 +232,24 @@ function SessionsTab() {
         </ScrollArea>
       </Card>
 
-      <Card className={cn("col-span-2 p-4 flex flex-col min-h-0 bg-[#fdfde8]", brutalistCard)}>
+      {/* Resize handle */}
+      <div
+        className={cn(
+          'w-3 cursor-col-resize flex items-center justify-center shrink-0 relative z-10 transition-colors bg-border hover:bg-primary',
+          isDragging && 'bg-primary'
+        )}
+        onMouseDown={handleMouseDown}
+      >
+        <div
+          className={cn(
+            'w-1 h-12 bg-card transition-all',
+            'hover:h-16',
+            isDragging && 'h-16'
+          )}
+        />
+      </div>
+
+      <Card className={cn("flex-1 p-4 flex flex-col min-h-0 bg-accent/10", brutalistCard)}>
         {selectedSession ? (
           <>
             <div className="flex items-center justify-between mb-4 pb-3 border-b-4 border-border">
@@ -218,7 +258,7 @@ function SessionsTab() {
                 variant="outline"
                 size="sm"
                 onClick={() => setShowCompacted(!showCompacted)}
-                className={cn("font-bold text-xs bg-white", brutalistButton)}
+                className={cn("font-bold text-xs bg-card", brutalistButton)}
               >
                 {showCompacted ? <ChevronUp className="h-3 w-3 mr-1" /> : <ChevronDown className="h-3 w-3 mr-1" />}
                 {showCompacted ? '隐藏' : '显示'} 已压缩
@@ -233,28 +273,28 @@ function SessionsTab() {
                     className={cn(
                       'p-3',
                       brutalistItem,
-                      msg.is_compacted && 'bg-gray-50 opacity-70 border-dashed'
+                      msg.is_compacted && 'bg-muted/50 opacity-70 border-dashed'
                     )}
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <Badge variant="outline" className={cn(
                         "border-2 border-border font-bold text-xs px-2 py-0.5",
-                        msg.role === 'user' ? 'bg-[#bfdbfe]' : msg.role === 'assistant' ? 'bg-[#bbf7d0]' : 'bg-gray-200'
+                        msg.role === 'user' ? 'bg-info/20 text-info-foreground' : msg.role === 'assistant' ? 'bg-success/20 text-success-foreground' : 'bg-muted text-muted-foreground'
                       )}>
                         {msg.role === 'user' ? '用户' : msg.role === 'assistant' ? '助手' : '系统'}
                       </Badge>
                       {msg.message_type !== 'message' && (
                         <Badge variant="outline" className={cn(
                           "border-2 border-border font-bold text-xs px-2 py-0.5",
-                          msg.message_type === 'compaction_summary' ? 'bg-[#fecdd3] text-red-800' : 'bg-[#fef08a]'
+                          msg.message_type === 'compaction_summary' ? 'bg-destructive/20 text-destructive' : 'bg-warning/20 text-warning-foreground'
                         )}>
                           {msg.message_type}
                         </Badge>
                       )}
-                      <span className="text-xs font-bold text-muted-foreground ml-auto bg-white/50 px-1.5 py-0.5 rounded border-2 border-border">
+                      <span className="text-xs font-bold text-muted-foreground ml-auto bg-card/50 px-1.5 py-0.5 rounded border-2 border-border">
                         {new Date(msg.created_at).toLocaleString('zh-CN')}
                       </span>
-                      <span className="text-xs font-bold text-muted-foreground bg-white/50 px-1.5 py-0.5 rounded border-2 border-border">
+                      <span className="text-xs font-bold text-muted-foreground bg-card/50 px-1.5 py-0.5 rounded border-2 border-border">
                         {msg.token_count} tk
                       </span>
                     </div>
@@ -262,7 +302,7 @@ function SessionsTab() {
                   </div>
                 ))}
                 {filteredMessages.length === 0 && (
-                  <div className="text-center py-8 text-sm text-muted-foreground font-bold border-2 border-dashed border-border rounded-lg bg-white">
+                  <div className="text-center py-8 text-sm text-muted-foreground font-bold border-2 border-dashed border-border rounded-lg bg-card">
                     暂无消息记录
                   </div>
                 )}
@@ -270,9 +310,9 @@ function SessionsTab() {
             </ScrollArea>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground border-4 border-dashed border-border rounded-xl m-4 bg-white/50">
+          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground border-4 border-dashed border-border rounded-xl m-4 bg-card/50">
             <div className="text-4xl mb-3">💬</div>
-            <h3 className="text-xl font-extrabold text-black">选择一个会话</h3>
+            <h3 className="text-xl font-extrabold text-foreground">选择一个会话</h3>
             <p className="font-medium text-sm mt-1">在左侧列表中点击会话以查看详细消息记录</p>
           </div>
         )}
@@ -340,23 +380,23 @@ function KnowledgeTab() {
   return (
     <div className="flex flex-col h-full min-h-0 gap-4">
       <div className="flex gap-4 shrink-0">
-        <Card className={cn("p-4 flex-1 bg-[#fdf4ff]", brutalistCard)}>
+        <Card className={cn("p-4 flex-1 bg-secondary/10", brutalistCard)}>
           <div className="flex gap-2">
             <Input
               placeholder="输入用户 ID..."
               value={userId}
               onChange={(e) => setUserId(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && loadKnowledge()}
-              className={cn("text-sm bg-white", brutalistInput)}
+              className={cn("text-sm bg-card", brutalistInput)}
             />
-            <Button onClick={loadKnowledge} disabled={loading} className={cn("font-bold text-sm bg-[#c084fc] text-white hover:bg-purple-600", brutalistButton)}>
+            <Button onClick={loadKnowledge} disabled={loading} className={cn("text-sm bg-secondary text-secondary-foreground hover:bg-secondary/90", brutalistButton)}>
               加载知识库
             </Button>
           </div>
         </Card>
 
         {stats && (
-          <Card className={cn("p-4 flex items-center gap-5 bg-[#fdf4ff]", brutalistCard)}>
+          <Card className={cn("p-4 flex items-center gap-5 bg-secondary/10", brutalistCard)}>
             <div className="flex flex-col items-center px-3 border-r-2 border-border">
               <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-0.5">总计</span>
               <span className="text-xl font-extrabold">{stats.total || 0}</span>
@@ -364,15 +404,15 @@ function KnowledgeTab() {
             <div className="flex gap-4">
               <div className="flex flex-col items-center">
                 <span className="text-xs font-bold text-muted-foreground mb-0.5">情节</span>
-                <Badge variant="outline" className="border-2 border-border font-bold bg-[#bfdbfe] text-blue-900 text-sm px-2 py-0.5">{stats.by_type.episode || 0}</Badge>
+                <Badge variant="outline" className="border-2 border-border font-bold bg-info/20 text-info-foreground text-sm px-2 py-0.5">{stats.by_type.episode || 0}</Badge>
               </div>
               <div className="flex flex-col items-center">
                 <span className="text-xs font-bold text-muted-foreground mb-0.5">事件</span>
-                <Badge variant="outline" className="border-2 border-border font-bold bg-[#bbf7d0] text-green-900 text-sm px-2 py-0.5">{stats.by_type.event || 0}</Badge>
+                <Badge variant="outline" className="border-2 border-border font-bold bg-success/20 text-success-foreground text-sm px-2 py-0.5">{stats.by_type.event || 0}</Badge>
               </div>
               <div className="flex flex-col items-center">
                 <span className="text-xs font-bold text-muted-foreground mb-0.5">预见</span>
-                <Badge variant="outline" className="border-2 border-border font-bold bg-[#e9d5ff] text-purple-900 text-sm px-2 py-0.5">{stats.by_type.foresight || 0}</Badge>
+                <Badge variant="outline" className="border-2 border-border font-bold bg-secondary/20 text-secondary-foreground text-sm px-2 py-0.5">{stats.by_type.foresight || 0}</Badge>
               </div>
             </div>
           </Card>
@@ -387,7 +427,7 @@ function KnowledgeTab() {
             className={cn(
               "font-bold px-4 text-sm",
               brutalistButton,
-              typeFilter === type ? 'bg-black text-white hover:bg-black hover:text-white translate-x-[2px] translate-y-[2px] shadow-none' : 'bg-white'
+              typeFilter === type ? 'bg-foreground text-background hover:bg-foreground hover:text-background translate-x-[2px] translate-y-[2px] shadow-none' : 'bg-card'
             )}
             onClick={() => {
               setTypeFilter(type)
@@ -399,7 +439,7 @@ function KnowledgeTab() {
         ))}
       </div>
 
-      <Card className={cn("flex-1 p-4 flex flex-col min-h-0 bg-white", brutalistCard)}>
+      <Card className={cn("flex-1 p-4 flex flex-col min-h-0 bg-card", brutalistCard)}>
         <ScrollArea className="flex-1 pr-3 -mr-3">
           <div className="space-y-3 pb-4">
             {paginatedKnowledge.map((entry) => {
@@ -411,14 +451,14 @@ function KnowledgeTab() {
                       <div className="flex items-center gap-2 mb-2">
                         <Badge variant="outline" className={cn(
                           "border-2 border-border font-bold px-2 py-0.5 text-xs",
-                          entry.entry_type === 'episode' ? 'bg-[#bfdbfe]' : entry.entry_type === 'event' ? 'bg-[#bbf7d0]' : 'bg-[#e9d5ff]'
+                          entry.entry_type === 'episode' ? 'bg-info/20 text-info-foreground' : entry.entry_type === 'event' ? 'bg-success/20 text-success-foreground' : 'bg-secondary/20 text-secondary-foreground'
                         )}>
                           {entry.entry_type === 'episode' ? '情节' : entry.entry_type === 'event' ? '事件' : '预见'}
                         </Badge>
                         {entry.title && <span className="text-base font-extrabold">{entry.title}</span>}
                       </div>
                       <div className={cn(
-                        'text-sm font-medium leading-relaxed bg-gray-50 p-2 rounded border-2 border-border',
+                        'text-sm font-medium leading-relaxed bg-muted/50 p-2 rounded border-2 border-border',
                         !isExpanded && 'line-clamp-2'
                       )}>
                         {entry.content}
@@ -430,12 +470,12 @@ function KnowledgeTab() {
                             <span className="text-xs font-bold text-muted-foreground">参与者:</span>
                             <div className="flex gap-1 flex-wrap">
                               {entry.participants.map(p => (
-                                <Badge key={p} variant="outline" className="border-2 border-border font-bold bg-white text-xs py-0">{p}</Badge>
+                                <Badge key={p} variant="outline" className="border-2 border-border font-bold bg-card text-xs py-0">{p}</Badge>
                               ))}
                             </div>
                           </div>
                         )}
-                        <div className="text-xs font-bold text-muted-foreground bg-gray-100 px-1.5 py-0.5 rounded border-2 border-border ml-auto">
+                        <div className="text-xs font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded border-2 border-border ml-auto">
                           {new Date(entry.created_at).toLocaleString('zh-CN')}
                         </div>
                       </div>
@@ -444,7 +484,7 @@ function KnowledgeTab() {
                       <Button
                         size="icon"
                         variant="outline"
-                        className={cn("h-7 w-7 bg-white", brutalistButton)}
+                        className={cn("h-7 w-7 bg-card", brutalistButton)}
                         onClick={() => toggleExpand(entry.id)}
                       >
                         {isExpanded ? (
@@ -456,7 +496,7 @@ function KnowledgeTab() {
                       <Button
                         size="icon"
                         variant="outline"
-                        className={cn("h-7 w-7 bg-white hover:bg-red-50 hover:text-red-600", brutalistButton)}
+                        className={cn("h-7 w-7 bg-card hover:bg-destructive/10 hover:text-destructive", brutalistButton)}
                         onClick={() => handleDelete(entry.id)}
                       >
                         <Trash2 className="h-3 w-3" />
@@ -467,8 +507,8 @@ function KnowledgeTab() {
               )
             })}
             {paginatedKnowledge.length === 0 && !loading && (
-              <div className="text-center py-12 text-sm text-muted-foreground font-bold border-4 border-dashed border-border rounded-xl m-2 bg-gray-50">
-                <h3 className="text-lg font-extrabold text-black">暂无知识库记录</h3>
+              <div className="text-center py-12 text-sm text-muted-foreground font-bold border-4 border-dashed border-border rounded-xl m-2 bg-muted/50">
+                <h3 className="text-lg font-extrabold text-foreground">暂无知识库记录</h3>
                 <p className="font-medium mt-1">输入用户 ID 并加载以查看数据</p>
               </div>
             )}
@@ -480,20 +520,20 @@ function KnowledgeTab() {
             <Button
               variant="outline"
               size="sm"
-              className={cn("font-bold text-xs bg-white", brutalistButton)}
+              className={cn("font-bold text-xs bg-card", brutalistButton)}
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={page === 0}
             >
               <ChevronLeft className="h-4 w-4 mr-1" />
               上一页
             </Button>
-            <span className="text-sm font-extrabold bg-gray-100 px-3 py-1 rounded border-2 border-border">
+            <span className="text-sm font-extrabold bg-muted px-3 py-1 rounded border-2 border-border">
               第 {page + 1} 页 <span className="text-muted-foreground mx-1">/</span> 共 {totalPages} 页
             </span>
             <Button
               variant="outline"
               size="sm"
-              className={cn("font-bold text-xs bg-white", brutalistButton)}
+              className={cn("font-bold text-xs bg-card", brutalistButton)}
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
               disabled={page === totalPages - 1}
             >
@@ -584,10 +624,10 @@ function DatabaseTab() {
 
   return (
     <div className="grid grid-cols-4 gap-4 h-full min-h-0">
-      <Card className={cn("p-4 flex flex-col min-h-0 bg-[#f0fdf4]", brutalistCard)}>
+      <Card className={cn("p-4 flex flex-col min-h-0 bg-success/10", brutalistCard)}>
         <div className="flex items-center justify-between mb-4 pb-3 border-b-4 border-border">
           <h3 className="text-lg font-extrabold uppercase tracking-wide">数据表</h3>
-          <Button size="sm" onClick={loadTables} disabled={loading} className={cn("font-bold text-xs bg-[#22c55e] text-white hover:bg-green-600", brutalistButton)}>
+          <Button size="sm" onClick={loadTables} disabled={loading} className={cn("text-xs bg-success text-background hover:bg-success/90", brutalistButton)}>
             加载列表
           </Button>
         </div>
@@ -600,21 +640,21 @@ function DatabaseTab() {
                 className={cn(
                   'p-2.5 cursor-pointer flex justify-between items-center',
                   brutalistItem,
-                  selectedTable === table.name ? 'bg-black text-white border-black shadow-none translate-x-[2px] translate-y-[2px]' : 'bg-white'
+                  selectedTable === table.name ? 'bg-foreground text-background border-black shadow-none translate-x-[2px] translate-y-[2px]' : 'bg-card'
                 )}
                 onClick={() => handleSelectTable(table.name)}
               >
                 <p className="text-sm font-bold">{table.name}</p>
                 <Badge variant="outline" className={cn(
                   "border-2 font-bold text-[10px] px-1.5 py-0",
-                  selectedTable === table.name ? 'border-white text-white bg-transparent' : 'border-border bg-gray-100 text-black'
+                  selectedTable === table.name ? 'border-white text-background bg-transparent' : 'border-border bg-muted text-foreground'
                 )}>
                   {table.row_count} 行
                 </Badge>
               </div>
             ))}
             {tables.length === 0 && !loading && (
-              <div className="text-center py-8 text-sm text-muted-foreground font-bold border-2 border-dashed border-border rounded-lg bg-white">
+              <div className="text-center py-8 text-sm text-muted-foreground font-bold border-2 border-dashed border-border rounded-lg bg-card">
                 点击加载获取数据表
               </div>
             )}
@@ -622,14 +662,14 @@ function DatabaseTab() {
         </ScrollArea>
       </Card>
 
-      <Card className={cn("col-span-3 p-4 flex flex-col min-h-0 overflow-hidden bg-white", brutalistCard)}>
+      <Card className={cn("col-span-3 p-4 flex flex-col min-h-0 overflow-hidden bg-card", brutalistCard)}>
         {tableData ? (
           <>
             <div className="flex items-center justify-between mb-4 pb-3 border-b-4 border-border shrink-0">
               <div className="flex items-center gap-3">
-                <h3 className="text-xl font-extrabold bg-[#fef08a] px-3 py-0.5 rounded border-2 border-border">{tableData.table_name}</h3>
+                <h3 className="text-xl font-extrabold bg-accent px-3 py-0.5 rounded border-2 border-border">{tableData.table_name}</h3>
                 {filter && (
-                  <Badge variant="outline" className="gap-1 border-2 border-border font-bold text-xs px-2 py-0.5 bg-yellow-50">
+                  <Badge variant="outline" className="gap-1 border-2 border-border font-bold text-xs px-2 py-0.5 bg-warning/20">
                     <Filter className="h-3 w-3" />
                     {filter.field} {filter.op} "{filter.value}"
                   </Badge>
@@ -637,17 +677,17 @@ function DatabaseTab() {
               </div>
             </div>
 
-            <div className={cn("p-3 mb-4 shrink-0 bg-[#f8fafc]", brutalistCard)}>
+            <div className={cn("p-3 mb-4 shrink-0 bg-muted/30", brutalistCard)}>
               <div className="flex gap-3 items-end">
                 <div className="flex-1">
-                  <label className="text-xs font-bold text-black mb-1.5 block uppercase tracking-wider">筛选字段</label>
+                  <label className="text-xs font-bold text-foreground mb-1.5 block uppercase tracking-wider">筛选字段</label>
                   <Select value={filterField} onValueChange={setFilterField}>
-                    <SelectTrigger className={cn("h-8 text-sm bg-white", brutalistInput)}>
+                    <SelectTrigger className={cn("h-8 text-sm bg-card", brutalistInput)}>
                       <SelectValue placeholder="选择字段" />
                     </SelectTrigger>
                     <SelectContent className="border-2 border-border shadow-[4px_4px_0px_0px_#111111]">
                       {tableData.columns.map((col) => (
-                        <SelectItem key={col.name} value={col.name} className="font-medium text-sm cursor-pointer focus:bg-gray-100">
+                        <SelectItem key={col.name} value={col.name} className="font-medium text-sm cursor-pointer focus:bg-muted">
                           {col.name}
                         </SelectItem>
                       ))}
@@ -655,38 +695,38 @@ function DatabaseTab() {
                   </Select>
                 </div>
                 <div className="w-32">
-                  <label className="text-xs font-bold text-black mb-1.5 block uppercase tracking-wider">操作符</label>
+                  <label className="text-xs font-bold text-foreground mb-1.5 block uppercase tracking-wider">操作符</label>
                   <Select value={filterOp} onValueChange={(v) => setFilterOp(v as any)}>
-                    <SelectTrigger className={cn("h-8 text-sm bg-white", brutalistInput)}>
+                    <SelectTrigger className={cn("h-8 text-sm bg-card", brutalistInput)}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="border-2 border-border shadow-[4px_4px_0px_0px_#111111]">
-                      <SelectItem value="eq" className="font-medium text-sm cursor-pointer focus:bg-gray-100">等于 (=)</SelectItem>
-                      <SelectItem value="contains" className="font-medium text-sm cursor-pointer focus:bg-gray-100">包含</SelectItem>
-                      <SelectItem value="gt" className="font-medium text-sm cursor-pointer focus:bg-gray-100">大于 (&gt;)</SelectItem>
-                      <SelectItem value="lt" className="font-medium text-sm cursor-pointer focus:bg-gray-100">小于 (&lt;)</SelectItem>
-                      <SelectItem value="gte" className="font-medium text-sm cursor-pointer focus:bg-gray-100">大于等于 (≥)</SelectItem>
-                      <SelectItem value="lte" className="font-medium text-sm cursor-pointer focus:bg-gray-100">小于等于 (≤)</SelectItem>
+                      <SelectItem value="eq" className="font-medium text-sm cursor-pointer focus:bg-muted">等于 (=)</SelectItem>
+                      <SelectItem value="contains" className="font-medium text-sm cursor-pointer focus:bg-muted">包含</SelectItem>
+                      <SelectItem value="gt" className="font-medium text-sm cursor-pointer focus:bg-muted">大于 (&gt;)</SelectItem>
+                      <SelectItem value="lt" className="font-medium text-sm cursor-pointer focus:bg-muted">小于 (&lt;)</SelectItem>
+                      <SelectItem value="gte" className="font-medium text-sm cursor-pointer focus:bg-muted">大于等于 (≥)</SelectItem>
+                      <SelectItem value="lte" className="font-medium text-sm cursor-pointer focus:bg-muted">小于等于 (≤)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="flex-1">
-                  <label className="text-xs font-bold text-black mb-1.5 block uppercase tracking-wider">筛选值</label>
+                  <label className="text-xs font-bold text-foreground mb-1.5 block uppercase tracking-wider">筛选值</label>
                   <Input
                     placeholder="输入要筛选的值..."
                     value={filterValue}
                     onChange={(e) => setFilterValue(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleApplyFilter()}
-                    className={cn("h-8 text-sm bg-white", brutalistInput)}
+                    className={cn("h-8 text-sm bg-card", brutalistInput)}
                   />
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={handleApplyFilter} disabled={!filterField || !filterValue} className={cn("h-8 font-bold text-xs bg-[#3b82f6] text-white hover:bg-blue-600", brutalistButton)}>
+                  <Button size="sm" onClick={handleApplyFilter} disabled={!filterField || !filterValue} className={cn("h-8 text-xs bg-info text-background hover:bg-info/90", brutalistButton)}>
                     <Filter className="h-3 w-3 mr-1" />
                     应用筛选
                   </Button>
                   {filter && (
-                    <Button size="sm" onClick={handleClearFilter} variant="outline" className={cn("h-8 font-bold text-xs bg-white text-red-600 hover:bg-red-50", brutalistButton)}>
+                    <Button size="sm" onClick={handleClearFilter} variant="outline" className={cn("h-8 font-bold text-xs bg-card text-destructive hover:bg-destructive/10", brutalistButton)}>
                       <X className="h-3 w-3 mr-1" />
                       清除
                     </Button>
@@ -695,9 +735,9 @@ function DatabaseTab() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-auto border-2 border-border rounded-md shadow-[4px_4px_0px_0px_#111111] bg-white">
+            <div className="flex-1 overflow-auto border-2 border-border rounded-md shadow-[4px_4px_0px_0px_#111111] bg-card">
               <table className="w-full text-sm border-collapse">
-                <thead className="sticky top-0 bg-[#f1f5f9] z-10 border-b-2 border-border shadow-sm">
+                <thead className="sticky top-0 bg-muted/50 z-10 border-b-2 border-border shadow-sm">
                   <tr>
                     {tableData.columns.map((col) => (
                       <th key={col.name} className="text-left p-3 font-extrabold whitespace-nowrap min-w-[120px] border-r-2 border-border last:border-r-0">
@@ -711,7 +751,7 @@ function DatabaseTab() {
                   {tableData.rows.map((row, idx) => (
                     <tr
                       key={idx}
-                      className="border-b-2 border-border hover:bg-[#fef08a] cursor-pointer transition-colors"
+                      className="border-b-2 border-border hover:bg-accent/30 cursor-pointer transition-colors"
                       onClick={() => handleRowClick(row)}
                     >
                       {tableData.columns.map((col) => (
@@ -741,21 +781,21 @@ function DatabaseTab() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className={cn("font-bold text-xs bg-white", brutalistButton)}
+                  className={cn("font-bold text-xs bg-card", brutalistButton)}
                   onClick={() => handlePageChange(page - 1)}
                   disabled={page === 0}
                 >
                   <ChevronLeft className="h-4 w-4 mr-1" />
                   上一页
                 </Button>
-                <span className="text-sm font-extrabold bg-gray-100 px-3 py-1 rounded border-2 border-border">
+                <span className="text-sm font-extrabold bg-muted px-3 py-1 rounded border-2 border-border">
                   第 {page + 1} 页 <span className="text-muted-foreground mx-1">/</span> 共 {totalPages} 页
                   <span className="ml-3 text-xs text-muted-foreground font-bold">（总计 {tableData.total} 行）</span>
                 </span>
                 <Button
                   variant="outline"
                   size="sm"
-                  className={cn("font-bold text-xs bg-white", brutalistButton)}
+                  className={cn("font-bold text-xs bg-card", brutalistButton)}
                   onClick={() => handlePageChange(page + 1)}
                   disabled={page === totalPages - 1}
                 >
@@ -766,32 +806,32 @@ function DatabaseTab() {
             )}
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground border-4 border-dashed border-border rounded-xl m-2 bg-gray-50">
+          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground border-4 border-dashed border-border rounded-xl m-2 bg-muted/50">
             <div className="text-4xl mb-3">🗄️</div>
-            <h3 className="text-lg font-extrabold text-black">选择一个数据表</h3>
+            <h3 className="text-lg font-extrabold text-foreground">选择一个数据表</h3>
             <p className="font-medium text-sm mt-1">在左侧列表中点击表名以查看数据</p>
           </div>
         )}
 
         <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-          <DialogContent className="max-w-6xl max-h-[80vh] flex flex-col border-4 border-border shadow-[8px_8px_0px_0px_#111111] p-0 !rounded-2xl bg-white">
-            <DialogHeader className="p-4 border-b-4 border-border bg-[#fef08a] shrink-0">
+          <DialogContent className="max-w-6xl max-h-[80vh] flex flex-col border-4 border-border shadow-[8px_8px_0px_0px_#111111] p-0 !rounded-2xl bg-card">
+            <DialogHeader className="p-4 border-b-4 border-border bg-accent shrink-0">
               <DialogTitle className="text-lg font-extrabold uppercase tracking-widest">记录详情</DialogTitle>
             </DialogHeader>
             <ScrollArea className="flex-1 p-4 overflow-auto">
               {selectedRow && tableData && (
-                <div className="divide-y-2 divide-border border-2 border-border rounded-xl overflow-hidden bg-white shadow-sm">
+                <div className="divide-y-2 divide-border border-2 border-border rounded-xl overflow-hidden bg-card shadow-sm">
                   {tableData.columns.map((col) => (
-                    <div key={col.name} className="flex flex-col sm:flex-row sm:items-start p-3 hover:bg-gray-50 transition-colors">
+                    <div key={col.name} className="flex flex-col sm:flex-row sm:items-start p-3 hover:bg-muted/50 transition-colors">
                       <div className="w-full sm:w-1/3 shrink-0 mb-1.5 sm:mb-0 pr-4">
-                        <div className="font-extrabold text-sm text-black mb-1">{col.name}</div>
-                        <Badge variant="outline" className="border-2 border-border font-bold bg-white text-[10px] px-1.5 py-0">
+                        <div className="font-extrabold text-sm text-foreground mb-1">{col.name}</div>
+                        <Badge variant="outline" className="border-2 border-border font-bold bg-card text-[10px] px-1.5 py-0">
                           {(col as any).data_type || (col as any).type}
                         </Badge>
                       </div>
                       <div className="flex-1 min-w-0">
                         {typeof selectedRow[col.name] === 'object' && selectedRow[col.name] !== null ? (
-                          <pre className="whitespace-pre-wrap break-words font-mono text-xs bg-gray-100 p-3 rounded-lg border-2 border-border max-h-[300px] overflow-auto">
+                          <pre className="whitespace-pre-wrap break-words font-mono text-xs bg-muted p-3 rounded-lg border-2 border-border max-h-[300px] overflow-auto">
                             {JSON.stringify(selectedRow[col.name], null, 2)}
                           </pre>
                         ) : (
