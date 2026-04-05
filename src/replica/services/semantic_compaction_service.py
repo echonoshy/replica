@@ -79,10 +79,9 @@ async def summarize_segment(messages: list[Message]) -> str:
 
     # Call LLM
     llm = get_llm_provider()
-    messages_payload = [{"role": "user", "content": prompt}]
 
     try:
-        response = await llm.chat(messages_payload, temperature=0.3, max_tokens=4096)
+        response = await llm.generate(prompt, temperature=0.3, max_tokens=4096)
         summary = response.strip()
 
         # Remove common prefixes
@@ -143,6 +142,8 @@ async def semantic_compact(
                 "segments": [],
                 "token_reduction": 0,
                 "compression_ratio": "100%",
+                "old_token_count": session.token_count,
+                "new_token_count": session.token_count,
                 "message": "Not enough messages to compact",
             }
             if task_id:
@@ -274,10 +275,10 @@ async def _auto_compact_background(session_id: UUID) -> None:
 
     Creates its own DB session to avoid conflicts.
     """
-    from replica.db.database import async_session_maker
+    from replica.db.database import async_session
 
     try:
-        async with async_session_maker() as db:
+        async with async_session() as db:
             # Lock session to prevent concurrent compaction
             result = await db.execute(select(Session).where(Session.id == session_id).with_for_update(skip_locked=True))
             session = result.scalar_one_or_none()
@@ -302,10 +303,10 @@ async def _compact_with_new_session(session_id: UUID, task_id: str, mode: str = 
 
     Creates its own DB session to avoid conflicts.
     """
-    from replica.db.database import async_session_maker
+    from replica.db.database import async_session
 
     try:
-        async with async_session_maker() as db:
+        async with async_session() as db:
             # Lock session to prevent concurrent compaction
             result = await db.execute(select(Session).where(Session.id == session_id).with_for_update(skip_locked=True))
             session = result.scalar_one_or_none()

@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import TokenProgress from './TokenProgress'
 import { chatStream } from '@/api/chat'
-import { memorizeSession, compactSession, getTaskStatus, getCompactionConfig } from '@/api/sessions'
+import { memorizeSession, compactSession, getTaskStatus, getCompactionConfig, getSession } from '@/api/sessions'
 import { getEvergreenMemories } from '@/api/memory'
 import { Send, Square, Bot, User as UserIcon, Sparkles, ToggleLeft, ToggleRight, Loader2, Copy, Check, Trash2, Eye, EyeOff } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -202,7 +202,9 @@ export default function ChatPanel() {
                 `压缩完成！压缩了 ${result.compacted_count} 条消息，生成 ${result.summary_count} 条总结。` +
                 `Token: ${result.old_token_count} → ${result.new_token_count} (${result.compression_ratio})`
               )
-              updateSessionTokenCount(result.new_token_count)
+              // Refresh entire session to get updated compaction_count
+              const { data: updatedSession } = await getSession(currentSession.id)
+              useAppStore.getState().setCurrentSession(updatedSession)
               // Reload messages to reflect compaction
               useAppStore.getState().loadMessages(currentSession.id, showCompacted)
             }
@@ -279,7 +281,7 @@ export default function ChatPanel() {
       {/* Token bar */}
       <div className="px-6 py-3 border-b-4 border-border bg-accent">
         <div className="flex items-center gap-3">
-          <TokenProgress current={currentSession.token_count} hardThreshold={hardThreshold} />
+          <TokenProgress current={currentSession?.token_count ?? 0} hardThreshold={hardThreshold} />
           <Button
             variant="default"
             size="sm"
@@ -403,7 +405,12 @@ export default function ChatPanel() {
             variant={useMemory ? 'default' : 'outline'}
             size="sm"
             onClick={() => setUseMemory(!useMemory)}
-            className={cn("text-xs font-black uppercase tracking-wider", useMemory ? "bg-primary" : "bg-white text-foreground")}
+            className={cn(
+              "text-xs font-black uppercase tracking-wider border-2 border-border shadow-[2px_2px_0px_0px_#111111]",
+              useMemory
+                ? "bg-success text-black hover:bg-success/90"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            )}
           >
             {useMemory ? <ToggleRight className="h-4 w-4 mr-1" /> : <ToggleLeft className="h-4 w-4 mr-1" />}
             记忆 {useMemory ? 'ON' : 'OFF'}
@@ -417,10 +424,15 @@ export default function ChatPanel() {
                 useAppStore.getState().loadMessages(currentSession.id, !showCompacted)
               }
             }}
-            className="text-xs font-black uppercase tracking-wider"
+            className={cn(
+              "text-xs font-black uppercase tracking-wider border-2 border-border shadow-[2px_2px_0px_0px_#111111]",
+              showCompacted
+                ? "bg-warning text-black hover:bg-warning/90"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            )}
           >
             {showCompacted ? <Eye className="h-4 w-4 mr-1" /> : <EyeOff className="h-4 w-4 mr-1" />}
-            {showCompacted ? '隐藏已压缩' : '显示已压缩'}
+            压缩内容可见 {showCompacted ? 'ON' : 'OFF'}
           </Button>
         </div>
         <div className="flex gap-2">
