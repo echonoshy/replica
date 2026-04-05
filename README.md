@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="web/public/favicon.svg" width="100" />
+  <span style="font-size: 100px">👾</span>
 </p>
 
 <h1 align="center">R E P L I C A</h1>
@@ -14,42 +14,105 @@
   <img src="https://img.shields.io/badge/python-≥3.13-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python" />
   <img src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI" />
   <img src="https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL" />
-  <img src="https://img.shields.io/badge/Vue_3-4FC08D?style=flat-square&logo=vuedotjs&logoColor=white" alt="Vue 3" />
+  <img src="https://img.shields.io/badge/React_19-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React 19" />
   <img src="https://img.shields.io/badge/license-MIT-0D0D0D?style=flat-square" alt="License" />
+</p>
+
+<p align="center">
+  <b>English</b> | <a href="README_zh.md">简体中文</a>
 </p>
 
 ---
 
-Replica 为 AI 应用提供长期记忆能力 —— 管理对话上下文、自动提取与压缩记忆，并通过混合检索在需要时高效召回相关信息。
+## 🧠 What is Replica?
+
+Ever wished your AI could remember that you hate cilantro? Or that you're allergic to cats? Or that time you mentioned your grandmother's secret recipe?
+
+**Replica** is a memory management service that gives AI applications the superpower of long-term memory. It's like giving your AI a brain that actually works.
 
 ```
-User ←→ Web UI ←→ Replica API ←→ LLM / Embedding
-                        ↕
-              PostgreSQL + pgvector
+┌─────────────────────────────────────────────────┐
+│  "Remember when I told you about my trip to     │
+│   Tokyo last month?"                            │
+│                                                 │
+│  → Replica searches 10,000+ memories           │
+│  → Finds: "User visited Tokyo in March 2026"   │
+│  → Returns relevant context in 50ms            │
+└─────────────────────────────────────────────────┘
 ```
 
-## 核心特性
+### Why Replica?
 
-- **自动记忆提取** - 从对话中智能提取 Episode、Event、Foresight 三类记忆
-- **混合检索** - 向量检索 + 全文检索 + RRF 融合，精准召回相关信息
-- **时间衰减** - 基于指数衰减模型，优先展示新鲜内容
-- **MMR 多样性重排** - 避免返回重复相似的结果，提升检索质量
-- **上下文压缩** - 自动压缩长对话历史，保持上下文在 token 限制内
-- **用户画像** - 自动构建和更新用户兴趣、偏好、技能等画像信息
-- **Web UI** - 开箱即用的聊天界面，支持实时对话和记忆管理
+- 🤖 **Your AI forgets everything** - Without memory, every conversation starts from zero
+- 💾 **Context windows are expensive** - Stuffing everything into prompts costs $$$ and hits limits
+- 🔍 **RAG is not enough** - You need structured memory extraction, not just vector search
+- 🧩 **Memory is complex** - Facts, events, plans, preferences... they're all different
 
-## Quick Start
+Replica handles all of this. Automatically.
 
-### 0. 前置依赖
+---
 
-| 组件 | 要求 |
-|------|------|
-| Python | >= 3.13 |
+## ✨ Features
+
+### 🎯 Smart Memory Extraction
+
+Replica doesn't just store text. It **understands** conversations and extracts structured memories:
+
+- **Episodes** - "User discussed Python async programming best practices"
+- **Events** - "User has a meeting tomorrow at 3 PM"
+- **Foresights** - "User plans to learn Rust next week"
+- **User Profiles** - Interests, skills, preferences, goals
+
+### 🔎 Hybrid Search That Actually Works
+
+Forget simple vector search. Replica combines:
+
+- **Vector Search** - Semantic similarity via pgvector
+- **Full-Text Search** - PostgreSQL's powerful text search
+- **RRF Fusion** - Reciprocal Rank Fusion for best-of-both-worlds
+- **Temporal Decay** - Recent memories rank higher (because they matter more)
+- **MMR Reranking** - Maximal Marginal Relevance for diverse results
+
+### 🗜️ Automatic Context Compression
+
+Long conversations? No problem. Replica automatically:
+
+- Tracks token counts in real-time
+- Compresses old messages when hitting limits
+- Keeps recent context fresh and relevant
+- Extracts important info before compression
+
+### 🎨 Beautiful Web UI
+
+Chat with your AI and watch memories being created in real-time:
+
+<p align="center">
+  <img src="assets/chat.png" width="800" alt="Chat Interface" />
+  <br/>
+  <em>Real-time streaming chat with memory context</em>
+</p>
+
+<p align="center">
+  <img src="assets/admin.png" width="800" alt="Admin Interface" />
+  <br/>
+  <em>Database explorer for debugging and inspection</em>
+</p>
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+| Component | Requirement |
+|-----------|-------------|
+| Python | ≥ 3.13 |
 | PostgreSQL | 17 + pgvector |
-| 包管理 | [uv](https://docs.astral.sh/uv/) |
-| LLM / Embedding | vLLM 或任何 OpenAI 兼容 API |
+| Package Manager | [uv](https://docs.astral.sh/uv/) |
+| Node Runtime | [Bun](https://bun.sh/) (recommended) or Node.js |
+| LLM / Embedding | vLLM or any OpenAI-compatible API |
 
-### 1. 启动数据库
+### 1. Start Database
 
 ```bash
 docker run -d --name pgvector \
@@ -61,16 +124,16 @@ docker exec -it pgvector psql -U postgres -c "CREATE DATABASE replica;"
 docker exec -it pgvector psql -U postgres -d replica -c "CREATE EXTENSION IF NOT EXISTS vector;"
 ```
 
-### 2. 安装 & 迁移
+### 2. Install & Migrate
 
 ```bash
 uv sync
 uv run alembic upgrade head
 ```
 
-### 3. 配置
+### 3. Configure
 
-编辑 `config/settings.yaml`，填入你的模型服务地址：
+Edit `config/settings.yaml` with your model endpoints:
 
 ```yaml
 llm:
@@ -82,101 +145,274 @@ embedding:
   provider: "vllm"
   base_url: "http://localhost:19001/v1"
   model: "Qwen3-Embedding-4B"
+  dimensions: 2560
 ```
 
-> 完整配置项见 [`config/settings.yaml`](config/settings.yaml)，详细说明见 [`docs/guide.md`](docs/guide.md)。
+> 💡 Full config reference: [`config/settings.yaml`](config/settings.yaml) | Detailed guide: [`docs/guide.md`](docs/guide.md)
 
-### 4. 启动服务
+### 4. Launch
 
-**API 服务** (默认端口 `8790`)：
+**Backend API** (port `8000`):
 
 ```bash
-uv run uvicorn replica.main:app --host 0.0.0.0 --port 8790 --reload
+uv run uvicorn replica.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-**Web 前端** (默认端口 `8780`)：
+**Frontend UI** (port `5173`):
 
 ```bash
-cd web && npm install && npm run dev
+cd web
+bun install
+bun run dev
 ```
 
-启动后：
+Then visit:
 
-| 地址 | 说明 |
-|------|------|
-| `http://localhost:8780` | Web UI |
-| `http://localhost:8790/docs` | Swagger API 文档 |
-| `http://localhost:8790/health` | 健康检查 |
+| URL | Description |
+|-----|-------------|
+| `http://localhost:5173` | 🎨 Web UI |
+| `http://localhost:8000/docs` | 📚 Swagger API Docs |
+| `http://localhost:8000/health` | ❤️ Health Check |
 
-## 核心概念
+---
 
-### 记忆类型
+## 🎮 How It Works
 
-| 类型 | 说明 | 示例 |
-|------|------|------|
-| **Episode** | 对话片段摘要 | "用户询问了 Python 异步编程的最佳实践" |
-| **Event** | 具体事件记录 | "用户提到明天下午 3 点有会议" |
-| **Foresight** | 未来计划或意图 | "用户计划下周学习 Rust" |
-| **UserProfile** | 用户画像 | 兴趣、技能、偏好等长期特征 |
+### Memory Lifecycle
 
-### 检索策略
+```
+1. User chats with AI
+   ↓
+2. Replica stores messages
+   ↓
+3. When conversation reaches a natural boundary...
+   ↓
+4. Extract structured memories:
+   • Episodes (what happened)
+   • Events (specific facts)
+   • Foresights (future plans)
+   • User profile updates
+   ↓
+5. Generate embeddings
+   ↓
+6. Store in knowledge base
+   ↓
+7. Next time user asks something...
+   ↓
+8. Hybrid search retrieves relevant memories
+   ↓
+9. Inject into AI context
+   ↓
+10. AI responds with full memory context
+```
 
-1. **向量检索** - 基于语义相似度的向量搜索（pgvector）
-2. **全文检索** - PostgreSQL 全文搜索（tsvector + GIN 索引）
-3. **RRF 融合** - Reciprocal Rank Fusion 融合两种检索结果
-4. **时间衰减** - 根据记忆创建时间应用指数衰减权重
-5. **MMR 重排** - Maximal Marginal Relevance 增加结果多样性
+### Memory Types Explained
 
-## API 示例
+| Type | What It Stores | Example |
+|------|----------------|---------|
+| **Episode** | Conversation summaries | "User asked about async/await patterns in Python and discussed event loops" |
+| **Event** | Concrete facts | "User's birthday is March 15" |
+| **Foresight** | Future intentions | "User wants to build a web scraper next month" |
+| **Evergreen** | Long-term facts | "User is a software engineer living in Shanghai" |
 
-### 记忆化对话
+---
+
+## 💻 API Examples
+
+### Create a User & Session
 
 ```python
 import httpx
 
 async with httpx.AsyncClient() as client:
-    # 发送对话消息，自动提取记忆
-    response = await client.post(
-        "http://localhost:8790/v1/memorize",
-        json={
-            "user_id": "user_123",
-            "messages": [
-                {"role": "user", "content": "我明天要去北京出差"},
-                {"role": "assistant", "content": "好的，祝您旅途愉快！"}
-            ]
-        }
+    # Create user
+    user = await client.post(
+        "http://localhost:8000/v1/users",
+        json={"external_id": "alice", "name": "Alice"}
     )
-    print(response.json())
+    user_id = user.json()["id"]
+    
+    # Create session
+    session = await client.post(
+        f"http://localhost:8000/v1/users/{user_id}/sessions",
+        json={}
+    )
+    session_id = session.json()["id"]
 ```
 
-### 检索记忆
+### Stream Chat with Memory
 
 ```python
-# 搜索相关记忆
+# Stream chat (Server-Sent Events)
+async with client.stream(
+    "POST",
+    f"http://localhost:8000/v1/sessions/{session_id}/chat",
+    json={"content": "What did I tell you about my trip?", "use_memory": True}
+) as response:
+    async for line in response.aiter_lines():
+        if line.startswith("data: "):
+            data = json.loads(line[6:])
+            if "token" in data:
+                print(data["token"], end="", flush=True)
+            elif "context" in data:
+                print("\n\n📚 Retrieved memories:", data["context"])
+```
+
+### Extract Memories from Raw Data
+
+```python
+# Batch memory extraction
 response = await client.post(
-    "http://localhost:8790/v1/knowledge/search",
+    "http://localhost:8000/v1/memories",
     json={
-        "user_id": "user_123",
-        "query": "我的出差计划",
-        "top_k": 10
+        "new_raw_data_list": [
+            {"role": "user", "content": "I'm planning a trip to Tokyo next month"},
+            {"role": "assistant", "content": "That sounds exciting! Have you been before?"},
+            {"role": "user", "content": "No, first time. I want to visit Shibuya and try real ramen."}
+        ],
+        "user_id_list": ["alice"]
     }
 )
-memories = response.json()
+print(f"Extracted {response.json()['memory_count']} memories")
 ```
 
-## Development
+### Search Knowledge Base
+
+```python
+# Semantic search
+results = await client.post(
+    "http://localhost:8000/v1/knowledge/search",
+    json={
+        "user_id": user_id,
+        "query": "travel plans",
+        "top_k": 5
+    }
+)
+
+for memory in results.json():
+    print(f"[{memory['entry_type']}] {memory['content']} (score: {memory['score']:.2f})")
+```
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   Web UI (React 19)                      │
+│                    localhost:5173                        │
+└────────────────────────┬────────────────────────────────┘
+                         │ HTTP / SSE
+┌────────────────────────▼────────────────────────────────┐
+│                  FastAPI Backend                         │
+│                   localhost:8000                         │
+│  ┌──────────┬──────────┬──────────┬──────────────────┐ │
+│  │  Users   │ Sessions │ Messages │ Memory/Knowledge │ │
+│  │   API    │   API    │   API    │       API        │ │
+│  └────┬─────┴────┬─────┴────┬─────┴────┬─────────────┘ │
+│       │          │          │          │                │
+│  ┌────▼──────────▼──────────▼──────────▼─────────────┐ │
+│  │              Service Layer                         │ │
+│  │  • Memory Service    • Compaction Service         │ │
+│  │  • Extraction Service • Embedding Service         │ │
+│  └────┬───────────────────────────────────────┬──────┘ │
+└───────┼───────────────────────────────────────┼────────┘
+        │                                       │
+   ┌────▼────┐                           ┌─────▼──────┐
+   │   LLM   │                           │ Embedding  │
+   │ Service │                           │  Service   │
+   │  :19000 │                           │   :19001   │
+   └─────────┘                           └────────────┘
+        │                                       │
+        └───────────────┬───────────────────────┘
+                        │
+              ┌─────────▼──────────┐
+              │  PostgreSQL 17     │
+              │  + pgvector        │
+              │   localhost:5432   │
+              └────────────────────┘
+```
+
+---
+
+## 🛠️ Development
 
 ```bash
-uv run ruff format          # 格式化
-uv run ruff check --fix     # Lint
-uv run pytest               # 测试
+# Format code
+uv run ruff format
+
+# Lint & fix
+uv run ruff check --fix
+
+# Run tests
+uv run pytest
+
+# Run tests with coverage
+uv run pytest --cov=replica
 ```
 
-## 文档
+---
 
-- [完整使用指南](docs/guide.md) - 详细的配置说明和使用教程
-- [API 文档](http://localhost:8790/docs) - Swagger 交互式 API 文档
+## 📚 Documentation
 
-## License
+- **[Complete Guide](docs/guide.md)** - Configuration, concepts, and usage
+- **[API Reference](docs/api.md)** - Full API documentation
+- **[Swagger UI](http://localhost:8000/docs)** - Interactive API explorer
 
-MIT
+---
+
+## 🤔 FAQ
+
+**Q: Why not just use RAG?**  
+A: RAG is great for documents, but conversations need structured memory extraction. Replica understands the difference between facts, events, and plans.
+
+**Q: Can I use OpenAI instead of vLLM?**  
+A: Yes! Set `provider: "openai"` in config and provide your API key.
+
+**Q: How much does it cost to run?**  
+A: If you self-host with vLLM, only GPU costs. With OpenAI API, depends on usage (embeddings are cheap, LLM calls add up).
+
+**Q: Can I use this in production?**  
+A: Replica is in beta. It works, but expect breaking changes. Pin your version and test thoroughly.
+
+**Q: Does it support multiple users?**  
+A: Yes! Each user has isolated memories and sessions.
+
+---
+
+## 🗺️ Roadmap
+
+- [ ] Multi-modal memory (images, audio)
+- [ ] Memory consolidation (merge similar memories)
+- [ ] Memory decay (forget old irrelevant info)
+- [ ] Graph-based memory relationships
+- [ ] Memory export/import
+- [ ] Multi-language support (currently EN/ZH)
+
+---
+
+## 🙏 Credits
+
+Built with:
+- [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
+- [pgvector](https://github.com/pgvector/pgvector) - Vector similarity search for Postgres
+- [React 19](https://react.dev/) - JavaScript library for building user interfaces
+- [Bun](https://bun.sh/) - Fast all-in-one JavaScript runtime
+- [vLLM](https://github.com/vllm-project/vllm) - Fast LLM inference
+- [Qwen](https://github.com/QwenLM/Qwen) - Powerful open-source LLMs
+
+---
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+<p align="center">
+  Made with ❤️ by developers who are tired of AI that forgets everything
+</p>
+
+<p align="center">
+  <a href="https://github.com/echonoshy/replica">⭐ Star on GitHub</a>
+</p>
