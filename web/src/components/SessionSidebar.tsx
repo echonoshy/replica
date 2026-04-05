@@ -204,12 +204,11 @@ export default function SessionSidebar() {
             {isEasterEggActive ? "🎉" : "👾"}
           </span>
         </div>
-        <h1 
+        <h1
           className={cn(
-            "text-2xl font-black tracking-wider text-white transition-all duration-500",
-            isEasterEggActive && "text-yellow-300 tracking-widest scale-110 ml-2"
+            "text-2xl font-mono font-black tracking-widest text-white uppercase transition-all duration-500",
+            isEasterEggActive && "text-yellow-300 scale-110 ml-2"
           )}
-          style={{ fontFamily: '"Comic Sans MS", "Chalkboard SE", "Comic Neue", cursive' }}
         >
           {isEasterEggActive ? "SURPRISE!" : "replica"}
         </h1>
