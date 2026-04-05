@@ -14,6 +14,7 @@ import { getMessages } from '@/api/messages'
 import { getUserKnowledge, deleteKnowledgeEntry, getKnowledgeCount } from '@/api/memory'
 import { getTables, getTableData } from '@/api/admin'
 import { cn } from '@/lib/utils'
+import { copyToClipboard } from '@/lib/clipboard'
 import type { Session, Message, KnowledgeEntry, TableInfo, TableDataResponse } from '@/types'
 import type { TableFilter } from '@/api/admin'
 
@@ -118,13 +119,11 @@ function SessionsTab() {
     }
   }
 
-  const copyToClipboard = async (text: string, id: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
+  const handleCopy = async (text: string, id: string) => {
+    const success = await copyToClipboard(text)
+    if (success) {
       setCopiedId(id)
       setTimeout(() => setCopiedId(null), 1500)
-    } catch (error) {
-      console.error('Failed to copy:', error)
     }
   }
 
@@ -190,7 +189,7 @@ function SessionsTab() {
                       className={cn("h-6 w-6 bg-card", brutalistButton)}
                       onClick={(e) => {
                         e.stopPropagation()
-                        copyToClipboard(session.id, session.id)
+                        handleCopy(session.id, session.id)
                       }}
                     >
                       {copiedId === session.id ? (

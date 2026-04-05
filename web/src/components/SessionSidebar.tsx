@@ -11,6 +11,7 @@ import { getSessions, createSession, deleteSession } from '@/api/sessions'
 import { getMessages } from '@/api/messages'
 import { getEvergreenMemories } from '@/api/memory'
 import { cn } from '@/lib/utils'
+import { copyToClipboard } from '@/lib/clipboard'
 
 export default function SessionSidebar() {
   const {
@@ -157,13 +158,11 @@ export default function SessionSidebar() {
     console.log('Search:', searchQuery)
   }
 
-  const copyToClipboard = async (text: string, id: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
+  const handleCopy = async (text: string, id: string) => {
+    const success = await copyToClipboard(text)
+    if (success) {
       setCopiedId(id)
       setTimeout(() => setCopiedId(null), 1500)
-    } catch (error) {
-      console.error('Failed to copy:', error)
     }
   }
 
@@ -300,7 +299,7 @@ export default function SessionSidebar() {
                     className="h-6 w-6 hover:bg-white border-2 border-transparent hover:border-border hover:shadow-[2px_2px_0px_0px_#111111]"
                     onClick={(e) => {
                       e.stopPropagation()
-                      copyToClipboard(user.id, user.id)
+                      handleCopy(user.id, user.id)
                     }}
                   >
                     {copiedId === user.id ? (
@@ -414,7 +413,7 @@ export default function SessionSidebar() {
                       className="h-6 w-6 hover:bg-white"
                       onClick={(e) => {
                         e.stopPropagation()
-                        copyToClipboard(session.id, session.id)
+                        handleCopy(session.id, session.id)
                       }}
                     >
                       {copiedId === session.id ? (

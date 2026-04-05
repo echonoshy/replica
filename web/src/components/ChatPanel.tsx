@@ -14,6 +14,7 @@ import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
 import { cn } from '@/lib/utils'
+import { copyToClipboard } from '@/lib/clipboard'
 import type { Message } from '@/types'
 
 export default function ChatPanel() {
@@ -257,12 +258,10 @@ export default function ChatPanel() {
 
   const copySessionId = async () => {
     if (!currentSession) return
-    try {
-      await navigator.clipboard.writeText(currentSession.id)
+    const success = await copyToClipboard(currentSession.id)
+    if (success) {
       setCopiedSessionId(true)
       setTimeout(() => setCopiedSessionId(false), 1500)
-    } catch (error) {
-      console.error('Failed to copy:', error)
     }
   }
 
