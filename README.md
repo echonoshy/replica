@@ -149,13 +149,13 @@ embedding:
 
 ### 4. Launch
 
-**Backend API** (port `8000`):
+**Backend API** (port `8790`):
 
 ```bash
-uv run uvicorn replica.main:app --host 0.0.0.0 --port 8000 --reload
+uv run uvicorn replica.main:app --host 0.0.0.0 --port 8790 --reload
 ```
 
-**Frontend UI** (port `5173`):
+**Frontend UI** (port `8780`):
 
 ```bash
 cd web
@@ -167,9 +167,9 @@ Then visit:
 
 | URL | Description |
 |-----|-------------|
-| `http://localhost:5173` | 🎨 Web UI |
-| `http://localhost:8000/docs` | 📚 Swagger API Docs |
-| `http://localhost:8000/health` | ❤️ Health Check |
+| `http://localhost:8780` | 🎨 Web UI |
+| `http://localhost:8790/docs` | 📚 Swagger API Docs |
+| `http://localhost:8790/health` | ❤️ Health Check |
 
 ---
 
@@ -224,14 +224,14 @@ import httpx
 async with httpx.AsyncClient() as client:
     # Create user
     user = await client.post(
-        "http://localhost:8000/v1/users",
+        "http://localhost:8790/v1/users",
         json={"external_id": "alice", "name": "Alice"}
     )
     user_id = user.json()["id"]
     
     # Create session
     session = await client.post(
-        f"http://localhost:8000/v1/users/{user_id}/sessions",
+        f"http://localhost:8790/v1/users/{user_id}/sessions",
         json={}
     )
     session_id = session.json()["id"]
@@ -243,7 +243,7 @@ async with httpx.AsyncClient() as client:
 # Stream chat (Server-Sent Events)
 async with client.stream(
     "POST",
-    f"http://localhost:8000/v1/sessions/{session_id}/chat",
+    f"http://localhost:8790/v1/sessions/{session_id}/chat",
     json={"content": "What did I tell you about my trip?", "use_memory": True}
 ) as response:
     async for line in response.aiter_lines():
@@ -260,7 +260,7 @@ async with client.stream(
 ```python
 # Batch memory extraction
 response = await client.post(
-    "http://localhost:8000/v1/memories",
+    "http://localhost:8790/v1/memories",
     json={
         "new_raw_data_list": [
             {"role": "user", "content": "I'm planning a trip to Tokyo next month"},
@@ -278,7 +278,7 @@ print(f"Extracted {response.json()['memory_count']} memories")
 ```python
 # Semantic search
 results = await client.post(
-    "http://localhost:8000/v1/knowledge/search",
+    "http://localhost:8790/v1/knowledge/search",
     json={
         "user_id": user_id,
         "query": "travel plans",
@@ -296,7 +296,7 @@ for memory in results.json():
 
 **Frontend** → React 19 web interface (`:5173`)
 
-**Backend** → FastAPI server (`:8000`)
+**Backend** → FastAPI server (`:8790`)
 - User/Session/Message APIs
 - Memory extraction & knowledge search
 - Context compression & embedding generation
@@ -331,7 +331,7 @@ uv run pytest --cov=replica
 
 - **[Complete Guide](docs/guide.md)** - Configuration, concepts, and usage
 - **[API Reference](docs/api.md)** - Full API documentation
-- **[Swagger UI](http://localhost:8000/docs)** - Interactive API explorer
+- **[Swagger UI](http://localhost:8790/docs)** - Interactive API explorer
 
 ---
 

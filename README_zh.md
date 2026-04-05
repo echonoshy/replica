@@ -149,13 +149,13 @@ embedding:
 
 ### 4. 启动服务
 
-**后端 API**（端口 `8000`）：
+**后端 API**（端口 `8790`）：
 
 ```bash
-uv run uvicorn replica.main:app --host 0.0.0.0 --port 8000 --reload
+uv run uvicorn replica.main:app --host 0.0.0.0 --port 8790 --reload
 ```
 
-**前端界面**（端口 `5173`）：
+**前端界面**（端口 `8780`）：
 
 ```bash
 cd web
@@ -167,9 +167,9 @@ bun run dev
 
 | 地址 | 说明 |
 |------|------|
-| `http://localhost:5173` | 🎨 Web 界面 |
-| `http://localhost:8000/docs` | 📚 Swagger API 文档 |
-| `http://localhost:8000/health` | ❤️ 健康检查 |
+| `http://localhost:8780` | 🎨 Web 界面 |
+| `http://localhost:8790/docs` | 📚 Swagger API 文档 |
+| `http://localhost:8790/health` | ❤️ 健康检查 |
 
 ---
 
@@ -224,14 +224,14 @@ import httpx
 async with httpx.AsyncClient() as client:
     # 创建用户
     user = await client.post(
-        "http://localhost:8000/v1/users",
+        "http://localhost:8790/v1/users",
         json={"external_id": "alice", "name": "Alice"}
     )
     user_id = user.json()["id"]
     
     # 创建会话
     session = await client.post(
-        f"http://localhost:8000/v1/users/{user_id}/sessions",
+        f"http://localhost:8790/v1/users/{user_id}/sessions",
         json={}
     )
     session_id = session.json()["id"]
@@ -243,7 +243,7 @@ async with httpx.AsyncClient() as client:
 # 流式聊天（Server-Sent Events）
 async with client.stream(
     "POST",
-    f"http://localhost:8000/v1/sessions/{session_id}/chat",
+    f"http://localhost:8790/v1/sessions/{session_id}/chat",
     json={"content": "我之前跟你说的旅行计划是什么？", "use_memory": True}
 ) as response:
     async for line in response.aiter_lines():
@@ -260,7 +260,7 @@ async with client.stream(
 ```python
 # 批量记忆提取
 response = await client.post(
-    "http://localhost:8000/v1/memories",
+    "http://localhost:8790/v1/memories",
     json={
         "new_raw_data_list": [
             {"role": "user", "content": "我计划下个月去东京旅行"},
@@ -278,7 +278,7 @@ print(f"提取了 {response.json()['memory_count']} 条记忆")
 ```python
 # 语义搜索
 results = await client.post(
-    "http://localhost:8000/v1/knowledge/search",
+    "http://localhost:8790/v1/knowledge/search",
     json={
         "user_id": user_id,
         "query": "旅行计划",
@@ -296,7 +296,7 @@ for memory in results.json():
 
 **前端** → React 19 Web 界面 (`:5173`)
 
-**后端** → FastAPI 服务器 (`:8000`)
+**后端** → FastAPI 服务器 (`:8790`)
 - 用户/会话/消息 API
 - 记忆提取与知识搜索
 - 上下文压缩与向量生成
@@ -331,7 +331,7 @@ uv run pytest --cov=replica
 
 - **[完整指南](docs/guide.md)** - 配置、概念和使用方法
 - **[API 参考](docs/api.md)** - 完整的 API 文档
-- **[Swagger UI](http://localhost:8000/docs)** - 交互式 API 浏览器
+- **[Swagger UI](http://localhost:8790/docs)** - 交互式 API 浏览器
 
 ---
 
