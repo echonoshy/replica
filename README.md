@@ -1,8 +1,6 @@
 <p align="center">
-  <span style="font-size: 100px">👾</span>
+  <img src="https://readme-typing-svg.demolab.com?font=Press+Start+2P&size=40&duration=2000&pause=1000&color=4ADE80&center=true&vCenter=true&width=600&height=100&lines=R+E+P+L+I+C+A;MEMORY+UNLOCKED" alt="REPLICA" />
 </p>
-
-<h1 align="center">R E P L I C A</h1>
 
 <p align="center">
   <b>Memory layer for AI.</b><br/>
@@ -24,11 +22,13 @@
 
 ---
 
-## 🧠 What is Replica?
+## What is Replica?
 
-Ever wished your AI could remember that you hate cilantro? Or that you're allergic to cats? Or that time you mentioned your grandmother's secret recipe?
+Your AI has the memory of a goldfish. Every conversation? Fresh start. That thing you mentioned yesterday? Gone. Your preferences? Vanished into the void.
 
-**Replica** is a memory management service that gives AI applications the superpower of long-term memory. It's like giving your AI a brain that actually works.
+**Replica** fixes this. It's a memory layer that gives AI the ability to actually remember things. Not just for 5 minutes. Not just within a single chat. But across conversations, sessions, and time.
+
+Think of it as RAM for your AI's brain. Except it doesn't forget when you close the tab.
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -41,14 +41,16 @@ Ever wished your AI could remember that you hate cilantro? Or that you're allerg
 └─────────────────────────────────────────────────┘
 ```
 
-### Why Replica?
+### The Problem
 
-- 🤖 **Your AI forgets everything** - Without memory, every conversation starts from zero
-- 💾 **Context windows are expensive** - Stuffing everything into prompts costs $$$ and hits limits
-- 🔍 **RAG is not enough** - You need structured memory extraction, not just vector search
-- 🧩 **Memory is complex** - Facts, events, plans, preferences... they're all different
+**AI amnesia is real.** Without memory, your AI is like that friend who asks "wait, what were we talking about?" every 30 seconds.
 
-Replica handles all of this. Automatically.
+- Every conversation starts from scratch
+- Context windows are expensive (and finite)
+- RAG alone doesn't cut it - you need structured memory, not just keyword matching
+- Facts, events, plans, preferences... they all need different handling
+
+Replica solves this. Automatically. No prompt engineering gymnastics required.
 
 ---
 
@@ -65,13 +67,13 @@ Replica doesn't just store text. It **understands** conversations and extracts s
 
 ### 🔎 Hybrid Search That Actually Works
 
-Forget simple vector search. Replica combines:
+Simple vector search? That's so 2023. Replica uses:
 
 - **Vector Search** - Semantic similarity via pgvector
-- **Full-Text Search** - PostgreSQL's powerful text search
-- **RRF Fusion** - Reciprocal Rank Fusion for best-of-both-worlds
-- **Temporal Decay** - Recent memories rank higher (because they matter more)
-- **MMR Reranking** - Maximal Marginal Relevance for diverse results
+- **Full-Text Search** - PostgreSQL's battle-tested text search
+- **RRF Fusion** - Reciprocal Rank Fusion (fancy way of saying "best of both")
+- **Temporal Decay** - Recent stuff matters more (just like real memory)
+- **MMR Reranking** - Diverse results, not 10 variations of the same thing
 
 ### 🗜️ Automatic Context Compression
 
@@ -297,41 +299,18 @@ for memory in results.json():
 
 ## 🏗️ Architecture
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                   Web UI (React 19)                      │
-│                    localhost:5173                        │
-└────────────────────────┬────────────────────────────────┘
-                         │ HTTP / SSE
-┌────────────────────────▼────────────────────────────────┐
-│                  FastAPI Backend                         │
-│                   localhost:8000                         │
-│  ┌──────────┬──────────┬──────────┬──────────────────┐ │
-│  │  Users   │ Sessions │ Messages │ Memory/Knowledge │ │
-│  │   API    │   API    │   API    │       API        │ │
-│  └────┬─────┴────┬─────┴────┬─────┴────┬─────────────┘ │
-│       │          │          │          │                │
-│  ┌────▼──────────▼──────────▼──────────▼─────────────┐ │
-│  │              Service Layer                         │ │
-│  │  • Memory Service    • Compaction Service         │ │
-│  │  • Extraction Service • Embedding Service         │ │
-│  └────┬───────────────────────────────────────┬──────┘ │
-└───────┼───────────────────────────────────────┼────────┘
-        │                                       │
-   ┌────▼────┐                           ┌─────▼──────┐
-   │   LLM   │                           │ Embedding  │
-   │ Service │                           │  Service   │
-   │  :19000 │                           │   :19001   │
-   └─────────┘                           └────────────┘
-        │                                       │
-        └───────────────┬───────────────────────┘
-                        │
-              ┌─────────▼──────────┐
-              │  PostgreSQL 17     │
-              │  + pgvector        │
-              │   localhost:5432   │
-              └────────────────────┘
-```
+**Frontend** → React 19 web interface (`:5173`)
+
+**Backend** → FastAPI server (`:8000`)
+- User/Session/Message APIs
+- Memory extraction & knowledge search
+- Context compression & embedding generation
+
+**LLM Services**
+- Main LLM (`:19000`) - Chat completion & memory extraction
+- Embedding model (`:19001`) - Vector generation
+
+**Storage** → PostgreSQL 17 + pgvector (`:5432`)
 
 ---
 
@@ -361,48 +340,6 @@ uv run pytest --cov=replica
 
 ---
 
-## 🤔 FAQ
-
-**Q: Why not just use RAG?**  
-A: RAG is great for documents, but conversations need structured memory extraction. Replica understands the difference between facts, events, and plans.
-
-**Q: Can I use OpenAI instead of vLLM?**  
-A: Yes! Set `provider: "openai"` in config and provide your API key.
-
-**Q: How much does it cost to run?**  
-A: If you self-host with vLLM, only GPU costs. With OpenAI API, depends on usage (embeddings are cheap, LLM calls add up).
-
-**Q: Can I use this in production?**  
-A: Replica is in beta. It works, but expect breaking changes. Pin your version and test thoroughly.
-
-**Q: Does it support multiple users?**  
-A: Yes! Each user has isolated memories and sessions.
-
----
-
-## 🗺️ Roadmap
-
-- [ ] Multi-modal memory (images, audio)
-- [ ] Memory consolidation (merge similar memories)
-- [ ] Memory decay (forget old irrelevant info)
-- [ ] Graph-based memory relationships
-- [ ] Memory export/import
-- [ ] Multi-language support (currently EN/ZH)
-
----
-
-## 🙏 Credits
-
-Built with:
-- [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
-- [pgvector](https://github.com/pgvector/pgvector) - Vector similarity search for Postgres
-- [React 19](https://react.dev/) - JavaScript library for building user interfaces
-- [Bun](https://bun.sh/) - Fast all-in-one JavaScript runtime
-- [vLLM](https://github.com/vllm-project/vllm) - Fast LLM inference
-- [Qwen](https://github.com/QwenLM/Qwen) - Powerful open-source LLMs
-
----
-
 ## 📄 License
 
 MIT License - see [LICENSE](LICENSE) for details.
@@ -410,7 +347,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 ---
 
 <p align="center">
-  Made with ❤️ by developers who are tired of AI that forgets everything
+  Built by developers tired of explaining the same thing to AI twice
 </p>
 
 <p align="center">
