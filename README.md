@@ -30,16 +30,11 @@ Your AI has the memory of a goldfish. Every conversation? Fresh start. That thin
 
 Think of it as RAM for your AI's brain. Except it doesn't forget when you close the tab.
 
-```
-┌─────────────────────────────────────────────────┐
-│  "Remember when I told you about my trip to     │
-│   Tokyo last month?"                            │
-│                                                 │
-│  → Replica searches 10,000+ memories           │
-│  → Finds: "User visited Tokyo in March 2026"   │
-│  → Returns relevant context in 50ms            │
-└─────────────────────────────────────────────────┘
-```
+> 💬 **"Remember when I told you about my trip to Tokyo last month?"**
+> 
+> → Replica searches 10,000+ memories  
+> → Finds: "User visited Tokyo in March 2026"  
+> → Returns relevant context in **50ms**
 
 ### The Problem
 
