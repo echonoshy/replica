@@ -3,10 +3,11 @@ import client from './client'
 export interface Session {
   id: string
   user_id: string
-  status: 'active' | 'archived' | 'deleted'
+  status: 'active' | 'deleted'
   token_count: number
   compaction_count: number
   created_at: string
+  last_extraction_at?: string | null
 }
 
 export function createSession(userId: string, metadata?: Record<string, unknown>) {
@@ -25,15 +26,11 @@ export function deleteSession(sessionId: string) {
   return client.delete(`/v1/sessions/${sessionId}`)
 }
 
-export function archiveSession(sessionId: string) {
-  return client.post<Session>(`/v1/sessions/${sessionId}/archive`)
-}
-
-export function memorizeSession(sessionId: string) {
-  return client.post<{ memory_count: number; status: string }>(
-    `/v1/sessions/${sessionId}/memorize`,
+export function extractMemory(sessionId: string) {
+  return client.post<{ memory_count: number }>(
+    `/v1/sessions/${sessionId}/extract-memory`,
     {},
-    { timeout: 300000 },
+    { timeout: 300000 }
   )
 }
 

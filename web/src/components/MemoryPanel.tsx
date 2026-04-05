@@ -118,7 +118,7 @@ export default function MemoryPanel({ style }: { style?: React.CSSProperties }) 
   const injectedKnowledgeIds = new Set(chatContext?.knowledge.map((k) => k.id) || [])
 
   return (
-    <div className="flex flex-col h-screen bg-sidebar border-l-4 border-border shrink-0" style={style}>
+    <div className="flex flex-col h-screen bg-sidebar border-t-4 border-border shrink-0" style={style}>
       <div className="p-4 border-b-4 border-border bg-accent">
         <h2 className="text-sm font-black uppercase tracking-widest text-foreground">记忆系统</h2>
       </div>
@@ -250,9 +250,19 @@ export default function MemoryPanel({ style }: { style?: React.CSSProperties }) 
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="font-bold uppercase tracking-wider">状态:</span>
-                  <Badge variant="default" className="text-[10px] shadow-[2px_2px_0px_0px_#111111]">
-                    {currentSession.status}
-                  </Badge>
+                  {currentSession.token_count === 0 ? (
+                    <Badge variant="outline" className="bg-muted text-muted-foreground text-[10px] shadow-[2px_2px_0px_0px_#111111]">
+                      新会话
+                    </Badge>
+                  ) : currentSession.has_unextracted_messages ? (
+                    <Badge variant="default" className="bg-success text-black text-[10px] shadow-[2px_2px_0px_0px_#111111]">
+                      活跃中
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="bg-warning text-black text-[10px] shadow-[2px_2px_0px_0px_#111111]">
+                      已归档记忆
+                    </Badge>
+                  )}
                 </div>
               </div>
             )}
@@ -278,9 +288,10 @@ export default function MemoryPanel({ style }: { style?: React.CSSProperties }) 
                 {chatContext && chatContext.knowledge.length > 0 && (
                   <div>
                     <p className="text-sm font-black uppercase tracking-wider mb-3 bg-accent inline-block px-2 py-1 border-2 border-border shadow-[2px_2px_0px_0px_#111111]">本轮检索结果</p>
-                    <ScrollArea className="max-h-[300px]">
-                      <div className="space-y-3">
-                        {chatContext.knowledge.map((k) => (
+                    <div className="h-[400px] border-2 border-border rounded-md overflow-hidden">
+                      <ScrollArea className="h-full">
+                        <div className="space-y-3 p-2">
+                          {chatContext.knowledge.map((k) => (
                           <div
                             key={k.id}
                             className="p-3 rounded-md border-2 border-border border-l-8 border-l-info bg-white shadow-[2px_2px_0px_0px_#111111] text-sm transition-all hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[4px_4px_0px_0px_#111111]"
@@ -302,6 +313,7 @@ export default function MemoryPanel({ style }: { style?: React.CSSProperties }) 
                         ))}
                       </div>
                     </ScrollArea>
+                    </div>
                   </div>
                 )}
 
@@ -342,9 +354,10 @@ export default function MemoryPanel({ style }: { style?: React.CSSProperties }) 
                     </div>
 
                     {searchResults.length > 0 && (
-                      <ScrollArea className="max-h-[300px] mt-4">
-                        <div className="space-y-3">
-                          {searchResults.map((result) => (
+                      <div className="h-[400px] mt-4 border-2 border-border rounded-md overflow-hidden">
+                        <ScrollArea className="h-full">
+                          <div className="space-y-3 p-2">
+                            {searchResults.map((result) => (
                             <div key={result.id} className="p-3 rounded-md border-2 border-border bg-white shadow-[2px_2px_0px_0px_#111111] text-sm transition-all hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[4px_4px_0px_0px_#111111]">
                               <div className="flex items-center justify-between mb-2">
                                 <Badge
@@ -363,6 +376,7 @@ export default function MemoryPanel({ style }: { style?: React.CSSProperties }) 
                           ))}
                         </div>
                       </ScrollArea>
+                      </div>
                     )}
                   </div>
                 )}

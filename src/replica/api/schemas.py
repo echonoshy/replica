@@ -42,6 +42,7 @@ class SessionOut(BaseModel):
     token_count: int
     compaction_count: int
     created_at: datetime
+    has_unextracted_messages: bool = False
 
     model_config = {"from_attributes": True}
 

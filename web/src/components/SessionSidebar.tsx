@@ -189,7 +189,7 @@ export default function SessionSidebar() {
   }
 
   return (
-    <div className={cn('w-[320px] border-r-4 border-border bg-sidebar flex flex-col h-screen shrink-0', isDragging && 'select-none')}>
+    <div className={cn('w-[320px] border-r-4 border-t-4 border-border bg-sidebar flex flex-col h-screen shrink-0', isDragging && 'select-none')}>
       {/* Logo and Title */}
       <div 
         className="p-4 border-b-4 border-border bg-primary flex items-center gap-3 cursor-pointer select-none"
@@ -380,12 +380,28 @@ export default function SessionSidebar() {
                 >
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-mono flex-1 truncate font-bold">{session.id.slice(0, 12)}...</p>
-                    <Badge
-                      variant={session.status === 'active' ? 'default' : 'secondary'}
-                      className="text-[10px] px-2 py-0.5 shadow-[2px_2px_0px_0px_#111111]"
-                    >
-                      {session.status === 'active' ? '活跃' : '已归档'}
-                    </Badge>
+                    {session.token_count === 0 ? (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] px-2 py-0.5 shadow-[2px_2px_0px_0px_#111111] bg-muted text-muted-foreground"
+                      >
+                        新会话
+                      </Badge>
+                    ) : session.has_unextracted_messages ? (
+                      <Badge
+                        variant="default"
+                        className="text-[10px] px-2 py-0.5 shadow-[2px_2px_0px_0px_#111111] bg-success text-black"
+                      >
+                        活跃
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="secondary"
+                        className="text-[10px] px-2 py-0.5 shadow-[2px_2px_0px_0px_#111111] bg-warning text-black"
+                      >
+                        已归档
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex items-center justify-between text-xs font-bold text-muted-foreground">
                     <span>{new Date(session.created_at).toLocaleDateString('zh-CN')}</span>

@@ -29,7 +29,6 @@ class Session(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped["User"] = relationship(back_populates="sessions")  # noqa: F821
     messages: Mapped[list["Message"]] = relationship(back_populates="session")  # noqa: F821

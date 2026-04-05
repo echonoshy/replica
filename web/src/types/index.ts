@@ -11,14 +11,14 @@ export interface User {
 export interface Session {
   id: string
   user_id: string
-  status: 'active' | 'archived' | 'deleted'
+  status: 'active' | 'deleted'
   token_count: number
   compaction_count: number
   created_at: string
-  ended_at?: string | null
+  has_unextracted_messages: boolean
 }
 
-export type SessionStatus = 'active' | 'archived' | 'deleted'
+export type SessionStatus = 'active' | 'deleted'
 
 // Message types
 export interface Message {
@@ -30,11 +30,13 @@ export interface Message {
   token_count: number
   message_type: 'message' | 'compaction_summary' | 'memory_flush'
   is_compacted: boolean
+  extraction_status: 'pending' | 'extracted' | 'skipped'
   created_at: string
 }
 
 export type MessageRole = 'user' | 'assistant' | 'system' | 'tool'
 export type MessageType = 'message' | 'compaction_summary' | 'memory_flush'
+export type ExtractionStatus = 'pending' | 'extracted' | 'skipped'
 
 // Evergreen Memory types
 export interface EvergreenMemory {

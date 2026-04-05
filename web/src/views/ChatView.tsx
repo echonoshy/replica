@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 
 export default function ChatView() {
   const navigate = useNavigate()
-  const [memoryWidth, setMemoryWidth] = useState(360)
+  const [memoryWidth, setMemoryWidth] = useState(480)
   const [isDragging, setIsDragging] = useState(false)
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -47,14 +47,14 @@ export default function ChatView() {
       {/* Resize handle */}
       <div
         className={cn(
-          'w-3 cursor-col-resize flex items-center justify-center flex-shrink-0 relative z-10 transition-colors bg-border hover:bg-primary',
+          'w-1.5 cursor-col-resize flex items-center justify-center flex-shrink-0 relative z-10 transition-colors bg-border hover:bg-primary',
           isDragging && 'bg-primary'
         )}
         onMouseDown={handleMouseDown}
       >
         <div
           className={cn(
-            'w-1 h-12 bg-white transition-all',
+            'w-0.5 h-12 bg-white transition-all',
             'hover:h-16',
             isDragging && 'h-16'
           )}

@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import TokenProgress from './TokenProgress'
 import { chatStream } from '@/api/chat'
-import { memorizeSession, compactSession, getTaskStatus, getCompactionConfig, getSession } from '@/api/sessions'
+import { extractMemory, compactSession, getTaskStatus, getCompactionConfig, getSession } from '@/api/sessions'
 import { getEvergreenMemories } from '@/api/memory'
 import { Send, Square, Bot, User as UserIcon, Sparkles, ToggleLeft, ToggleRight, Loader2, Copy, Check, Trash2, Eye, EyeOff } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -86,6 +86,7 @@ export default function ChatPanel() {
       token_count: 0,
       message_type: 'message',
       is_compacted: false,
+      extraction_status: 'pending',
       created_at: new Date().toISOString(),
     }
     addMessage(userMsg)
@@ -117,6 +118,7 @@ export default function ChatPanel() {
             token_count: 0,
             message_type: 'message',
             is_compacted: false,
+            extraction_status: 'pending',
             created_at: new Date().toISOString(),
           }
           addMessage(aiMsg)
@@ -124,8 +126,15 @@ export default function ChatPanel() {
           streamingTextRef.current = ''
           setSending(false)
           abortCtrlRef.current = null
-          if (tokenCount !== undefined) {
-            updateSessionTokenCount(tokenCount)
+
+          // Refresh session to update has_unextracted_messages
+          if (currentSession) {
+            try {
+              const { data: updatedSession } = await getSession(currentSession.id)
+              useAppStore.getState().updateCurrentSession(updatedSession)
+            } catch (e) {
+              console.error('Failed to refresh session:', e)
+            }
           }
         },
         onError: (err) => {
@@ -151,6 +160,7 @@ export default function ChatPanel() {
         token_count: 0,
         message_type: 'message',
         is_compacted: false,
+        extraction_status: 'pending',
         created_at: new Date().toISOString(),
       }
       addMessage(stoppedMsg)
@@ -166,8 +176,13 @@ export default function ChatPanel() {
     setMemorizing(true)
     setMemorizeResult(null)
     try {
-      const { data } = await memorizeSession(currentSession.id)
+      const { data } = await extractMemory(currentSession.id)
       setMemorizeResult(`提取完成，生成 ${data.memory_count} 条知识`)
+
+      // Refresh session to update has_unextracted_messages
+      const { data: updatedSession } = await getSession(currentSession.id)
+      useAppStore.getState().updateCurrentSession(updatedSession)
+
       if (currentUser) {
         const { data: eg } = await getEvergreenMemories(currentUser.id)
         useAppStore.getState().setEvergreen(eg)
@@ -204,7 +219,7 @@ export default function ChatPanel() {
               )
               // Refresh entire session to get updated compaction_count
               const { data: updatedSession } = await getSession(currentSession.id)
-              useAppStore.getState().setCurrentSession(updatedSession)
+              useAppStore.getState().updateCurrentSession(updatedSession)
               // Reload messages to reflect compaction
               useAppStore.getState().loadMessages(currentSession.id, showCompacted)
             }
@@ -264,10 +279,10 @@ export default function ChatPanel() {
         <div className="w-32 h-32 rounded-md border-4 border-border bg-secondary flex items-center justify-center shadow-[12px_12px_0px_0px_#111111] hover:scale-105 transition-transform cursor-pointer">
           <Bot className="h-16 w-16 text-foreground animate-pulse" />
         </div>
-        <h2 className="text-4xl font-black uppercase tracking-tighter text-foreground bg-accent px-6 py-2 border-4 border-border shadow-[6px_6px_0px_0px_#111111] -rotate-2">
+        <h2 className="text-2xl font-black uppercase tracking-tighter text-foreground bg-accent px-6 py-2 border-4 border-border shadow-[6px_6px_0px_0px_#111111] -rotate-2">
           {currentUser ? '开始新对话' : '欢迎使用 Replica'}
         </h2>
-        <p className="text-lg text-center max-w-md font-bold bg-white p-4 border-2 border-border shadow-[4px_4px_0px_0px_#111111]">
+        <p className="text-sm text-center max-w-md font-bold bg-white p-4 border-2 border-border shadow-[4px_4px_0px_0px_#111111]">
           {currentUser
             ? '在左侧选择已有会话，或点击 + 创建新会话开始对话'
             : '请先在左侧选择用户，或创建新用户开始使用'}
@@ -277,7 +292,7 @@ export default function ChatPanel() {
   }
 
   return (
-    <div className="flex-1 flex flex-col h-screen bg-background">
+    <div className="flex-1 flex flex-col h-screen bg-background border-t-4 border-border">
       {/* Token bar */}
       <div className="px-6 py-3 border-b-4 border-border bg-accent">
         <div className="flex items-center gap-3">
@@ -306,7 +321,7 @@ export default function ChatPanel() {
               <div className="w-24 h-24 rounded-md border-4 border-border bg-accent flex items-center justify-center shadow-[8px_8px_0px_0px_#111111] rotate-[-5deg] hover:rotate-0 transition-transform cursor-pointer">
                 <Bot className="h-12 w-12 text-foreground" />
               </div>
-              <p className="text-xl font-bold uppercase tracking-widest bg-primary text-white px-4 py-2 border-2 border-border shadow-[4px_4px_0px_0px_#111111]">输入消息开始对话</p>
+              <p className="text-base font-bold uppercase tracking-widest bg-primary text-white px-4 py-2 border-2 border-border shadow-[4px_4px_0px_0px_#111111]">输入消息开始对话</p>
             </div>
           )}
 
@@ -337,12 +352,17 @@ export default function ChatPanel() {
               </div>
               <div className="flex-1 min-w-0 pt-1">
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="text-sm font-bold uppercase tracking-wider text-foreground">
+                  <span className="text-xs font-bold uppercase tracking-wider text-foreground">
                     {msg.role === 'user' ? '你' : msg.role === 'assistant' ? 'AI 助手' : '系统'}
                   </span>
                   {msg.is_compacted && (
                     <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-muted">
                       已压缩
+                    </Badge>
+                  )}
+                  {msg.extraction_status === 'extracted' && (
+                    <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-success/20 text-success border-success">
+                      已抽取
                     </Badge>
                   )}
                   {msg.message_type !== 'message' && (
@@ -364,7 +384,7 @@ export default function ChatPanel() {
                     </ReactMarkdown>
                   </div>
                 ) : (
-                  <div className="text-[16px] whitespace-pre-wrap leading-relaxed font-medium">{msg.content}</div>
+                  <div className="text-sm whitespace-pre-wrap leading-relaxed font-medium">{msg.content}</div>
                 )}
               </div>
             </div>
@@ -378,7 +398,7 @@ export default function ChatPanel() {
               </div>
               <div className="flex-1 min-w-0 pt-1">
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="text-sm font-bold uppercase tracking-wider text-foreground">AI 助手</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-foreground">AI 助手</span>
                   <Badge variant="secondary" className="text-[10px] shadow-[2px_2px_0px_0px_#111111]">
                     生成中...
                   </Badge>
@@ -491,7 +511,7 @@ export default function ChatPanel() {
           onKeyDown={onKeyDown}
           placeholder="输入消息，按 Enter 发送，Shift + Enter 换行..."
           disabled={!sessionActive}
-          className="flex-1 resize-none min-h-[48px] max-h-[200px] px-4 py-3 bg-input border-2 border-border rounded-md text-[15px] font-medium leading-relaxed focus:outline-none focus:ring-0 disabled:opacity-50 transition-all placeholder:text-muted-foreground/60 shadow-[4px_4px_0px_0px_#111111]"
+          className="flex-1 resize-none min-h-[48px] max-h-[200px] px-4 py-3 bg-input border-2 border-border rounded-md text-sm font-medium leading-relaxed focus:outline-none focus:ring-0 disabled:opacity-50 transition-all placeholder:text-muted-foreground/60 shadow-[4px_4px_0px_0px_#111111]"
           rows={1}
         />
         {sending ? (

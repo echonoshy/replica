@@ -28,6 +28,7 @@ interface AppState {
   setCurrentUser: (user: User | null) => void
   setSessions: (sessions: Session[]) => void
   setCurrentSession: (session: Session | null) => void
+  updateCurrentSession: (session: Session) => void
   updateSessionTokenCount: (count: number) => void
   setMessages: (messages: Message[]) => void
   addMessage: (message: Message) => void
@@ -74,6 +75,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       messages: [],
       chatContext: null,
     }),
+
+  updateCurrentSession: (session) =>
+    set((state) => ({
+      currentSession: session,
+      sessions: state.sessions.map((s) => (s.id === session.id ? session : s)),
+    })),
 
   updateSessionTokenCount: (count) => {
     const { currentSession } = get()

@@ -29,16 +29,16 @@ const ScrollBar = React.forwardRef<
     ref={ref}
     orientation={orientation}
     className={cn(
-      "flex touch-none select-none transition-colors bg-muted border-l-2 border-border",
+      "flex touch-none select-none transition-colors bg-muted border-l-2 border-border z-10",
       orientation === "vertical" &&
-        "h-full w-3",
+        "h-full w-4",
       orientation === "horizontal" &&
-        "h-3 flex-col border-t-2 border-border",
+        "h-4 flex-col border-t-2 border-border",
       className
     )}
     {...props}
   >
-    <ScrollAreaPrimitive.ScrollAreaThumb className="relative flex-1 bg-primary border-2 border-border rounded-none" />
+    <ScrollAreaPrimitive.ScrollAreaThumb className="relative flex-1 bg-primary border-2 border-border rounded-none shadow-[2px_2px_0px_0px_#111111]" />
   </ScrollAreaPrimitive.ScrollAreaScrollbar>
 ))
 ScrollBar.displayName = ScrollAreaPrimitive.ScrollAreaScrollbar.displayName
