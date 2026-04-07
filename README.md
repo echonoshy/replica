@@ -294,7 +294,7 @@ for memory in results.json():
 
 ## 🏗️ Architecture
 
-**Frontend** → React 19 web interface (`:5173`)
+**Frontend** → React 19 web interface (`:8780`)
 
 **Backend** → FastAPI server (`:8790`)
 - User/Session/Message APIs

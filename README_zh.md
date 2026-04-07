@@ -294,7 +294,7 @@ for memory in results.json():
 
 ## 🏗️ 系统架构
 
-**前端** → React 19 Web 界面 (`:5173`)
+**前端** → React 19 Web 界面 (`:8780`)
 
 **后端** → FastAPI 服务器 (`:8790`)
 - 用户/会话/消息 API
