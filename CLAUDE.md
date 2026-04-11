@@ -65,7 +65,6 @@
 - **不要使用 `from __future__ import annotations`**
 - **路径操作使用 `pathlib`：** 不要使用 `os.path` 或字符串拼接
 - **不要使用环境变量语法：** 不使用 `os.getenv` 或 `os.environ`
-- **测试用例使用 `if __name__ == "__main__":` 模式**
 
 ### TypeScript/React (前端)
 
