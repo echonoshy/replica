@@ -1,10 +1,10 @@
-import type { ChatContext } from '../stores/app'
+import type { ChatContext } from "../stores/app";
 
 export interface ChatStreamCallbacks {
-  onToken: (token: string) => void
-  onContext: (ctx: ChatContext) => void
-  onDone: (messageId: string, tokenCount?: number) => void
-  onError: (error: string) => void
+  onToken: (token: string) => void;
+  onContext: (ctx: ChatContext) => void;
+  onDone: (messageId: string, tokenCount?: number) => void;
+  onError: (error: string) => void;
 }
 
 export async function chatStream(
@@ -15,47 +15,47 @@ export async function chatStream(
   signal?: AbortSignal,
 ) {
   const resp = await fetch(`/v1/sessions/${sessionId}/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ content, use_memory: useMemory }),
     signal,
-  })
+  });
 
   if (!resp.ok) {
-    callbacks.onError(`HTTP ${resp.status}`)
-    return
+    callbacks.onError(`HTTP ${resp.status}`);
+    return;
   }
 
-  const reader = resp.body?.getReader()
+  const reader = resp.body?.getReader();
   if (!reader) {
-    callbacks.onError('No response body')
-    return
+    callbacks.onError("No response body");
+    return;
   }
 
-  const decoder = new TextDecoder()
-  let buffer = ''
+  const decoder = new TextDecoder();
+  let buffer = "";
 
   while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
+    const { done, value } = await reader.read();
+    if (done) break;
 
-    buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split('\n')
-    buffer = lines.pop() ?? ''
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
 
     for (const line of lines) {
-      if (!line.startsWith('data: ')) continue
-      const jsonStr = line.slice(6)
+      if (!line.startsWith("data: ")) continue;
+      const jsonStr = line.slice(6);
       try {
-        const data = JSON.parse(jsonStr)
+        const data = JSON.parse(jsonStr);
         if (data.token) {
-          callbacks.onToken(data.token)
+          callbacks.onToken(data.token);
         } else if (data.context) {
-          callbacks.onContext(data.context)
+          callbacks.onContext(data.context);
         } else if (data.done) {
-          callbacks.onDone(data.message_id, data.token_count)
+          callbacks.onDone(data.message_id, data.token_count);
         } else if (data.error) {
-          callbacks.onError(data.error)
+          callbacks.onError(data.error);
         }
       } catch {
         // skip malformed

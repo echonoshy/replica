@@ -8,7 +8,7 @@
   --color-card-foreground: #111111;
   --color-popover: #ffffff;
   --color-popover-foreground: #111111;
-  
+
   /* Bold Playful Colors */
   --color-primary: #ff4911;
   --color-primary-foreground: #ffffff;
@@ -20,11 +20,11 @@
   --color-accent-foreground: #111111;
   --color-destructive: #ff3366;
   --color-destructive-foreground: #ffffff;
-  
+
   --color-border: #111111;
   --color-input: #ffffff;
   --color-ring: #111111;
-  
+
   --radius: 0px; /* Sharp corners for brutalism, or very rounded for playful. Let's go with slightly rounded brutalism */
   --radius-sm: 4px;
   --radius-md: 8px;
@@ -40,10 +40,10 @@
 
   /* AI message background */
   --color-ai-bg: #ffffff;
-  
+
   /* Fonts */
-  --font-sans: 'Space Grotesk', 'Outfit', system-ui, sans-serif;
-  --font-mono: 'Space Mono', 'JetBrains Mono', monospace;
+  --font-sans: "Space Grotesk", "Outfit", system-ui, sans-serif;
+  --font-mono: "Space Mono", "JetBrains Mono", monospace;
 }
 
 @layer base {
@@ -82,7 +82,15 @@
   }
 
   /* Smooth transitions but snappy */
-  button, a, input, select, textarea, .transition-all, .transition-colors, .transition-transform, .transition-opacity {
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  .transition-all,
+  .transition-colors,
+  .transition-transform,
+  .transition-opacity {
     transition-timing-function: cubic-bezier(0.175, 0.885, 0.32, 1.275);
     transition-duration: 200ms;
   }

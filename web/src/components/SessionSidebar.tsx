@@ -1,17 +1,17 @@
-import { useState, useEffect } from 'react'
-import { useAppStore } from '@/store/app'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Badge } from '@/components/ui/badge'
-import { Plus, Search, Copy, Check, Trash2, User as UserIcon } from 'lucide-react'
-import { getUsers, createUser, deleteUser } from '@/api/users'
-import { getSessions, createSession, deleteSession } from '@/api/sessions'
-import { getMessages } from '@/api/messages'
-import { getEvergreenMemories } from '@/api/memory'
-import { cn } from '@/lib/utils'
-import { copyToClipboard } from '@/lib/clipboard'
+import { useState, useEffect } from "react";
+import { useAppStore } from "@/store/app";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Search, Copy, Check, Trash2, User as UserIcon } from "lucide-react";
+import { getUsers, createUser, deleteUser } from "@/api/users";
+import { getSessions, createSession, deleteSession } from "@/api/sessions";
+import { getMessages } from "@/api/messages";
+import { getEvergreenMemories } from "@/api/memory";
+import { cn } from "@/lib/utils";
+import { copyToClipboard } from "@/lib/clipboard";
 
 export default function SessionSidebar() {
   const {
@@ -25,188 +25,198 @@ export default function SessionSidebar() {
     setCurrentSession,
     setMessages,
     setEvergreen,
-  } = useAppStore()
+  } = useAppStore();
 
-  const [searchQuery, setSearchQuery] = useState('')
-  const [newUserDialog, setNewUserDialog] = useState(false)
-  const [newUserExtId, setNewUserExtId] = useState('')
-  const [newUserName, setNewUserName] = useState('')
-  const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [userHeight, setUserHeight] = useState(360)
-  const [isDragging, setIsDragging] = useState(false)
-  const [, setClickCount] = useState(0)
-  const [isEasterEggActive, setIsEasterEggActive] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("");
+  const [newUserDialog, setNewUserDialog] = useState(false);
+  const [newUserExtId, setNewUserExtId] = useState("");
+  const [newUserName, setNewUserName] = useState("");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [userHeight, setUserHeight] = useState(360);
+  const [isDragging, setIsDragging] = useState(false);
+  const [, setClickCount] = useState(0);
+  const [isEasterEggActive, setIsEasterEggActive] = useState(false);
 
   const handleTitleClick = () => {
-    setClickCount(prev => {
-      const newCount = prev + 1
+    setClickCount((prev) => {
+      const newCount = prev + 1;
       if (newCount === 5) {
-        setIsEasterEggActive(true)
+        setIsEasterEggActive(true);
         setTimeout(() => {
-          setIsEasterEggActive(false)
-          setClickCount(0)
-        }, 5000)
+          setIsEasterEggActive(false);
+          setClickCount(0);
+        }, 5000);
       }
-      return newCount
-    })
-  }
+      return newCount;
+    });
+  };
 
   useEffect(() => {
-    loadUsers()
-  }, [])
+    loadUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadUsers = async () => {
     try {
-      const { data } = await getUsers()
-      setUsers(data)
+      const { data } = await getUsers();
+      setUsers(data);
     } catch (error) {
-      console.error('Failed to load users:', error)
+      console.error("Failed to load users:", error);
     }
-  }
+  };
 
-  const handleSelectUser = async (user: typeof users[0]) => {
-    setCurrentUser(user)
-    setLoading(true)
+  const handleSelectUser = async (user: (typeof users)[0]) => {
+    setCurrentUser(user);
+    setLoading(true);
     try {
-      const [sessionsRes, evergreenRes] = await Promise.all([
-        getSessions(user.id),
-        getEvergreenMemories(user.id),
-      ])
-      setSessions(sessionsRes.data)
-      setEvergreen(evergreenRes.data)
+      const [sessionsRes, evergreenRes] = await Promise.all([getSessions(user.id), getEvergreenMemories(user.id)]);
+      setSessions(sessionsRes.data);
+      setEvergreen(evergreenRes.data);
     } catch (error) {
-      console.error('Failed to load user data:', error)
+      console.error("Failed to load user data:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleCreateUser = async () => {
-    if (!newUserExtId.trim()) return
+    if (!newUserExtId.trim()) return;
     try {
       const { data } = await createUser({
         external_id: newUserExtId.trim(),
         name: newUserName.trim() || null,
-      })
-      await loadUsers()
-      setNewUserDialog(false)
-      setNewUserExtId('')
-      setNewUserName('')
-      handleSelectUser(data)
+      });
+      await loadUsers();
+      setNewUserDialog(false);
+      setNewUserExtId("");
+      setNewUserName("");
+      handleSelectUser(data);
     } catch (error) {
-      console.error('Failed to create user:', error)
+      console.error("Failed to create user:", error);
     }
-  }
+  };
 
   const handleDeleteUser = async (userId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!confirm('Delete this user and all associated data?')) return
+    e.stopPropagation();
+    if (!confirm("Delete this user and all associated data?")) return;
     try {
-      await deleteUser(userId)
-      await loadUsers()
+      await deleteUser(userId);
+      await loadUsers();
       if (currentUser?.id === userId) {
-        setCurrentUser(null)
+        setCurrentUser(null);
       }
     } catch (error) {
-      console.error('Failed to delete user:', error)
+      console.error("Failed to delete user:", error);
     }
-  }
+  };
 
-  const handleSelectSession = async (session: typeof sessions[0]) => {
-    setCurrentSession(session)
+  const handleSelectSession = async (session: (typeof sessions)[0]) => {
+    setCurrentSession(session);
     try {
-      const { data } = await getMessages(session.id, 200, 0, true)
-      setMessages(data)
+      const { data } = await getMessages(session.id, 200, 0, true);
+      setMessages(data);
     } catch (error) {
-      console.error('Failed to load messages:', error)
+      console.error("Failed to load messages:", error);
     }
-  }
+  };
 
   const handleCreateSession = async () => {
-    if (!currentUser) return
+    if (!currentUser) return;
     try {
-      const { data } = await createSession(currentUser.id)
-      const { data: sessionsData } = await getSessions(currentUser.id)
-      setSessions(sessionsData)
-      handleSelectSession(data)
+      const { data } = await createSession(currentUser.id);
+      const { data: sessionsData } = await getSessions(currentUser.id);
+      setSessions(sessionsData);
+      handleSelectSession(data);
     } catch (error) {
-      console.error('Failed to create session:', error)
+      console.error("Failed to create session:", error);
     }
-  }
+  };
 
   const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!confirm('Delete this session?')) return
+    e.stopPropagation();
+    if (!confirm("Delete this session?")) return;
     try {
-      await deleteSession(sessionId)
+      await deleteSession(sessionId);
       if (currentUser) {
-        const { data } = await getSessions(currentUser.id)
-        setSessions(data)
+        const { data } = await getSessions(currentUser.id);
+        setSessions(data);
       }
       if (currentSession?.id === sessionId) {
-        setCurrentSession(null)
+        setCurrentSession(null);
       }
     } catch (error) {
-      console.error('Failed to delete session:', error)
+      console.error("Failed to delete session:", error);
     }
-  }
+  };
 
   const handleSearch = async () => {
-    if (!searchQuery.trim()) return
+    if (!searchQuery.trim()) return;
     // Simple search implementation
-    console.log('Search:', searchQuery)
-  }
+    console.log("Search:", searchQuery);
+  };
 
   const handleCopy = async (text: string, id: string) => {
-    const success = await copyToClipboard(text)
+    const success = await copyToClipboard(text);
     if (success) {
-      setCopiedId(id)
-      setTimeout(() => setCopiedId(null), 1500)
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 1500);
     }
-  }
+  };
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault()
-    setIsDragging(true)
-    const startY = e.clientY
-    const startHeight = userHeight
+    e.preventDefault();
+    setIsDragging(true);
+    const startY = e.clientY;
+    const startHeight = userHeight;
 
     const handleMouseMove = (ev: MouseEvent) => {
-      const delta = ev.clientY - startY
-      setUserHeight(Math.max(120, Math.min(600, startHeight + delta)))
-    }
+      const delta = ev.clientY - startY;
+      setUserHeight(Math.max(120, Math.min(600, startHeight + delta)));
+    };
 
     const handleMouseUp = () => {
-      setIsDragging(false)
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-    }
+      setIsDragging(false);
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
 
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-  }
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  };
 
   return (
-    <div className={cn('w-[320px] border-r-4 border-t-4 border-border bg-sidebar flex flex-col h-screen shrink-0', isDragging && 'select-none')}>
+    <div
+      className={cn(
+        "w-[320px] border-r-4 border-t-4 border-border bg-sidebar flex flex-col h-screen shrink-0",
+        isDragging && "select-none",
+      )}
+    >
       {/* Logo and Title */}
-      <div 
+      <div
         className="p-4 border-b-4 border-border bg-primary flex items-center gap-3 cursor-pointer select-none"
         onClick={handleTitleClick}
         title="Click me 5 times for a surprise!"
       >
-        <div className={cn(
-          "w-12 h-12 rounded-lg border-4 border-border bg-white flex items-center justify-center shadow-[4px_4px_0px_0px_#111111] overflow-hidden transition-all duration-500",
-          isEasterEggActive && "rotate-180 scale-110 shadow-[6px_6px_0px_0px_#111111]"
-        )}>
-          <span className={cn("text-3xl leading-none select-none transition-all duration-500", isEasterEggActive && "animate-bounce")}>
+        <div
+          className={cn(
+            "w-12 h-12 rounded-lg border-4 border-border bg-white flex items-center justify-center shadow-[4px_4px_0px_0px_#111111] overflow-hidden transition-all duration-500",
+            isEasterEggActive && "rotate-180 scale-110 shadow-[6px_6px_0px_0px_#111111]",
+          )}
+        >
+          <span
+            className={cn(
+              "text-3xl leading-none select-none transition-all duration-500",
+              isEasterEggActive && "animate-bounce",
+            )}
+          >
             {isEasterEggActive ? "🎉" : "👾"}
           </span>
         </div>
         <h1
           className={cn(
             "text-2xl font-mono font-black tracking-widest text-white uppercase transition-all duration-500",
-            isEasterEggActive && "text-yellow-300 scale-110 ml-2"
+            isEasterEggActive && "text-yellow-300 scale-110 ml-2",
           )}
         >
           {isEasterEggActive ? "SURPRISE!" : "replica"}
@@ -220,7 +230,7 @@ export default function SessionSidebar() {
             placeholder="搜索用户/会话 ID"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             className="text-sm border-2 border-border shadow-[2px_2px_0px_0px_#111111]"
           />
           <Button size="icon" variant="default" onClick={handleSearch} className="flex-shrink-0 bg-primary">
@@ -230,12 +240,19 @@ export default function SessionSidebar() {
       </div>
 
       {/* Users */}
-      <div className="border-b-4 border-border bg-background" style={{ height: `${userHeight}px`, minHeight: `${userHeight}px` }}>
+      <div
+        className="border-b-4 border-border bg-background"
+        style={{ height: `${userHeight}px`, minHeight: `${userHeight}px` }}
+      >
         <div className="flex items-center justify-between px-4 py-3 bg-secondary border-b-2 border-border">
           <h3 className="text-sm font-black uppercase tracking-widest text-foreground">用户</h3>
           <Dialog open={newUserDialog} onOpenChange={setNewUserDialog}>
             <DialogTrigger asChild>
-              <Button size="icon" variant="default" className="h-8 w-8 rounded-md bg-primary shadow-[2px_2px_0px_0px_#111111]">
+              <Button
+                size="icon"
+                variant="default"
+                className="h-8 w-8 rounded-md bg-primary shadow-[2px_2px_0px_0px_#111111]"
+              >
                 <Plus className="h-5 w-5" />
               </Button>
             </DialogTrigger>
@@ -275,9 +292,9 @@ export default function SessionSidebar() {
               <div
                 key={user.id}
                 className={cn(
-                  'group flex items-center gap-3 p-3 rounded-md cursor-pointer transition-all border-2 border-transparent',
-                  'hover:bg-muted hover:border-border hover:shadow-[4px_4px_0px_0px_#111111]',
-                  currentUser?.id === user.id && 'bg-accent border-border shadow-[4px_4px_0px_0px_#111111]'
+                  "group flex items-center gap-3 p-3 rounded-md cursor-pointer transition-all border-2 border-transparent",
+                  "hover:bg-muted hover:border-border hover:shadow-[4px_4px_0px_0px_#111111]",
+                  currentUser?.id === user.id && "bg-accent border-border shadow-[4px_4px_0px_0px_#111111]",
                 )}
                 onClick={() => handleSelectUser(user)}
               >
@@ -285,12 +302,8 @@ export default function SessionSidebar() {
                   <UserIcon className="h-5 w-5 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold truncate uppercase">
-                    {user.name || user.external_id}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate font-mono font-bold">
-                    {user.id.slice(0, 8)}...
-                  </p>
+                  <p className="text-sm font-bold truncate uppercase">{user.name || user.external_id}</p>
+                  <p className="text-xs text-muted-foreground truncate font-mono font-bold">{user.id.slice(0, 8)}...</p>
                 </div>
                 <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button
@@ -298,15 +311,11 @@ export default function SessionSidebar() {
                     variant="ghost"
                     className="h-6 w-6 hover:bg-white border-2 border-transparent hover:border-border hover:shadow-[2px_2px_0px_0px_#111111]"
                     onClick={(e) => {
-                      e.stopPropagation()
-                      handleCopy(user.id, user.id)
+                      e.stopPropagation();
+                      handleCopy(user.id, user.id);
                     }}
                   >
-                    {copiedId === user.id ? (
-                      <Check className="h-3 w-3 text-success" />
-                    ) : (
-                      <Copy className="h-3 w-3" />
-                    )}
+                    {copiedId === user.id ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
                   </Button>
                   <Button
                     size="icon"
@@ -326,18 +335,12 @@ export default function SessionSidebar() {
       {/* Resize handle */}
       <div
         className={cn(
-          'h-3 cursor-row-resize flex items-center justify-center flex-shrink-0 relative z-10 transition-colors bg-border hover:bg-primary',
-          isDragging && 'bg-primary'
+          "h-3 cursor-row-resize flex items-center justify-center flex-shrink-0 relative z-10 transition-colors bg-border hover:bg-primary",
+          isDragging && "bg-primary",
         )}
         onMouseDown={handleMouseDown}
       >
-        <div
-          className={cn(
-            'h-1 w-12 bg-white transition-all',
-            'hover:w-16',
-            isDragging && 'w-16'
-          )}
-        />
+        <div className={cn("h-1 w-12 bg-white transition-all", "hover:w-16", isDragging && "w-16")} />
       </div>
 
       {/* Sessions */}
@@ -357,23 +360,21 @@ export default function SessionSidebar() {
         <ScrollArea className="flex-1">
           <div className="px-3 py-3 space-y-3">
             {!currentUser ? (
-              <p className="text-sm font-bold text-muted-foreground text-center py-8 uppercase">
-                请先选择用户
-              </p>
+              <p className="text-sm font-bold text-muted-foreground text-center py-8 uppercase">请先选择用户</p>
             ) : loading ? (
-              <p className="text-sm font-bold text-muted-foreground text-center py-8 uppercase animate-pulse">加载中...</p>
-            ) : sessions.length === 0 ? (
-              <p className="text-sm font-bold text-muted-foreground text-center py-8 uppercase">
-                暂无会话
+              <p className="text-sm font-bold text-muted-foreground text-center py-8 uppercase animate-pulse">
+                加载中...
               </p>
+            ) : sessions.length === 0 ? (
+              <p className="text-sm font-bold text-muted-foreground text-center py-8 uppercase">暂无会话</p>
             ) : (
               sessions.map((session) => (
                 <div
                   key={session.id}
                   className={cn(
-                    'group flex flex-col gap-2 p-3 rounded-md cursor-pointer transition-all border-2 border-transparent relative',
-                    'hover:bg-muted hover:border-border hover:shadow-[4px_4px_0px_0px_#111111]',
-                    currentSession?.id === session.id && 'bg-accent border-border shadow-[4px_4px_0px_0px_#111111]'
+                    "group flex flex-col gap-2 p-3 rounded-md cursor-pointer transition-all border-2 border-transparent relative",
+                    "hover:bg-muted hover:border-border hover:shadow-[4px_4px_0px_0px_#111111]",
+                    currentSession?.id === session.id && "bg-accent border-border shadow-[4px_4px_0px_0px_#111111]",
                   )}
                   onClick={() => handleSelectSession(session)}
                 >
@@ -403,8 +404,10 @@ export default function SessionSidebar() {
                     )}
                   </div>
                   <div className="flex items-center justify-between text-xs font-bold text-muted-foreground">
-                    <span>{new Date(session.created_at).toLocaleDateString('zh-CN')}</span>
-                    <span className="bg-white px-2 py-0.5 border-2 border-border shadow-[2px_2px_0px_0px_#111111] text-foreground">{session.token_count} tokens</span>
+                    <span>{new Date(session.created_at).toLocaleDateString("zh-CN")}</span>
+                    <span className="bg-white px-2 py-0.5 border-2 border-border shadow-[2px_2px_0px_0px_#111111] text-foreground">
+                      {session.token_count} tokens
+                    </span>
                   </div>
                   <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 backdrop-blur-sm p-1 rounded-md border-2 border-border shadow-[2px_2px_0px_0px_#111111]">
                     <Button
@@ -412,8 +415,8 @@ export default function SessionSidebar() {
                       variant="ghost"
                       className="h-6 w-6 hover:bg-white"
                       onClick={(e) => {
-                        e.stopPropagation()
-                        handleCopy(session.id, session.id)
+                        e.stopPropagation();
+                        handleCopy(session.id, session.id);
                       }}
                     >
                       {copiedId === session.id ? (
@@ -438,5 +441,5 @@ export default function SessionSidebar() {
         </ScrollArea>
       </div>
     </div>
-  )
+  );
 }

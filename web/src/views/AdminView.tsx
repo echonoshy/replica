@@ -1,31 +1,45 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Card } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { ChevronLeft, ChevronRight, Copy, Check, Trash2, ChevronDown, ChevronUp, ArrowLeft, Filter, X } from 'lucide-react'
-import { getSessions, deleteSession } from '@/api/sessions'
-import { getMessages } from '@/api/messages'
-import { getUserKnowledge, deleteKnowledgeEntry, getKnowledgeCount } from '@/api/memory'
-import { getTables, getTableData } from '@/api/admin'
-import { cn } from '@/lib/utils'
-import { copyToClipboard } from '@/lib/clipboard'
-import type { Session, Message, KnowledgeEntry, TableInfo, TableDataResponse } from '@/types'
-import type { TableFilter } from '@/api/admin'
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Check,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  ArrowLeft,
+  Filter,
+  X,
+} from "lucide-react";
+import { getSessions, deleteSession } from "@/api/sessions";
+import { getMessages } from "@/api/messages";
+import { getUserKnowledge, deleteKnowledgeEntry, getKnowledgeCount } from "@/api/memory";
+import { getTables, getTableData } from "@/api/admin";
+import { cn } from "@/lib/utils";
+import { copyToClipboard } from "@/lib/clipboard";
+import type { Session, Message, KnowledgeEntry, TableInfo, TableDataResponse } from "@/types";
+import type { TableFilter } from "@/api/admin";
 
 // 抽取复用的新粗野主义风格类名
-const brutalistCard = "border-2 border-border shadow-[4px_4px_0px_0px_#111111] bg-card rounded-md"
-const brutalistButton = "border-2 border-border shadow-[2px_2px_0px_0px_#111111] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_0px_#111111] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all font-bold"
-const brutalistInput = "border-2 border-border shadow-[2px_2px_0px_0px_#111111] focus-visible:ring-0 focus-visible:translate-x-[1px] focus-visible:translate-y-[1px] focus-visible:shadow-[1px_1px_0px_0px_#111111] transition-all rounded-md bg-input"
-const brutalistItem = "border-2 border-border shadow-[2px_2px_0px_0px_#111111] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_0px_#111111] transition-all bg-card rounded-md"
+const brutalistCard = "border-2 border-border shadow-[4px_4px_0px_0px_#111111] bg-card rounded-md";
+const brutalistButton =
+  "border-2 border-border shadow-[2px_2px_0px_0px_#111111] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_0px_#111111] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all font-bold";
+const brutalistInput =
+  "border-2 border-border shadow-[2px_2px_0px_0px_#111111] focus-visible:ring-0 focus-visible:translate-x-[1px] focus-visible:translate-y-[1px] focus-visible:shadow-[1px_1px_0px_0px_#111111] transition-all rounded-md bg-input";
+const brutalistItem =
+  "border-2 border-border shadow-[2px_2px_0px_0px_#111111] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_0px_#111111] transition-all bg-card rounded-md";
 
 export default function AdminView() {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   return (
     <div className="h-screen bg-background bg-[radial-gradient(var(--color-border)_1px,transparent_1px)] bg-[size:24px_24px] overflow-hidden font-sans">
@@ -34,20 +48,37 @@ export default function AdminView() {
           <Button
             variant="default"
             size="sm"
-            onClick={() => navigate('/')}
+            onClick={() => navigate("/")}
             className={cn("bg-card text-foreground hover:bg-muted", brutalistButton)}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             <span className="font-bold text-sm">返回主界面</span>
           </Button>
-          <h1 className="text-2xl font-extrabold uppercase tracking-widest ml-2">管理面板 <span className="text-muted-foreground text-xl">/ ADMIN</span></h1>
+          <h1 className="text-2xl font-extrabold uppercase tracking-widest ml-2">
+            管理面板 <span className="text-muted-foreground text-xl">/ ADMIN</span>
+          </h1>
         </div>
 
         <Tabs defaultValue="sessions" className="flex-1 flex flex-col min-h-0">
           <TabsList className="bg-accent border-2 border-border shadow-[4px_4px_0px_0px_#111111] p-1 h-auto rounded-md inline-flex w-fit mb-6">
-            <TabsTrigger value="sessions" className="data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-none rounded-sm px-5 py-1.5 text-sm font-bold transition-all">会话管理</TabsTrigger>
-            <TabsTrigger value="knowledge" className="data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-none rounded-sm px-5 py-1.5 text-sm font-bold transition-all">知识库</TabsTrigger>
-            <TabsTrigger value="database" className="data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-none rounded-sm px-5 py-1.5 text-sm font-bold transition-all">数据库</TabsTrigger>
+            <TabsTrigger
+              value="sessions"
+              className="data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-none rounded-sm px-5 py-1.5 text-sm font-bold transition-all"
+            >
+              会话管理
+            </TabsTrigger>
+            <TabsTrigger
+              value="knowledge"
+              className="data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-none rounded-sm px-5 py-1.5 text-sm font-bold transition-all"
+            >
+              知识库
+            </TabsTrigger>
+            <TabsTrigger
+              value="database"
+              className="data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-none rounded-sm px-5 py-1.5 text-sm font-bold transition-all"
+            >
+              数据库
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="sessions" className="flex-1 mt-0 min-h-0 data-[state=active]:flex flex-col">
@@ -64,104 +95,111 @@ export default function AdminView() {
         </Tabs>
       </div>
     </div>
-  )
+  );
 }
 
 function SessionsTab() {
-  const [userId, setUserId] = useState('')
-  const [sessions, setSessions] = useState<Session[]>([])
-  const [selectedSession, setSelectedSession] = useState<Session | null>(null)
-  const [messages, setMessages] = useState<Message[]>([])
-  const [showCompacted, setShowCompacted] = useState(true)
-  const [loading, setLoading] = useState(false)
-  const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [leftWidth, setLeftWidth] = useState(400)
-  const [isDragging, setIsDragging] = useState(false)
+  const [userId, setUserId] = useState("");
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [showCompacted, setShowCompacted] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [leftWidth, setLeftWidth] = useState(400);
+  const [isDragging, setIsDragging] = useState(false);
 
   const loadSessions = async () => {
-    if (!userId.trim()) return
-    setLoading(true)
+    if (!userId.trim()) return;
+    setLoading(true);
     try {
-      const { data } = await getSessions(userId.trim())
-      setSessions(data)
+      const { data } = await getSessions(userId.trim());
+      setSessions(data);
     } catch (error) {
-      console.error('Failed to load sessions:', error)
+      console.error("Failed to load sessions:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const loadMessages = async (sessionId: string) => {
     try {
-      const { data } = await getMessages(sessionId, 200, 0, true)
-      setMessages(data)
+      const { data } = await getMessages(sessionId, 200, 0, true);
+      setMessages(data);
     } catch (error) {
-      console.error('Failed to load messages:', error)
+      console.error("Failed to load messages:", error);
     }
-  }
+  };
 
   const handleSelectSession = (session: Session) => {
-    setSelectedSession(session)
-    loadMessages(session.id)
-  }
+    setSelectedSession(session);
+    loadMessages(session.id);
+  };
 
   const handleDeleteSession = async (sessionId: string) => {
-    if (!confirm('Delete this session?')) return
+    if (!confirm("Delete this session?")) return;
     try {
-      await deleteSession(sessionId)
-      loadSessions()
+      await deleteSession(sessionId);
+      loadSessions();
       if (selectedSession?.id === sessionId) {
-        setSelectedSession(null)
-        setMessages([])
+        setSelectedSession(null);
+        setMessages([]);
       }
     } catch (error) {
-      console.error('Failed to delete session:', error)
+      console.error("Failed to delete session:", error);
     }
-  }
+  };
 
   const handleCopy = async (text: string, id: string) => {
-    const success = await copyToClipboard(text)
+    const success = await copyToClipboard(text);
     if (success) {
-      setCopiedId(id)
-      setTimeout(() => setCopiedId(null), 1500)
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 1500);
     }
-  }
+  };
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault()
-    setIsDragging(true)
-    const startX = e.clientX
-    const startWidth = leftWidth
+    e.preventDefault();
+    setIsDragging(true);
+    const startX = e.clientX;
+    const startWidth = leftWidth;
 
     const handleMouseMove = (ev: MouseEvent) => {
-      const delta = ev.clientX - startX
-      setLeftWidth(Math.max(280, Math.min(800, startWidth + delta)))
-    }
+      const delta = ev.clientX - startX;
+      setLeftWidth(Math.max(280, Math.min(800, startWidth + delta)));
+    };
 
     const handleMouseUp = () => {
-      setIsDragging(false)
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-    }
+      setIsDragging(false);
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
 
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-  }
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  };
 
-  const filteredMessages = showCompacted ? messages : messages.filter((m) => !m.is_compacted)
+  const filteredMessages = showCompacted ? messages : messages.filter((m) => !m.is_compacted);
 
   return (
     <div className={cn("flex gap-0 h-full min-h-0", isDragging && "select-none")}>
-      <Card className={cn("p-4 flex flex-col min-h-0 bg-muted/30 shrink-0", brutalistCard)} style={{ width: `${leftWidth}px` }}>
+      <Card
+        className={cn("p-4 flex flex-col min-h-0 bg-muted/30 shrink-0", brutalistCard)}
+        style={{ width: `${leftWidth}px` }}
+      >
         <div className="flex gap-2 mb-4">
           <Input
             placeholder="输入用户 ID..."
             value={userId}
             onChange={(e) => setUserId(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && loadSessions()}
+            onKeyDown={(e) => e.key === "Enter" && loadSessions()}
             className={cn("text-sm", brutalistInput)}
           />
-          <Button onClick={loadSessions} disabled={loading} className={cn("text-sm bg-info text-background hover:bg-info/90", brutalistButton)}>
+          <Button
+            onClick={loadSessions}
+            disabled={loading}
+            className={cn("text-sm bg-info text-background hover:bg-info/90", brutalistButton)}
+          >
             加载
           </Button>
         </div>
@@ -172,15 +210,23 @@ function SessionsTab() {
               <div
                 key={session.id}
                 className={cn(
-                  'p-3 cursor-pointer',
+                  "p-3 cursor-pointer",
                   brutalistItem,
-                  selectedSession?.id === session.id ? 'bg-info/20 border-black shadow-none translate-x-[2px] translate-y-[2px]' : 'bg-card'
+                  selectedSession?.id === session.id
+                    ? "bg-info/20 border-black shadow-none translate-x-[2px] translate-y-[2px]"
+                    : "bg-card",
                 )}
                 onClick={() => handleSelectSession(session)}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <Badge variant={session.status === 'active' ? 'default' : 'secondary'} className={cn("border-2 border-border font-bold text-xs", session.status === 'active' ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground')}>
-                    {session.status === 'active' ? '活跃' : '已归档'}
+                  <Badge
+                    variant={session.status === "active" ? "default" : "secondary"}
+                    className={cn(
+                      "border-2 border-border font-bold text-xs",
+                      session.status === "active" ? "bg-foreground text-background" : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    {session.status === "active" ? "活跃" : "已归档"}
                   </Badge>
                   <div className="flex gap-1.5">
                     <Button
@@ -188,8 +234,8 @@ function SessionsTab() {
                       variant="outline"
                       className={cn("h-6 w-6 bg-card", brutalistButton)}
                       onClick={(e) => {
-                        e.stopPropagation()
-                        handleCopy(session.id, session.id)
+                        e.stopPropagation();
+                        handleCopy(session.id, session.id);
                       }}
                     >
                       {copiedId === session.id ? (
@@ -203,22 +249,28 @@ function SessionsTab() {
                       variant="outline"
                       className={cn("h-6 w-6 bg-card hover:bg-destructive/10 hover:text-destructive", brutalistButton)}
                       onClick={(e) => {
-                        e.stopPropagation()
-                        handleDeleteSession(session.id)
+                        e.stopPropagation();
+                        handleDeleteSession(session.id);
                       }}
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
                 </div>
-                <p className="text-xs font-mono font-bold mb-2 bg-card/50 p-1 rounded border-2 border-border inline-block">{session.id.slice(0, 16)}...</p>
+                <p className="text-xs font-mono font-bold mb-2 bg-card/50 p-1 rounded border-2 border-border inline-block">
+                  {session.id.slice(0, 16)}...
+                </p>
                 <div className="flex justify-between text-xs font-medium text-muted-foreground mt-1">
-                  <span>{new Date(session.created_at).toLocaleString('zh-CN')}</span>
-                  <span className="bg-card/50 px-1.5 py-0.5 rounded border-2 border-border text-foreground">{session.token_count} tk</span>
+                  <span>{new Date(session.created_at).toLocaleString("zh-CN")}</span>
+                  <span className="bg-card/50 px-1.5 py-0.5 rounded border-2 border-border text-foreground">
+                    {session.token_count} tk
+                  </span>
                 </div>
                 <div className="text-xs font-medium text-muted-foreground mt-2 flex items-center gap-2">
                   <span>压缩次数:</span>
-                  <Badge variant="outline" className="border-2 border-border font-bold text-[10px] px-1.5 py-0">{session.compaction_count}</Badge>
+                  <Badge variant="outline" className="border-2 border-border font-bold text-[10px] px-1.5 py-0">
+                    {session.compaction_count}
+                  </Badge>
                 </div>
               </div>
             ))}
@@ -234,18 +286,12 @@ function SessionsTab() {
       {/* Resize handle */}
       <div
         className={cn(
-          'w-3 cursor-col-resize flex items-center justify-center shrink-0 relative z-10 transition-colors bg-border hover:bg-primary',
-          isDragging && 'bg-primary'
+          "w-3 cursor-col-resize flex items-center justify-center shrink-0 relative z-10 transition-colors bg-border hover:bg-primary",
+          isDragging && "bg-primary",
         )}
         onMouseDown={handleMouseDown}
       >
-        <div
-          className={cn(
-            'w-1 h-12 bg-card transition-all',
-            'hover:h-16',
-            isDragging && 'h-16'
-          )}
-        />
+        <div className={cn("w-1 h-12 bg-card transition-all", "hover:h-16", isDragging && "h-16")} />
       </div>
 
       <Card className={cn("flex-1 p-4 flex flex-col min-h-0 bg-accent/10", brutalistCard)}>
@@ -260,7 +306,7 @@ function SessionsTab() {
                 className={cn("font-bold text-xs bg-card", brutalistButton)}
               >
                 {showCompacted ? <ChevronUp className="h-3 w-3 mr-1" /> : <ChevronDown className="h-3 w-3 mr-1" />}
-                {showCompacted ? '隐藏' : '显示'} 已压缩
+                {showCompacted ? "隐藏" : "显示"} 已压缩
               </Button>
             </div>
 
@@ -269,29 +315,37 @@ function SessionsTab() {
                 {filteredMessages.map((msg) => (
                   <div
                     key={msg.id}
-                    className={cn(
-                      'p-3',
-                      brutalistItem,
-                      msg.is_compacted && 'bg-muted/50 opacity-70 border-dashed'
-                    )}
+                    className={cn("p-3", brutalistItem, msg.is_compacted && "bg-muted/50 opacity-70 border-dashed")}
                   >
                     <div className="flex items-center gap-2 mb-2">
-                      <Badge variant="outline" className={cn(
-                        "border-2 border-border font-bold text-xs px-2 py-0.5",
-                        msg.role === 'user' ? 'bg-info/20 text-info-foreground' : msg.role === 'assistant' ? 'bg-success/20 text-success-foreground' : 'bg-muted text-muted-foreground'
-                      )}>
-                        {msg.role === 'user' ? '用户' : msg.role === 'assistant' ? '助手' : '系统'}
-                      </Badge>
-                      {msg.message_type !== 'message' && (
-                        <Badge variant="outline" className={cn(
+                      <Badge
+                        variant="outline"
+                        className={cn(
                           "border-2 border-border font-bold text-xs px-2 py-0.5",
-                          msg.message_type === 'compaction_summary' ? 'bg-destructive/20 text-destructive' : 'bg-warning/20 text-warning-foreground'
-                        )}>
+                          msg.role === "user"
+                            ? "bg-info/20 text-info-foreground"
+                            : msg.role === "assistant"
+                              ? "bg-success/20 text-success-foreground"
+                              : "bg-muted text-muted-foreground",
+                        )}
+                      >
+                        {msg.role === "user" ? "用户" : msg.role === "assistant" ? "助手" : "系统"}
+                      </Badge>
+                      {msg.message_type !== "message" && (
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "border-2 border-border font-bold text-xs px-2 py-0.5",
+                            msg.message_type === "compaction_summary"
+                              ? "bg-destructive/20 text-destructive"
+                              : "bg-warning/20 text-warning-foreground",
+                          )}
+                        >
                           {msg.message_type}
                         </Badge>
                       )}
                       <span className="text-xs font-bold text-muted-foreground ml-auto bg-card/50 px-1.5 py-0.5 rounded border-2 border-border">
-                        {new Date(msg.created_at).toLocaleString('zh-CN')}
+                        {new Date(msg.created_at).toLocaleString("zh-CN")}
                       </span>
                       <span className="text-xs font-bold text-muted-foreground bg-card/50 px-1.5 py-0.5 rounded border-2 border-border">
                         {msg.token_count} tk
@@ -317,64 +371,65 @@ function SessionsTab() {
         )}
       </Card>
     </div>
-  )
+  );
 }
 
 function KnowledgeTab() {
-  const [userId, setUserId] = useState('')
-  const [knowledge, setKnowledge] = useState<KnowledgeEntry[]>([])
-  const [stats, setStats] = useState<{ total: number; by_type: { episode?: number; event?: number; foresight?: number } } | null>(null)
-  const [page, setPage] = useState(0)
-  const [typeFilter, setTypeFilter] = useState<'all' | 'episode' | 'event' | 'foresight'>('all')
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
-  const [loading, setLoading] = useState(false)
+  const [userId, setUserId] = useState("");
+  const [knowledge, setKnowledge] = useState<KnowledgeEntry[]>([]);
+  const [stats, setStats] = useState<{
+    total: number;
+    by_type: { episode?: number; event?: number; foresight?: number };
+  } | null>(null);
+  const [page, setPage] = useState(0);
+  const [typeFilter, setTypeFilter] = useState<"all" | "episode" | "event" | "foresight">("all");
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(false);
 
-  const pageSize = 50
+  const pageSize = 50;
 
   const loadKnowledge = async () => {
-    if (!userId.trim()) return
-    setLoading(true)
+    if (!userId.trim()) return;
+    setLoading(true);
     try {
       const [knowledgeRes, countRes] = await Promise.all([
         getUserKnowledge(userId.trim(), 200),
         getKnowledgeCount(userId.trim()),
-      ])
-      setKnowledge(knowledgeRes.data)
-      setStats(countRes.data)
-      setPage(0)
+      ]);
+      setKnowledge(knowledgeRes.data);
+      setStats(countRes.data);
+      setPage(0);
     } catch (error) {
-      console.error('Failed to load knowledge:', error)
+      console.error("Failed to load knowledge:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this knowledge entry?')) return
+    if (!confirm("Delete this knowledge entry?")) return;
     try {
-      await deleteKnowledgeEntry(id)
-      loadKnowledge()
+      await deleteKnowledgeEntry(id);
+      loadKnowledge();
     } catch (error) {
-      console.error('Failed to delete knowledge:', error)
+      console.error("Failed to delete knowledge:", error);
     }
-  }
+  };
 
   const toggleExpand = (id: string) => {
-    const newSet = new Set(expandedIds)
+    const newSet = new Set(expandedIds);
     if (newSet.has(id)) {
-      newSet.delete(id)
+      newSet.delete(id);
     } else {
-      newSet.add(id)
+      newSet.add(id);
     }
-    setExpandedIds(newSet)
-  }
+    setExpandedIds(newSet);
+  };
 
-  const filteredKnowledge = typeFilter === 'all'
-    ? knowledge
-    : knowledge.filter((k) => k.entry_type === typeFilter)
+  const filteredKnowledge = typeFilter === "all" ? knowledge : knowledge.filter((k) => k.entry_type === typeFilter);
 
-  const paginatedKnowledge = filteredKnowledge.slice(page * pageSize, (page + 1) * pageSize)
-  const totalPages = Math.ceil(filteredKnowledge.length / pageSize)
+  const paginatedKnowledge = filteredKnowledge.slice(page * pageSize, (page + 1) * pageSize);
+  const totalPages = Math.ceil(filteredKnowledge.length / pageSize);
 
   return (
     <div className="flex flex-col h-full min-h-0 gap-4">
@@ -385,10 +440,14 @@ function KnowledgeTab() {
               placeholder="输入用户 ID..."
               value={userId}
               onChange={(e) => setUserId(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && loadKnowledge()}
+              onKeyDown={(e) => e.key === "Enter" && loadKnowledge()}
               className={cn("text-sm bg-card", brutalistInput)}
             />
-            <Button onClick={loadKnowledge} disabled={loading} className={cn("text-sm bg-secondary text-secondary-foreground hover:bg-secondary/90", brutalistButton)}>
+            <Button
+              onClick={loadKnowledge}
+              disabled={loading}
+              className={cn("text-sm bg-secondary text-secondary-foreground hover:bg-secondary/90", brutalistButton)}
+            >
               加载知识库
             </Button>
           </div>
@@ -403,15 +462,30 @@ function KnowledgeTab() {
             <div className="flex gap-4">
               <div className="flex flex-col items-center">
                 <span className="text-xs font-bold text-muted-foreground mb-0.5">情节</span>
-                <Badge variant="outline" className="border-2 border-border font-bold bg-info/20 text-info-foreground text-sm px-2 py-0.5">{stats.by_type.episode || 0}</Badge>
+                <Badge
+                  variant="outline"
+                  className="border-2 border-border font-bold bg-info/20 text-info-foreground text-sm px-2 py-0.5"
+                >
+                  {stats.by_type.episode || 0}
+                </Badge>
               </div>
               <div className="flex flex-col items-center">
                 <span className="text-xs font-bold text-muted-foreground mb-0.5">事件</span>
-                <Badge variant="outline" className="border-2 border-border font-bold bg-success/20 text-success-foreground text-sm px-2 py-0.5">{stats.by_type.event || 0}</Badge>
+                <Badge
+                  variant="outline"
+                  className="border-2 border-border font-bold bg-success/20 text-success-foreground text-sm px-2 py-0.5"
+                >
+                  {stats.by_type.event || 0}
+                </Badge>
               </div>
               <div className="flex flex-col items-center">
                 <span className="text-xs font-bold text-muted-foreground mb-0.5">预见</span>
-                <Badge variant="outline" className="border-2 border-border font-bold bg-secondary/20 text-secondary-foreground text-sm px-2 py-0.5">{stats.by_type.foresight || 0}</Badge>
+                <Badge
+                  variant="outline"
+                  className="border-2 border-border font-bold bg-secondary/20 text-secondary-foreground text-sm px-2 py-0.5"
+                >
+                  {stats.by_type.foresight || 0}
+                </Badge>
               </div>
             </div>
           </Card>
@@ -419,21 +493,29 @@ function KnowledgeTab() {
       </div>
 
       <div className="flex gap-2 shrink-0">
-        {(['all', 'episode', 'event', 'foresight'] as const).map((type) => (
+        {(["all", "episode", "event", "foresight"] as const).map((type) => (
           <Button
             key={type}
             variant="outline"
             className={cn(
               "font-bold px-4 text-sm",
               brutalistButton,
-              typeFilter === type ? 'bg-foreground text-background hover:bg-foreground hover:text-background translate-x-[2px] translate-y-[2px] shadow-none' : 'bg-card'
+              typeFilter === type
+                ? "bg-foreground text-background hover:bg-foreground hover:text-background translate-x-[2px] translate-y-[2px] shadow-none"
+                : "bg-card",
             )}
             onClick={() => {
-              setTypeFilter(type)
-              setPage(0)
+              setTypeFilter(type);
+              setPage(0);
             }}
           >
-            {type === 'all' ? '全部记录' : type === 'episode' ? '情节 (Episode)' : type === 'event' ? '事件 (Event)' : '预见 (Foresight)'}
+            {type === "all"
+              ? "全部记录"
+              : type === "episode"
+                ? "情节 (Episode)"
+                : type === "event"
+                  ? "事件 (Event)"
+                  : "预见 (Foresight)"}
           </Button>
         ))}
       </div>
@@ -442,40 +524,55 @@ function KnowledgeTab() {
         <ScrollArea className="flex-1 pr-3 -mr-3">
           <div className="space-y-3 pb-4">
             {paginatedKnowledge.map((entry) => {
-              const isExpanded = expandedIds.has(entry.id)
+              const isExpanded = expandedIds.has(entry.id);
               return (
                 <div key={entry.id} className={cn("p-3", brutalistItem)}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-2">
-                        <Badge variant="outline" className={cn(
-                          "border-2 border-border font-bold px-2 py-0.5 text-xs",
-                          entry.entry_type === 'episode' ? 'bg-info/20 text-info-foreground' : entry.entry_type === 'event' ? 'bg-success/20 text-success-foreground' : 'bg-secondary/20 text-secondary-foreground'
-                        )}>
-                          {entry.entry_type === 'episode' ? '情节' : entry.entry_type === 'event' ? '事件' : '预见'}
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "border-2 border-border font-bold px-2 py-0.5 text-xs",
+                            entry.entry_type === "episode"
+                              ? "bg-info/20 text-info-foreground"
+                              : entry.entry_type === "event"
+                                ? "bg-success/20 text-success-foreground"
+                                : "bg-secondary/20 text-secondary-foreground",
+                          )}
+                        >
+                          {entry.entry_type === "episode" ? "情节" : entry.entry_type === "event" ? "事件" : "预见"}
                         </Badge>
                         {entry.title && <span className="text-base font-extrabold">{entry.title}</span>}
                       </div>
-                      <div className={cn(
-                        'text-sm font-medium leading-relaxed bg-muted/50 p-2 rounded border-2 border-border',
-                        !isExpanded && 'line-clamp-2'
-                      )}>
+                      <div
+                        className={cn(
+                          "text-sm font-medium leading-relaxed bg-muted/50 p-2 rounded border-2 border-border",
+                          !isExpanded && "line-clamp-2",
+                        )}
+                      >
                         {entry.content}
                       </div>
-                      
+
                       <div className="flex flex-wrap items-center gap-3 mt-3">
                         {entry.participants && entry.participants.length > 0 && (
                           <div className="flex items-center gap-1.5">
                             <span className="text-xs font-bold text-muted-foreground">参与者:</span>
                             <div className="flex gap-1 flex-wrap">
-                              {entry.participants.map(p => (
-                                <Badge key={p} variant="outline" className="border-2 border-border font-bold bg-card text-xs py-0">{p}</Badge>
+                              {entry.participants.map((p) => (
+                                <Badge
+                                  key={p}
+                                  variant="outline"
+                                  className="border-2 border-border font-bold bg-card text-xs py-0"
+                                >
+                                  {p}
+                                </Badge>
                               ))}
                             </div>
                           </div>
                         )}
                         <div className="text-xs font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded border-2 border-border ml-auto">
-                          {new Date(entry.created_at).toLocaleString('zh-CN')}
+                          {new Date(entry.created_at).toLocaleString("zh-CN")}
                         </div>
                       </div>
                     </div>
@@ -486,16 +583,15 @@ function KnowledgeTab() {
                         className={cn("h-7 w-7 bg-card", brutalistButton)}
                         onClick={() => toggleExpand(entry.id)}
                       >
-                        {isExpanded ? (
-                          <ChevronUp className="h-3 w-3" />
-                        ) : (
-                          <ChevronDown className="h-3 w-3" />
-                        )}
+                        {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                       </Button>
                       <Button
                         size="icon"
                         variant="outline"
-                        className={cn("h-7 w-7 bg-card hover:bg-destructive/10 hover:text-destructive", brutalistButton)}
+                        className={cn(
+                          "h-7 w-7 bg-card hover:bg-destructive/10 hover:text-destructive",
+                          brutalistButton,
+                        )}
                         onClick={() => handleDelete(entry.id)}
                       >
                         <Trash2 className="h-3 w-3" />
@@ -503,7 +599,7 @@ function KnowledgeTab() {
                     </div>
                   </div>
                 </div>
-              )
+              );
             })}
             {paginatedKnowledge.length === 0 && !loading && (
               <div className="text-center py-12 text-sm text-muted-foreground font-bold border-4 border-dashed border-border rounded-xl m-2 bg-muted/50">
@@ -543,90 +639,95 @@ function KnowledgeTab() {
         )}
       </Card>
     </div>
-  )
+  );
 }
 
 function DatabaseTab() {
-  const [tables, setTables] = useState<TableInfo[]>([])
-  const [selectedTable, setSelectedTable] = useState<string | null>(null)
-  const [tableData, setTableData] = useState<TableDataResponse | null>(null)
-  const [page, setPage] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [filter, setFilter] = useState<TableFilter | null>(null)
-  const [filterField, setFilterField] = useState('')
-  const [filterOp, setFilterOp] = useState<'eq' | 'contains' | 'gt' | 'lt' | 'gte' | 'lte'>('eq')
-  const [filterValue, setFilterValue] = useState('')
-  const [selectedRow, setSelectedRow] = useState<Record<string, any> | null>(null)
-  const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [tables, setTables] = useState<TableInfo[]>([]);
+  const [selectedTable, setSelectedTable] = useState<string | null>(null);
+  const [tableData, setTableData] = useState<TableDataResponse | null>(null);
+  const [page, setPage] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState<TableFilter | null>(null);
+  const [filterField, setFilterField] = useState("");
+  const [filterOp, setFilterOp] = useState<"eq" | "contains" | "gt" | "lt" | "gte" | "lte">("eq");
+  const [filterValue, setFilterValue] = useState("");
+  const [selectedRow, setSelectedRow] = useState<Record<string, unknown> | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
 
-  const pageSize = 50
+  const pageSize = 50;
 
   const loadTables = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const { data } = await getTables()
-      setTables(data.tables)
+      const { data } = await getTables();
+      setTables(data.tables);
     } catch (error) {
-      console.error('Failed to load tables:', error)
+      console.error("Failed to load tables:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const loadTableData = async (tableName: string, offset: number = 0, currentFilter: TableFilter | null = null) => {
     try {
-      const { data } = await getTableData(tableName, pageSize, offset, currentFilter || undefined)
-      setTableData(data)
+      const { data } = await getTableData(tableName, pageSize, offset, currentFilter || undefined);
+      setTableData(data);
     } catch (error) {
-      console.error('Failed to load table data:', error)
+      console.error("Failed to load table data:", error);
     }
-  }
+  };
 
   const handleSelectTable = (tableName: string) => {
-    setSelectedTable(tableName)
-    setPage(0)
-    setFilter(null)
-    setFilterField('')
-    setFilterValue('')
-    loadTableData(tableName, 0, null)
-  }
+    setSelectedTable(tableName);
+    setPage(0);
+    setFilter(null);
+    setFilterField("");
+    setFilterValue("");
+    loadTableData(tableName, 0, null);
+  };
 
   const handlePageChange = (newPage: number) => {
-    if (!selectedTable) return
-    setPage(newPage)
-    loadTableData(selectedTable, newPage * pageSize, filter)
-  }
+    if (!selectedTable) return;
+    setPage(newPage);
+    loadTableData(selectedTable, newPage * pageSize, filter);
+  };
 
   const handleApplyFilter = () => {
-    if (!selectedTable || !filterField || !filterValue) return
-    const newFilter: TableFilter = { field: filterField, op: filterOp, value: filterValue }
-    setFilter(newFilter)
-    setPage(0)
-    loadTableData(selectedTable, 0, newFilter)
-  }
+    if (!selectedTable || !filterField || !filterValue) return;
+    const newFilter: TableFilter = { field: filterField, op: filterOp, value: filterValue };
+    setFilter(newFilter);
+    setPage(0);
+    loadTableData(selectedTable, 0, newFilter);
+  };
 
   const handleClearFilter = () => {
-    if (!selectedTable) return
-    setFilter(null)
-    setFilterField('')
-    setFilterValue('')
-    setPage(0)
-    loadTableData(selectedTable, 0, null)
-  }
+    if (!selectedTable) return;
+    setFilter(null);
+    setFilterField("");
+    setFilterValue("");
+    setPage(0);
+    loadTableData(selectedTable, 0, null);
+  };
 
-  const handleRowClick = (row: Record<string, any>) => {
-    setSelectedRow(row)
-    setIsDetailOpen(true)
-  }
+  const handleRowClick = (row: Record<string, unknown>) => {
+    setSelectedRow(row);
+    setIsDetailOpen(true);
+  };
 
-  const totalPages = tableData ? Math.ceil(tableData.total / pageSize) : 0
+  const totalPages = tableData ? Math.ceil(tableData.total / pageSize) : 0;
 
   return (
     <div className="grid grid-cols-4 gap-4 h-full min-h-0">
       <Card className={cn("p-4 flex flex-col min-h-0 bg-success/10", brutalistCard)}>
         <div className="flex items-center justify-between mb-4 pb-3 border-b-4 border-border">
           <h3 className="text-lg font-extrabold uppercase tracking-wide">数据表</h3>
-          <Button size="sm" onClick={loadTables} disabled={loading} className={cn("text-xs bg-success text-background hover:bg-success/90", brutalistButton)}>
+          <Button
+            size="sm"
+            onClick={loadTables}
+            disabled={loading}
+            className={cn("text-xs bg-success text-background hover:bg-success/90", brutalistButton)}
+          >
             加载列表
           </Button>
         </div>
@@ -637,17 +738,24 @@ function DatabaseTab() {
               <div
                 key={table.name}
                 className={cn(
-                  'p-2.5 cursor-pointer flex justify-between items-center',
+                  "p-2.5 cursor-pointer flex justify-between items-center",
                   brutalistItem,
-                  selectedTable === table.name ? 'bg-foreground text-background border-black shadow-none translate-x-[2px] translate-y-[2px]' : 'bg-card'
+                  selectedTable === table.name
+                    ? "bg-foreground text-background border-black shadow-none translate-x-[2px] translate-y-[2px]"
+                    : "bg-card",
                 )}
                 onClick={() => handleSelectTable(table.name)}
               >
                 <p className="text-sm font-bold">{table.name}</p>
-                <Badge variant="outline" className={cn(
-                  "border-2 font-bold text-[10px] px-1.5 py-0",
-                  selectedTable === table.name ? 'border-white text-background bg-transparent' : 'border-border bg-muted text-foreground'
-                )}>
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "border-2 font-bold text-[10px] px-1.5 py-0",
+                    selectedTable === table.name
+                      ? "border-white text-background bg-transparent"
+                      : "border-border bg-muted text-foreground",
+                  )}
+                >
                   {table.row_count} 行
                 </Badge>
               </div>
@@ -666,9 +774,14 @@ function DatabaseTab() {
           <>
             <div className="flex items-center justify-between mb-4 pb-3 border-b-4 border-border shrink-0">
               <div className="flex items-center gap-3">
-                <h3 className="text-xl font-extrabold bg-accent px-3 py-0.5 rounded border-2 border-border">{tableData.table_name}</h3>
+                <h3 className="text-xl font-extrabold bg-accent px-3 py-0.5 rounded border-2 border-border">
+                  {tableData.table_name}
+                </h3>
                 {filter && (
-                  <Badge variant="outline" className="gap-1 border-2 border-border font-bold text-xs px-2 py-0.5 bg-warning/20">
+                  <Badge
+                    variant="outline"
+                    className="gap-1 border-2 border-border font-bold text-xs px-2 py-0.5 bg-warning/20"
+                  >
                     <Filter className="h-3 w-3" />
                     {filter.field} {filter.op} "{filter.value}"
                   </Badge>
@@ -679,14 +792,20 @@ function DatabaseTab() {
             <div className={cn("p-3 mb-4 shrink-0 bg-muted/30", brutalistCard)}>
               <div className="flex gap-3 items-end">
                 <div className="flex-1">
-                  <label className="text-xs font-bold text-foreground mb-1.5 block uppercase tracking-wider">筛选字段</label>
+                  <label className="text-xs font-bold text-foreground mb-1.5 block uppercase tracking-wider">
+                    筛选字段
+                  </label>
                   <Select value={filterField} onValueChange={setFilterField}>
                     <SelectTrigger className={cn("h-8 text-sm bg-card", brutalistInput)}>
                       <SelectValue placeholder="选择字段" />
                     </SelectTrigger>
                     <SelectContent className="border-2 border-border shadow-[4px_4px_0px_0px_#111111]">
                       {tableData.columns.map((col) => (
-                        <SelectItem key={col.name} value={col.name} className="font-medium text-sm cursor-pointer focus:bg-muted">
+                        <SelectItem
+                          key={col.name}
+                          value={col.name}
+                          className="font-medium text-sm cursor-pointer focus:bg-muted"
+                        >
                           {col.name}
                         </SelectItem>
                       ))}
@@ -694,38 +813,70 @@ function DatabaseTab() {
                   </Select>
                 </div>
                 <div className="w-32">
-                  <label className="text-xs font-bold text-foreground mb-1.5 block uppercase tracking-wider">操作符</label>
-                  <Select value={filterOp} onValueChange={(v) => setFilterOp(v as any)}>
+                  <label className="text-xs font-bold text-foreground mb-1.5 block uppercase tracking-wider">
+                    操作符
+                  </label>
+                  <Select
+                    value={filterOp}
+                    onValueChange={(v) => setFilterOp(v as "eq" | "contains" | "gt" | "lt" | "gte" | "lte")}
+                  >
                     <SelectTrigger className={cn("h-8 text-sm bg-card", brutalistInput)}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="border-2 border-border shadow-[4px_4px_0px_0px_#111111]">
-                      <SelectItem value="eq" className="font-medium text-sm cursor-pointer focus:bg-muted">等于 (=)</SelectItem>
-                      <SelectItem value="contains" className="font-medium text-sm cursor-pointer focus:bg-muted">包含</SelectItem>
-                      <SelectItem value="gt" className="font-medium text-sm cursor-pointer focus:bg-muted">大于 (&gt;)</SelectItem>
-                      <SelectItem value="lt" className="font-medium text-sm cursor-pointer focus:bg-muted">小于 (&lt;)</SelectItem>
-                      <SelectItem value="gte" className="font-medium text-sm cursor-pointer focus:bg-muted">大于等于 (≥)</SelectItem>
-                      <SelectItem value="lte" className="font-medium text-sm cursor-pointer focus:bg-muted">小于等于 (≤)</SelectItem>
+                      <SelectItem value="eq" className="font-medium text-sm cursor-pointer focus:bg-muted">
+                        等于 (=)
+                      </SelectItem>
+                      <SelectItem value="contains" className="font-medium text-sm cursor-pointer focus:bg-muted">
+                        包含
+                      </SelectItem>
+                      <SelectItem value="gt" className="font-medium text-sm cursor-pointer focus:bg-muted">
+                        大于 (&gt;)
+                      </SelectItem>
+                      <SelectItem value="lt" className="font-medium text-sm cursor-pointer focus:bg-muted">
+                        小于 (&lt;)
+                      </SelectItem>
+                      <SelectItem value="gte" className="font-medium text-sm cursor-pointer focus:bg-muted">
+                        大于等于 (≥)
+                      </SelectItem>
+                      <SelectItem value="lte" className="font-medium text-sm cursor-pointer focus:bg-muted">
+                        小于等于 (≤)
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="flex-1">
-                  <label className="text-xs font-bold text-foreground mb-1.5 block uppercase tracking-wider">筛选值</label>
+                  <label className="text-xs font-bold text-foreground mb-1.5 block uppercase tracking-wider">
+                    筛选值
+                  </label>
                   <Input
                     placeholder="输入要筛选的值..."
                     value={filterValue}
                     onChange={(e) => setFilterValue(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleApplyFilter()}
+                    onKeyDown={(e) => e.key === "Enter" && handleApplyFilter()}
                     className={cn("h-8 text-sm bg-card", brutalistInput)}
                   />
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={handleApplyFilter} disabled={!filterField || !filterValue} className={cn("h-8 text-xs bg-info text-background hover:bg-info/90", brutalistButton)}>
+                  <Button
+                    size="sm"
+                    onClick={handleApplyFilter}
+                    disabled={!filterField || !filterValue}
+                    className={cn("h-8 text-xs bg-info text-background hover:bg-info/90", brutalistButton)}
+                  >
                     <Filter className="h-3 w-3 mr-1" />
                     应用筛选
                   </Button>
                   {filter && (
-                    <Button size="sm" onClick={handleClearFilter} variant="outline" className={cn("h-8 font-bold text-xs bg-card text-destructive hover:bg-destructive/10", brutalistButton)}>
+                    <Button
+                      size="sm"
+                      onClick={handleClearFilter}
+                      variant="outline"
+                      className={cn(
+                        "h-8 font-bold text-xs bg-card text-destructive hover:bg-destructive/10",
+                        brutalistButton,
+                      )}
+                    >
                       <X className="h-3 w-3 mr-1" />
                       清除
                     </Button>
@@ -739,9 +890,15 @@ function DatabaseTab() {
                 <thead className="sticky top-0 bg-muted/50 z-10 border-b-2 border-border shadow-sm">
                   <tr>
                     {tableData.columns.map((col) => (
-                      <th key={col.name} className="text-left p-3 font-extrabold whitespace-nowrap min-w-[120px] border-r-2 border-border last:border-r-0">
+                      <th
+                        key={col.name}
+                        className="text-left p-3 font-extrabold whitespace-nowrap min-w-[120px] border-r-2 border-border last:border-r-0"
+                      >
                         <div className="text-sm">{col.name}</div>
-                        <div className="text-[10px] text-muted-foreground font-bold mt-0.5 uppercase tracking-wider">{(col as any).data_type || (col as any).type}</div>
+                        <div className="text-[10px] text-muted-foreground font-bold mt-0.5 uppercase tracking-wider">
+                          {((col as Record<string, unknown>).data_type as string) ||
+                            ((col as Record<string, unknown>).type as string)}
+                        </div>
                       </th>
                     ))}
                   </tr>
@@ -754,11 +911,14 @@ function DatabaseTab() {
                       onClick={() => handleRowClick(row)}
                     >
                       {tableData.columns.map((col) => (
-                        <td key={col.name} className="p-3 border-r-2 border-border last:border-r-0 min-w-[120px] font-medium text-sm">
+                        <td
+                          key={col.name}
+                          className="p-3 border-r-2 border-border last:border-r-0 min-w-[120px] font-medium text-sm"
+                        >
                           <div className="max-w-[300px] truncate">
-                            {typeof row[col.name] === 'object' && row[col.name] !== null
+                            {typeof row[col.name] === "object" && row[col.name] !== null
                               ? JSON.stringify(row[col.name])
-                              : String(row[col.name] ?? '')}
+                              : String(row[col.name] ?? "")}
                           </div>
                         </td>
                       ))}
@@ -766,7 +926,10 @@ function DatabaseTab() {
                   ))}
                   {tableData.rows.length === 0 && (
                     <tr>
-                      <td colSpan={tableData.columns.length} className="p-8 text-center text-sm text-muted-foreground font-bold">
+                      <td
+                        colSpan={tableData.columns.length}
+                        className="p-8 text-center text-sm text-muted-foreground font-bold"
+                      >
                         没有找到匹配的数据
                       </td>
                     </tr>
@@ -821,21 +984,28 @@ function DatabaseTab() {
               {selectedRow && tableData && (
                 <div className="divide-y-2 divide-border border-2 border-border rounded-xl overflow-hidden bg-card shadow-sm">
                   {tableData.columns.map((col) => (
-                    <div key={col.name} className="flex flex-col sm:flex-row sm:items-start p-3 hover:bg-muted/50 transition-colors">
+                    <div
+                      key={col.name}
+                      className="flex flex-col sm:flex-row sm:items-start p-3 hover:bg-muted/50 transition-colors"
+                    >
                       <div className="w-full sm:w-1/3 shrink-0 mb-1.5 sm:mb-0 pr-4">
                         <div className="font-extrabold text-sm text-foreground mb-1">{col.name}</div>
-                        <Badge variant="outline" className="border-2 border-border font-bold bg-card text-[10px] px-1.5 py-0">
-                          {(col as any).data_type || (col as any).type}
+                        <Badge
+                          variant="outline"
+                          className="border-2 border-border font-bold bg-card text-[10px] px-1.5 py-0"
+                        >
+                          {((col as Record<string, unknown>).data_type as string) ||
+                            ((col as Record<string, unknown>).type as string)}
                         </Badge>
                       </div>
                       <div className="flex-1 min-w-0">
-                        {typeof selectedRow[col.name] === 'object' && selectedRow[col.name] !== null ? (
+                        {typeof selectedRow[col.name] === "object" && selectedRow[col.name] !== null ? (
                           <pre className="whitespace-pre-wrap break-words font-mono text-xs bg-muted p-3 rounded-lg border-2 border-border max-h-[300px] overflow-auto">
                             {JSON.stringify(selectedRow[col.name], null, 2)}
                           </pre>
                         ) : (
                           <div className="whitespace-pre-wrap break-words text-sm font-medium pt-0.5 max-h-[300px] overflow-auto">
-                            {String(selectedRow[col.name] ?? '')}
+                            {String(selectedRow[col.name] ?? "")}
                           </div>
                         )}
                       </div>
@@ -848,5 +1018,5 @@ function DatabaseTab() {
         </Dialog>
       </Card>
     </div>
-  )
+  );
 }

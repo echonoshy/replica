@@ -1,42 +1,35 @@
-import { create } from 'zustand'
-import type {
-  User,
-  Session,
-  Message,
-  EvergreenMemory,
-  ChatContext,
-  ApiLog,
-} from '@/types'
+import { create } from "zustand";
+import type { User, Session, Message, EvergreenMemory, ChatContext, ApiLog } from "@/types";
 
 interface AppState {
   // State
-  apiLogs: ApiLog[]
-  users: User[]
-  currentUser: User | null
-  sessions: Session[]
-  currentSession: Session | null
-  messages: Message[]
-  evergreen: EvergreenMemory[]
-  chatContext: ChatContext | null
+  apiLogs: ApiLog[];
+  users: User[];
+  currentUser: User | null;
+  sessions: Session[];
+  currentSession: Session | null;
+  messages: Message[];
+  evergreen: EvergreenMemory[];
+  chatContext: ChatContext | null;
 
   // Computed
-  hasUser: () => boolean
-  hasSession: () => boolean
+  hasUser: () => boolean;
+  hasSession: () => boolean;
 
   // Actions
-  setUsers: (users: User[]) => void
-  setCurrentUser: (user: User | null) => void
-  setSessions: (sessions: Session[]) => void
-  setCurrentSession: (session: Session | null) => void
-  updateCurrentSession: (session: Session) => void
-  updateSessionTokenCount: (count: number) => void
-  setMessages: (messages: Message[]) => void
-  addMessage: (message: Message) => void
-  loadMessages: (sessionId: string, includeCompacted: boolean) => Promise<void>
-  setEvergreen: (evergreen: EvergreenMemory[]) => void
-  setChatContext: (context: ChatContext | null) => void
-  addApiLog: (log: ApiLog) => void
-  clearApiLogs: () => void
+  setUsers: (users: User[]) => void;
+  setCurrentUser: (user: User | null) => void;
+  setSessions: (sessions: Session[]) => void;
+  setCurrentSession: (session: Session | null) => void;
+  updateCurrentSession: (session: Session) => void;
+  updateSessionTokenCount: (count: number) => void;
+  setMessages: (messages: Message[]) => void;
+  addMessage: (message: Message) => void;
+  loadMessages: (sessionId: string, includeCompacted: boolean) => Promise<void>;
+  setEvergreen: (evergreen: EvergreenMemory[]) => void;
+  setChatContext: (context: ChatContext | null) => void;
+  addApiLog: (log: ApiLog) => void;
+  clearApiLogs: () => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -83,11 +76,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     })),
 
   updateSessionTokenCount: (count) => {
-    const { currentSession } = get()
+    const { currentSession } = get();
     if (currentSession) {
       set({
         currentSession: { ...currentSession, token_count: count },
-      })
+      });
     }
   },
 
@@ -99,9 +92,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     })),
 
   loadMessages: async (sessionId, includeCompacted) => {
-    const { getMessages } = await import('@/api/messages')
-    const { data } = await getMessages(sessionId, 200, 0, includeCompacted)
-    set({ messages: data })
+    const { getMessages } = await import("@/api/messages");
+    const { data } = await getMessages(sessionId, 200, 0, includeCompacted);
+    set({ messages: data });
   },
 
   setEvergreen: (evergreen) => set({ evergreen }),
@@ -110,16 +103,16 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   addApiLog: (log) =>
     set((state) => {
-      const logs = state.apiLogs
-      const existingIndex = logs.findIndex((l) => l.id === log.id)
+      const logs = state.apiLogs;
+      const existingIndex = logs.findIndex((l) => l.id === log.id);
       if (existingIndex >= 0) {
-        const updated = [...logs]
-        updated[existingIndex] = log
-        return { apiLogs: updated }
+        const updated = [...logs];
+        updated[existingIndex] = log;
+        return { apiLogs: updated };
       }
-      const newLogs = [log, ...logs].slice(0, 50)
-      return { apiLogs: newLogs }
+      const newLogs = [log, ...logs].slice(0, 50);
+      return { apiLogs: newLogs };
     }),
 
   clearApiLogs: () => set({ apiLogs: [] }),
-}))
+}));

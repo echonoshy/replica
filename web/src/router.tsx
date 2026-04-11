@@ -1,14 +1,14 @@
-import { createBrowserRouter } from 'react-router-dom'
-import ChatView from './views/ChatView'
-import AdminView from './views/AdminView'
+import { createBrowserRouter } from "react-router-dom";
+import ChatView from "./views/ChatView";
+import AdminView from "./views/AdminView";
 
 export const router = createBrowserRouter([
   {
-    path: '/',
+    path: "/",
     element: <ChatView />,
   },
   {
-    path: '/admin',
+    path: "/admin",
     element: <AdminView />,
   },
-])
+]);

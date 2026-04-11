@@ -1,203 +1,203 @@
 // User types
 export interface User {
-  id: string
-  external_id: string
-  name: string | null
-  metadata: Record<string, unknown> | null
-  created_at: string
+  id: string;
+  external_id: string;
+  name: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
 }
 
 // Session types
 export interface Session {
-  id: string
-  user_id: string
-  status: 'active' | 'deleted'
-  token_count: number
-  compaction_count: number
-  created_at: string
-  has_unextracted_messages: boolean
+  id: string;
+  user_id: string;
+  status: "active" | "deleted";
+  token_count: number;
+  compaction_count: number;
+  created_at: string;
+  has_unextracted_messages: boolean;
 }
 
-export type SessionStatus = 'active' | 'deleted'
+export type SessionStatus = "active" | "deleted";
 
 // Message types
 export interface Message {
-  id: string
-  session_id: string
-  parent_id: string | null
-  role: 'user' | 'assistant' | 'system' | 'tool'
-  content: string
-  token_count: number
-  message_type: 'message' | 'compaction_summary' | 'memory_flush'
-  is_compacted: boolean
-  extraction_status: 'pending' | 'extracted' | 'skipped'
-  created_at: string
+  id: string;
+  session_id: string;
+  parent_id: string | null;
+  role: "user" | "assistant" | "system" | "tool";
+  content: string;
+  token_count: number;
+  message_type: "message" | "compaction_summary" | "memory_flush";
+  is_compacted: boolean;
+  extraction_status: "pending" | "extracted" | "skipped";
+  created_at: string;
 }
 
-export type MessageRole = 'user' | 'assistant' | 'system' | 'tool'
-export type MessageType = 'message' | 'compaction_summary' | 'memory_flush'
-export type ExtractionStatus = 'pending' | 'extracted' | 'skipped'
+export type MessageRole = "user" | "assistant" | "system" | "tool";
+export type MessageType = "message" | "compaction_summary" | "memory_flush";
+export type ExtractionStatus = "pending" | "extracted" | "skipped";
 
 // Evergreen Memory types
 export interface EvergreenMemory {
-  id: string
-  user_id: string
-  category: 'fact' | 'preference' | 'relationship' | 'goal'
-  content: string
-  source: 'manual' | 'profile_extract' | 'conversation_extract'
-  confidence: number
-  created_at: string
-  updated_at: string
+  id: string;
+  user_id: string;
+  category: "fact" | "preference" | "relationship" | "goal";
+  content: string;
+  source: "manual" | "profile_extract" | "conversation_extract";
+  confidence: number;
+  created_at: string;
+  updated_at: string;
 }
 
-export type EvergreenCategory = 'fact' | 'preference' | 'relationship' | 'goal'
-export type EvergreenSource = 'manual' | 'profile_extract' | 'conversation_extract'
+export type EvergreenCategory = "fact" | "preference" | "relationship" | "goal";
+export type EvergreenSource = "manual" | "profile_extract" | "conversation_extract";
 
 // Knowledge Entry types
 export interface KnowledgeEntry {
-  id: string
-  user_id: string | null
-  group_id: string | null
-  entry_type: 'episode' | 'event' | 'foresight'
-  title: string | null
-  content: string
-  metadata: Record<string, unknown> | null
-  participants: string[] | null
-  created_at: string
+  id: string;
+  user_id: string | null;
+  group_id: string | null;
+  entry_type: "episode" | "event" | "foresight";
+  title: string | null;
+  content: string;
+  metadata: Record<string, unknown> | null;
+  participants: string[] | null;
+  created_at: string;
 }
 
-export type EntryType = 'episode' | 'event' | 'foresight'
+export type EntryType = "episode" | "event" | "foresight";
 
 export interface KnowledgeSearchResult {
-  id: string
-  entry_type: EntryType
-  title: string | null
-  content: string
-  score: number
-  created_at: string
+  id: string;
+  entry_type: EntryType;
+  title: string | null;
+  content: string;
+  score: number;
+  created_at: string;
 }
 
 export interface KnowledgeCount {
-  episode: number
-  event: number
-  foresight: number
-  total: number
+  episode: number;
+  event: number;
+  foresight: number;
+  total: number;
 }
 
 // Chat Context types
 export interface ChatContext {
   evergreen: {
-    id: string
-    content: string
-    category: string
-  }[]
+    id: string;
+    content: string;
+    category: string;
+  }[];
   knowledge: {
-    id: string
-    content: string
-    entry_type: string
-    score: number
-    title: string | null
-  }[]
+    id: string;
+    content: string;
+    entry_type: string;
+    score: number;
+    title: string | null;
+  }[];
 }
 
 // API Log types
 export interface ApiLog {
-  id: string
-  method: string
-  url: string
-  requestBody?: unknown
-  responseBody?: unknown
-  status?: number
-  duration?: number
-  timestamp: number
-  error?: string
+  id: string;
+  method: string;
+  url: string;
+  requestBody?: unknown;
+  responseBody?: unknown;
+  status?: number;
+  duration?: number;
+  timestamp: number;
+  error?: string;
 }
 
 // Admin types
 export interface TableInfo {
-  name: string
-  row_count: number
+  name: string;
+  row_count: number;
 }
 
 export interface ColumnInfo {
-  name: string
-  type: string
+  name: string;
+  type: string;
 }
 
 export interface TableDataResponse {
-  table_name: string
-  columns: ColumnInfo[]
-  rows: Record<string, unknown>[]
-  total: number
-  limit: number
-  offset: number
+  table_name: string;
+  columns: ColumnInfo[];
+  rows: Record<string, unknown>[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 // Context Response
 export interface ContextResponse {
-  evergreen_memories: EvergreenMemory[]
-  relevant_knowledge: KnowledgeSearchResult[]
-  recent_messages: unknown[]
+  evergreen_memories: EvergreenMemory[];
+  relevant_knowledge: KnowledgeSearchResult[];
+  recent_messages: unknown[];
 }
 
 // Memorize types
 export interface MemorizeRequest {
-  new_raw_data_list: { role: string; content: string }[]
-  history_raw_data_list?: { role: string; content: string }[]
-  user_id_list?: string[]
-  group_id?: string | null
-  group_name?: string | null
-  scene?: string
+  new_raw_data_list: { role: string; content: string }[];
+  history_raw_data_list?: { role: string; content: string }[];
+  user_id_list?: string[];
+  group_id?: string | null;
+  group_name?: string | null;
+  scene?: string;
 }
 
 export interface MemorizeResponse {
-  memory_count: number
-  status: string
+  memory_count: number;
+  status: string;
 }
 
 // Compaction types
 export interface CompactionTaskResponse {
-  task_id: string
-  status: string
-  message: string
+  task_id: string;
+  status: string;
+  message: string;
 }
 
 export interface SegmentDetail {
-  segment_id: number
-  original_count: number
-  original_tokens: number
-  summary_tokens: number
-  compression_ratio: string
+  segment_id: number;
+  original_count: number;
+  original_tokens: number;
+  summary_tokens: number;
+  compression_ratio: string;
   time_range: {
-    start: string | null
-    end: string | null
-  }
+    start: string | null;
+    end: string | null;
+  };
 }
 
 export interface TaskStatusResponse {
-  task_id: string
-  task_type: string
-  session_id: string | null
-  status: 'pending' | 'processing' | 'completed' | 'failed'
-  created_at: string
-  started_at: string | null
-  completed_at: string | null
+  task_id: string;
+  task_type: string;
+  session_id: string | null;
+  status: "pending" | "processing" | "completed" | "failed";
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
   result: {
-    compacted_count: number
-    summary_count: number
-    segments: SegmentDetail[]
-    token_reduction: number
-    compression_ratio: string
-    old_token_count: number
-    new_token_count: number
-  } | null
-  error: string | null
+    compacted_count: number;
+    summary_count: number;
+    segments: SegmentDetail[];
+    token_reduction: number;
+    compression_ratio: string;
+    old_token_count: number;
+    new_token_count: number;
+  } | null;
+  error: string | null;
 }
 
 // Chat Stream types
 export interface ChatStreamCallbacks {
-  onToken: (token: string) => void
-  onContext: (ctx: ChatContext) => void
-  onDone: (messageId: string, tokenCount?: number) => void
-  onError: (error: string) => void
+  onToken: (token: string) => void;
+  onContext: (ctx: ChatContext) => void;
+  onDone: (messageId: string, tokenCount?: number) => void;
+  onError: (error: string) => void;
 }
