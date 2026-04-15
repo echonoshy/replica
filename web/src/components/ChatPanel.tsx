@@ -21,6 +21,9 @@ import {
   Trash2,
   Eye,
   EyeOff,
+  ChevronDown,
+  ChevronRight,
+  FileText,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -30,6 +33,50 @@ import "katex/dist/katex.min.css";
 import { cn } from "@/lib/utils";
 import { copyToClipboard } from "@/lib/clipboard";
 import type { Message } from "@/types";
+
+function CompactionSummaryCard({ msg }: { msg: Message }) {
+  const [expanded, setExpanded] = useState(false);
+  const previewLine = msg.content.split("\n").find((l) => l.trim()) ?? "对话摘要";
+
+  return (
+    <div className="my-4 -mx-6 px-6">
+      <div className="border-2 border-dashed border-amber-400 rounded-md bg-amber-50 shadow-[3px_3px_0px_0px_#d97706] overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-amber-100/60 transition-colors cursor-pointer"
+        >
+          <div className="w-8 h-8 rounded-md border-2 border-amber-400 bg-amber-200 flex items-center justify-center flex-shrink-0">
+            <FileText className="h-4 w-4 text-amber-700" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black uppercase tracking-wider text-amber-700">对话摘要</span>
+              <Badge className="text-[10px] px-2 py-0 bg-amber-200 text-amber-800 border border-amber-400">
+                {msg.token_count} tokens
+              </Badge>
+            </div>
+            {!expanded && <p className="text-xs text-amber-600 truncate mt-1 font-medium">{previewLine}</p>}
+          </div>
+          {expanded ? (
+            <ChevronDown className="h-4 w-4 text-amber-600 flex-shrink-0" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-amber-600 flex-shrink-0" />
+          )}
+        </button>
+        {expanded && (
+          <div className="px-4 pb-4 border-t border-amber-300">
+            <div className="prose prose-sm max-w-none mt-3 text-amber-900">
+              <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                {msg.content}
+              </ReactMarkdown>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function ChatPanel() {
   const { currentUser, currentSession, messages, addMessage, setChatContext } = useAppStore();
@@ -336,71 +383,67 @@ export default function ChatPanel() {
             </div>
           )}
 
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={cn(
-                "flex gap-4 py-8 transition-colors group",
-                msg.role === "assistant" &&
-                  "bg-ai-bg border-y-2 border-border -mx-6 px-6 shadow-[0px_4px_0px_0px_#111111] mb-4",
-                msg.is_compacted && "opacity-50 bg-muted/30",
-              )}
-            >
+          {messages.map((msg) =>
+            msg.message_type === "compaction_summary" ? (
+              <CompactionSummaryCard key={msg.id} msg={msg} />
+            ) : (
               <div
+                key={msg.id}
                 className={cn(
-                  "w-10 h-10 rounded-md border-2 border-border flex items-center justify-center flex-shrink-0 shadow-[2px_2px_0px_0px_#111111]",
-                  msg.role === "user" && "bg-primary text-white",
-                  msg.role === "assistant" && "bg-secondary text-secondary-foreground",
-                  msg.role === "system" && "bg-muted text-muted-foreground",
+                  "flex gap-4 py-8 transition-colors group",
+                  msg.role === "assistant" &&
+                    "bg-ai-bg border-y-2 border-border -mx-6 px-6 shadow-[0px_4px_0px_0px_#111111] mb-4",
+                  msg.is_compacted && "opacity-50 bg-muted/30",
                 )}
               >
-                {msg.role === "assistant" ? (
-                  <Bot className="h-6 w-6" />
-                ) : msg.role === "user" ? (
-                  <UserIcon className="h-6 w-6" />
-                ) : (
-                  <span className="text-sm font-bold">SYS</span>
-                )}
-              </div>
-              <div className="flex-1 min-w-0 pt-1">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-foreground">
-                    {msg.role === "user" ? "你" : msg.role === "assistant" ? "AI 助手" : "系统"}
-                  </span>
-                  {msg.is_compacted && (
-                    <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-muted">
-                      已压缩
-                    </Badge>
+                <div
+                  className={cn(
+                    "w-10 h-10 rounded-md border-2 border-border flex items-center justify-center flex-shrink-0 shadow-[2px_2px_0px_0px_#111111]",
+                    msg.role === "user" && "bg-primary text-white",
+                    msg.role === "assistant" && "bg-secondary text-secondary-foreground",
+                    msg.role === "system" && "bg-muted text-muted-foreground",
                   )}
-                  {msg.extraction_status === "extracted" && (
-                    <Badge
-                      variant="outline"
-                      className="text-[10px] px-2 py-0.5 bg-success/20 text-success border-success"
-                    >
-                      已抽取
-                    </Badge>
-                  )}
-                  {msg.message_type !== "message" && (
-                    <Badge
-                      variant={msg.message_type === "compaction_summary" ? "destructive" : "secondary"}
-                      className="text-[10px] px-2 py-0.5"
-                    >
-                      {msg.message_type}
-                    </Badge>
+                >
+                  {msg.role === "assistant" ? (
+                    <Bot className="h-6 w-6" />
+                  ) : msg.role === "user" ? (
+                    <UserIcon className="h-6 w-6" />
+                  ) : (
+                    <span className="text-sm font-bold">SYS</span>
                   )}
                 </div>
-                {msg.role === "assistant" ? (
-                  <div className="prose prose-sm max-w-none">
-                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
-                      {msg.content}
-                    </ReactMarkdown>
+                <div className="flex-1 min-w-0 pt-1">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xs font-bold uppercase tracking-wider text-foreground">
+                      {msg.role === "user" ? "你" : msg.role === "assistant" ? "AI 助手" : "系统"}
+                    </span>
+                    {msg.is_compacted && (
+                      <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-muted">
+                        已压缩
+                      </Badge>
+                    )}
+                    {msg.extraction_status === "extracted" && (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] px-2 py-0.5 bg-success/20 text-success border-success"
+                      >
+                        已抽取
+                      </Badge>
+                    )}
                   </div>
-                ) : (
-                  <div className="text-sm whitespace-pre-wrap leading-relaxed font-medium">{msg.content}</div>
-                )}
+                  {msg.role === "assistant" ? (
+                    <div className="prose prose-sm max-w-none">
+                      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                        {msg.content}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <div className="text-sm whitespace-pre-wrap leading-relaxed font-medium">{msg.content}</div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            ),
+          )}
 
           {/* Streaming message */}
           {streamingText && (

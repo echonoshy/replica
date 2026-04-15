@@ -177,15 +177,17 @@ async def semantic_compact(
         for i, (segment, summary_text) in enumerate(zip(segments, summary_texts)):
             summary_tokens = count_tokens(summary_text)
 
-            # Create summary message
+            # Create summary message, using the first message's timestamp
+            # so summaries sort before the kept recent messages
             summary_msg = Message(
                 session_id=session.id,
                 role=MessageRole.assistant,
                 content=summary_text,
                 message_type=MessageType.compaction_summary,
                 token_count=summary_tokens,
-                parent_id=segment[0].id,  # Link to first message in segment
-                is_compacted=False,  # Summary itself is not compacted
+                parent_id=segment[0].id,
+                is_compacted=False,
+                created_at=segment[0].created_at,
             )
             db.add(summary_msg)
             summaries.append(summary_msg)
@@ -210,9 +212,21 @@ async def semantic_compact(
                 }
             )
 
-        # Update session token count
+        # Count tokens from previously existing summaries (from earlier compaction rounds)
+        prev_summary_result = await db.execute(
+            select(Message).where(
+                Message.session_id == session.id,
+                Message.is_compacted == False,  # noqa: E712
+                Message.message_type == MessageType.compaction_summary,
+            )
+        )
+        prev_summary_tokens = sum(m.token_count for m in prev_summary_result.scalars().all())
+
+        # Update session token count: previous summaries + new summaries + kept messages
         old_token_count = session.token_count
-        new_token_count = sum(s.token_count for s in summaries) + sum(m.token_count for m in keep_messages)
+        new_token_count = (
+            prev_summary_tokens + sum(s.token_count for s in summaries) + sum(m.token_count for m in keep_messages)
+        )
         session.token_count = new_token_count
         session.compaction_count += 1
 

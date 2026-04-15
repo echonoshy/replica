@@ -114,7 +114,7 @@ export default function SessionSidebar() {
   const handleSelectSession = async (session: (typeof sessions)[0]) => {
     setCurrentSession(session);
     try {
-      const { data } = await getMessages(session.id, 200, 0, true);
+      const { data } = await getMessages(session.id, 200, 0, false);
       setMessages(data);
     } catch (error) {
       console.error("Failed to load messages:", error);
