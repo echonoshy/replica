@@ -1,16 +1,15 @@
+import { ChevronDown, ChevronRight, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { useAppStore } from "@/store/app";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { createEvergreenMemory, deleteEvergreenMemory, getEvergreenMemories, searchKnowledge } from "@/api/memory";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronDown, ChevronRight, Plus, Trash2, RefreshCw, Search } from "lucide-react";
-import { createEvergreenMemory, deleteEvergreenMemory, getEvergreenMemories } from "@/api/memory";
-import { searchKnowledge } from "@/api/memory";
 import { cn } from "@/lib/utils";
-import type { EvergreenCategory, EntryType, KnowledgeSearchResult } from "@/types";
+import { useAppStore } from "@/store/app";
+import type { EntryType, EvergreenCategory, KnowledgeSearchResult } from "@/types";
 
 export default function MemoryPanel({ style }: { style?: React.CSSProperties }) {
   const { currentUser, currentSession, evergreen, chatContext, setEvergreen } = useAppStore();

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { User, Session, Message, EvergreenMemory, ChatContext, ApiLog } from "@/types";
+import type { ApiLog, ChatContext, EvergreenMemory, Message, Session, User } from "@/types";
 
 interface AppState {
   // State

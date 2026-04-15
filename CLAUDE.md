@@ -26,8 +26,7 @@
 
 - **构建工具:** Vite
 - **包管理器:** bun (`bun install`, `bun add <pkg>`, `bun run <cmd>`)
-- **代码检查:** ESLint (`bun run lint`, 使用 `bun run lint:fix` 自动修复)
-- **代码格式化:** Prettier (`bun run format`, 使用 `bun run format:check` 仅检查)
+- **代码检查 + 格式化:** Biome (`bun run check` 一键检查并修复，`bun run lint` 仅检查，`bun run format` 仅格式化)
 - **类型检查:** TypeScript 严格模式 (`strict: true`)
 - **框架:** React 19 + Vite 8 + Tailwind CSS v4
 
@@ -71,14 +70,15 @@
 - **代码完成后必须运行质量检查：** 每次修改前端代码后执行以下命令：
   ```bash
   cd web
-  bun run lint         # 检查 ESLint 错误
-  bun run lint:fix     # 自动修复 ESLint 错误
-  bun run format       # 使用 Prettier 格式化代码
+  bun run check        # Biome 一键检查并自动修复（lint + format + import 排序）
+  bun run lint         # 仅检查 lint 错误
+  bun run lint:fix     # 自动修复 lint 错误
+  bun run format       # 格式化代码
   bun run format:check # 检查格式（不修改文件）
   ```
 - **TypeScript 严格模式：** 项目已启用 `strict: true`，必须遵守严格类型检查
-- **禁止未使用的变量：** `tsconfig.json` 中已启用 `noUnusedLocals` 和 `noUnusedParameters`，及时清理未使用的导入和变量
-- **禁止使用 `any` 类型：** ESLint 已配置 `@typescript-eslint/no-explicit-any` 规则，必须明确指定类型
+- **禁止未使用的变量：** Biome 已配置 `noUnusedVariables` 和 `noUnusedImports` 为 error，及时清理未使用的导入和变量
+- **禁止使用 `any` 类型：** Biome 已配置 `noExplicitAny` 规则，必须明确指定类型
 - **路径别名：** 使用 `@/*` 映射到 `./src/*`
 
 ## 前端 (Tailwind CSS v4)

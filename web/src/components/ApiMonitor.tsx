@@ -1,12 +1,12 @@
-import { useState } from "react";
-import { useAppStore } from "@/store/app";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChevronDown, ChevronRight, Trash2 } from "lucide-react";
-import JsonViewer from "./JsonViewer";
+import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { useAppStore } from "@/store/app";
+import JsonViewer from "./JsonViewer";
 
 export default function ApiMonitor() {
   const { apiLogs, clearApiLogs } = useAppStore();

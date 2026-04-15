@@ -1,33 +1,33 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
+  ArrowLeft,
+  Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Copy,
-  Check,
-  Trash2,
-  ChevronDown,
   ChevronUp,
-  ArrowLeft,
+  Copy,
   Filter,
+  Trash2,
   X,
 } from "lucide-react";
-import { getSessions, deleteSession } from "@/api/sessions";
-import { getMessages } from "@/api/messages";
-import { getUserKnowledge, deleteKnowledgeEntry, getKnowledgeCount } from "@/api/memory";
-import { getTables, getTableData } from "@/api/admin";
-import { cn } from "@/lib/utils";
-import { copyToClipboard } from "@/lib/clipboard";
-import type { Session, Message, KnowledgeEntry, TableInfo, TableDataResponse } from "@/types";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { TableFilter } from "@/api/admin";
+import { getTableData, getTables } from "@/api/admin";
+import { deleteKnowledgeEntry, getKnowledgeCount, getUserKnowledge } from "@/api/memory";
+import { getMessages } from "@/api/messages";
+import { deleteSession, getSessions } from "@/api/sessions";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { copyToClipboard } from "@/lib/clipboard";
+import { cn } from "@/lib/utils";
+import type { KnowledgeEntry, Message, Session, TableDataResponse, TableInfo } from "@/types";
 
 // 抽取复用的新粗野主义风格类名
 const brutalistCard = "border-2 border-border shadow-[4px_4px_0px_0px_#111111] bg-card rounded-md";

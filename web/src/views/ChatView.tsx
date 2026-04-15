@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { Settings } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import SessionSidebar from "@/components/SessionSidebar";
 import ChatPanel from "@/components/ChatPanel";
 import MemoryPanel from "@/components/MemoryPanel";
+import SessionSidebar from "@/components/SessionSidebar";
 import { Button } from "@/components/ui/button";
-import { Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function ChatView() {

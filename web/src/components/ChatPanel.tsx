@@ -1,37 +1,37 @@
-import { useState, useRef, useEffect } from "react";
-import { useAppStore } from "@/store/app";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import TokenProgress from "./TokenProgress";
-import { chatStream } from "@/api/chat";
-import { extractMemory, compactSession, getTaskStatus, getCompactionConfig, getSession } from "@/api/sessions";
-import { getEvergreenMemories } from "@/api/memory";
 import {
-  Send,
-  Square,
   Bot,
-  User as UserIcon,
-  Sparkles,
-  ToggleLeft,
-  ToggleRight,
-  Loader2,
-  Copy,
   Check,
-  Trash2,
-  Eye,
-  EyeOff,
   ChevronDown,
   ChevronRight,
+  Copy,
+  Eye,
+  EyeOff,
   FileText,
+  Loader2,
+  Send,
+  Sparkles,
+  Square,
+  ToggleLeft,
+  ToggleRight,
+  Trash2,
+  User as UserIcon,
 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
+import { chatStream } from "@/api/chat";
+import { getEvergreenMemories } from "@/api/memory";
+import { compactSession, extractMemory, getCompactionConfig, getSession, getTaskStatus } from "@/api/sessions";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useAppStore } from "@/store/app";
+import TokenProgress from "./TokenProgress";
 import "katex/dist/katex.min.css";
-import { cn } from "@/lib/utils";
 import { copyToClipboard } from "@/lib/clipboard";
+import { cn } from "@/lib/utils";
 import type { Message } from "@/types";
 
 function CompactionSummaryCard({ msg }: { msg: Message }) {

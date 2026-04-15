@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
 import confetti from "canvas-confetti";
+import { useEffect, useState } from "react";
 
 const KONAMI_CODE = [
   "ArrowUp",

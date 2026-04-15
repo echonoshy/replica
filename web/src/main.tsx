@@ -1,8 +1,8 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
-import { router } from "./router";
 import { KonamiCode } from "./components/KonamiCode";
+import { router } from "./router";
 import "./index.css";
 
 // Register API log listener

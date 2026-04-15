@@ -1,6 +1,6 @@
 import { createBrowserRouter } from "react-router-dom";
-import ChatView from "./views/ChatView";
 import AdminView from "./views/AdminView";
+import ChatView from "./views/ChatView";
 
 export const router = createBrowserRouter([
   {

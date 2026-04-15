@@ -1,17 +1,17 @@
-import { useState, useEffect } from "react";
-import { useAppStore } from "@/store/app";
+import { Check, Copy, Plus, Search, Trash2, User as UserIcon } from "lucide-react";
+import { useEffect, useState } from "react";
+import { getEvergreenMemories } from "@/api/memory";
+import { getMessages } from "@/api/messages";
+import { createSession, deleteSession, getSessions } from "@/api/sessions";
+import { createUser, deleteUser, getUsers } from "@/api/users";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Copy, Check, Trash2, User as UserIcon } from "lucide-react";
-import { getUsers, createUser, deleteUser } from "@/api/users";
-import { getSessions, createSession, deleteSession } from "@/api/sessions";
-import { getMessages } from "@/api/messages";
-import { getEvergreenMemories } from "@/api/memory";
-import { cn } from "@/lib/utils";
 import { copyToClipboard } from "@/lib/clipboard";
+import { cn } from "@/lib/utils";
+import { useAppStore } from "@/store/app";
 
 export default function SessionSidebar() {
   const {
@@ -54,7 +54,7 @@ export default function SessionSidebar() {
 
   useEffect(() => {
     loadUsers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // biome-ignore lint/correctness/useExhaustiveDependencies: only run on mount
   }, []);
 
   const loadUsers = async () => {

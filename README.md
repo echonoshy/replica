@@ -311,6 +311,8 @@ for memory in results.json():
 
 ## 🛠️ Development
 
+**Backend (Python):**
+
 ```bash
 # Format code
 uv run ruff format
@@ -323,6 +325,21 @@ uv run pytest
 
 # Run tests with coverage
 uv run pytest --cov=replica
+```
+
+**Frontend (TypeScript/React):**
+
+```bash
+cd web
+
+# One-command check & fix (lint + format + import sorting)
+bun run check
+
+# Lint only
+bun run lint
+
+# Format only
+bun run format
 ```
 
 ---
