@@ -14,6 +14,7 @@ from collections.abc import Sequence
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY, UUID
+from replica.db.migration_checks import require_no_legacy_rows
 
 
 revision: str = "a1b2c3d4e5f6"
@@ -23,6 +24,21 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    for table in (
+        "behavior_histories",
+        "cluster_states",
+        "conversation_statuses",
+        "conversation_metas",
+        "relationships",
+        "entities",
+        "group_profiles",
+    ):
+        require_no_legacy_rows(table)
+    require_no_legacy_rows("memcells", "group_id <> ''")
+    require_no_legacy_rows("knowledge_entries", "group_id <> ''")
+    require_no_legacy_rows("user_profiles", "group_id <> '' OR scenario <> 'assistant'")
+    require_no_legacy_rows("sessions", "status = 'archived'")
+
     # 1. Drop unused tables
     op.drop_table("behavior_histories")
     op.drop_table("cluster_states")

@@ -103,6 +103,13 @@ class TestApplyTemporalDecay:
 
 
 class TestMMRRerank:
+    def test_vector_candidate_after_text_only_winner(self):
+        text_hit = {"id": "text", "score": 1.0}
+        vector_hit = {"id": "vector", "score": 0.8, "embedding": np.array([1.0, 0.0])}
+        weaker_hit = {"id": "weak", "score": 0.2}
+        selected = _mmr_rerank([text_hit, vector_hit, weaker_hit], [1.0, 0.0], top_k=2)
+        assert [hit["id"] for hit in selected] == ["text", "vector"]
+
     def test_returns_top_k(self):
         results = [{"id": uuid.uuid4(), "score": 0.9 - i * 0.1, "embedding": None} for i in range(10)]
         selected = _mmr_rerank(results, [0.0] * 10, top_k=3)

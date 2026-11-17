@@ -15,6 +15,21 @@ class TestConfigLoading:
         assert isinstance(s.database_url, str)
         assert "postgresql" in s.database_url
 
+    def test_environment_overrides_yaml_and_keeps_other_fields(self, monkeypatch):
+        monkeypatch.setattr(
+            "replica.config._load_yaml_config",
+            lambda: {
+                "database": {"url": "postgresql+asyncpg://localhost/from_yaml"},
+                "search": {"default_top_k": 7, "rrf_k": 25},
+            },
+        )
+        monkeypatch.setenv("REPLICA_DATABASE_URL", "postgresql+asyncpg://localhost/from_env")
+        monkeypatch.setenv("REPLICA_SEARCH__DEFAULT_TOP_K", "3")
+        config = Settings()
+        assert config.database_url.endswith("/from_env")
+        assert config.search.default_top_k == 3
+        assert config.search.rrf_k == 25
+
 
 class TestNestedConfig:
     def test_llm_config(self):

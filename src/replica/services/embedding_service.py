@@ -28,7 +28,7 @@ _tokenizer = tiktoken.get_encoding("cl100k_base")
 
 
 def count_tokens(text: str) -> int:
-    return len(_tokenizer.encode(text))
+    return len(_tokenizer.encode_ordinary(text))
 
 
 # ---------- Chunking ----------
@@ -39,29 +39,37 @@ def chunk_text(
     chunk_size: int = settings.chunk_size_tokens,
     overlap: int = settings.chunk_overlap_tokens,
 ) -> list[dict]:
-    """Split text into overlapping chunks by token count.
+    """Split text into overlapping chunks, extending token boundaries to keep characters intact.
 
     Returns list of {text, start_offset, end_offset, chunk_index}.
     """
-    tokens = _tokenizer.encode(text)
+    if chunk_size <= 0 or overlap < 0 or overlap >= chunk_size:
+        raise ValueError("chunk_size must be positive and overlap must be between 0 and chunk_size - 1")
+    tokens = _tokenizer.encode_ordinary(text)
     if not tokens:
         return []
+
+    _, offsets = _tokenizer.decode_with_offsets(tokens)
+    offsets.append(len(text))
+
+    def character_boundary(index: int) -> int:
+        # A token starting with a UTF-8 continuation byte belongs to the previous character.
+        while index < len(tokens) and _tokenizer.decode_single_token_bytes(tokens[index])[0] & 0xC0 == 0x80:
+            index += 1
+        return index
 
     chunks = []
     start = 0
     index = 0
 
     while start < len(tokens):
-        end = min(start + chunk_size, len(tokens))
-        chunk_tokens = tokens[start:end]
-        chunk_str = _tokenizer.decode(chunk_tokens)
-
-        start_offset = len(_tokenizer.decode(tokens[:start]))
-        end_offset = start_offset + len(chunk_str)
+        end = character_boundary(min(start + chunk_size, len(tokens)))
+        start_offset = offsets[start]
+        end_offset = offsets[end]
 
         chunks.append(
             {
-                "text": chunk_str,
+                "text": text[start_offset:end_offset],
                 "start_offset": start_offset,
                 "end_offset": end_offset,
                 "chunk_index": index,
@@ -71,7 +79,7 @@ def chunk_text(
         if end >= len(tokens):
             break
 
-        start = end - overlap
+        start = character_boundary(end - overlap)
         index += 1
 
     return chunks

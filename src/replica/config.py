@@ -85,7 +85,11 @@ class SearchConfig(BaseModel):
 
 
 class Settings(BaseSettings):
-    model_config = {"env_prefix": "REPLICA_"}
+    model_config = {"env_prefix": "REPLICA_", "env_nested_delimiter": "__"}
+
+    @classmethod
+    def settings_customise_sources(cls, settings_cls, init_settings, env_settings, dotenv_settings, file_secret_settings):
+        return init_settings, env_settings, dotenv_settings, file_secret_settings, _yaml_settings
 
     # Database
     database_url: str = "postgresql+asyncpg://postgres:password@localhost:5432/replica"
@@ -153,9 +157,7 @@ class Settings(BaseSettings):
         return self.embedding.dimensions
 
 
-@lru_cache()
-def get_settings() -> Settings:
-    """Build Settings from YAML + env overrides. Cached singleton."""
+def _yaml_settings() -> dict:
     yaml_cfg = _load_yaml_config()
 
     # Flatten YAML sections into constructor kwargs
@@ -173,7 +175,12 @@ def get_settings() -> Settings:
         if section in yaml_cfg:
             kwargs[section] = yaml_cfg[section]
 
-    return Settings(**kwargs)
+    return kwargs
+
+
+@lru_cache()
+def get_settings() -> Settings:
+    return Settings()
 
 
 settings = get_settings()

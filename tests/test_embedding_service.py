@@ -21,6 +21,11 @@ class TestCountTokens:
         tokens = count_tokens("!@#$%^&*()")
         assert tokens > 0
 
+    def test_special_token_literal_in_user_text(self):
+        text = "<|endoftext|>"
+        assert count_tokens(text) > 1
+        assert chunk_text(text, chunk_size=10, overlap=0)[0]["text"] == text
+
     def test_long_text_more_tokens(self):
         short = count_tokens("hello")
         long = count_tokens("hello world this is a longer sentence with more words")
@@ -32,6 +37,23 @@ class TestCountTokens:
 
 
 class TestChunkText:
+    @pytest.mark.parametrize("chunk_size,overlap", [(0, 0), (-1, 0), (2, -1), (2, 2), (2, 3)])
+    def test_invalid_window(self, chunk_size, overlap):
+        with pytest.raises(ValueError, match="chunk_size"):
+            chunk_text("input", chunk_size=chunk_size, overlap=overlap)
+
+    @pytest.mark.parametrize("overlap", [0, 1])
+    def test_unicode_offsets_match_source(self, overlap):
+        text = "左🤦🏿‍♀️右！"
+        chunks = chunk_text(text, chunk_size=2, overlap=overlap)
+        assert all(chunk["text"] == text[chunk["start_offset"] : chunk["end_offset"]] for chunk in chunks)
+        assert all(chunk["text"] for chunk in chunks)
+        assert chunks[0]["start_offset"] == 0 and chunks[-1]["end_offset"] == len(text)
+        for left, right in zip(chunks, chunks[1:]):
+            assert left["start_offset"] < right["start_offset"] <= left["end_offset"]
+        if overlap == 0:
+            assert "".join(chunk["text"] for chunk in chunks) == text
+
     def test_empty_string(self):
         result = chunk_text("")
         assert result == []

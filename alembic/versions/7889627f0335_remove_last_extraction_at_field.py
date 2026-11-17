@@ -8,6 +8,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from replica.db.migration_checks import require_no_legacy_rows
 
 
 # revision identifiers, used by Alembic.
@@ -18,6 +19,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    require_no_legacy_rows("sessions", "last_extraction_at IS NOT NULL")
     # Remove last_extraction_at field from sessions table
     op.drop_column('sessions', 'last_extraction_at')
 

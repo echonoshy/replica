@@ -193,11 +193,12 @@ def _mmr_rerank(results: list[dict], query_embedding: list[float], top_k: int) -
 
             if selected and "embedding" in cand and cand["embedding"] is not None:
                 cand_vec = np.array(cand["embedding"])
-                max_sim = max(
+                similarities = (
                     float(np.dot(cand_vec, np.array(s["embedding"])))
                     for s in selected
                     if s.get("embedding") is not None
                 )
+                max_sim = max(similarities, default=0.0)
             else:
                 max_sim = 0.0
 

@@ -128,6 +128,8 @@ uv sync
 uv run alembic upgrade head
 ```
 
+**Upgrading a legacy database.** If a migration reports legacy data, it rolls back and names the affected table. Older memories, group-scoped records, custom profile scenarios, archived sessions and saved extraction timestamps need an explicit mapping to the new schema. For a fresh start, create a separate database with pgvector and point `REPLICA_DATABASE_URL` at it. To carry data forward, take a PostgreSQL custom-format backup with `pg_dump -Fc`, restore it into a separate database with `pg_restore`, and transfer those records into a migrated database. Verify the transferred records before switching the application to the new database.
+
 ### 3. Configure
 
 Edit `config/settings.yaml` with your model endpoints:
