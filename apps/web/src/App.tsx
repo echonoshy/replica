@@ -40,7 +40,7 @@ function Sidebar({
       <div className="flex h-12 shrink-0 items-center justify-between px-1">
         <div className="flex items-center gap-2">
           <span className="brand-mark" aria-hidden="true"><Sparkles size={13} strokeWidth={2} /></span>
-          <span className="text-sm font-semibold">知微</span>
+          <span className="text-sm font-semibold">Replica</span>
         </div>
         <button type="button" onClick={onClose} className="icon-button" aria-label="收起对话菜单">
           <PanelLeftClose size={14} />

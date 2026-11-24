@@ -287,7 +287,7 @@ export function RightMemoryPanel() {
                       <Moon size={14} className="text-[#6b5ce7]" /> 待入梦整理（共 {activeSession.message_count} 条消息）
                     </div>
                     <p className="text-xs leading-relaxed text-[#524c78]">
-                      为保证聊天轻快且避免碎片噪音，这场对话目前暂存在「待整理队列」。发起离线做梦后，知微会统一提炼事实、消解冲突并发布新快照。
+                      为保证聊天轻快且避免碎片噪音，这场对话目前暂存在「待整理队列」。发起离线做梦后，Replica 会统一提炼事实、消解冲突并发布新快照。
                     </p>
                     <button
                       type="button"

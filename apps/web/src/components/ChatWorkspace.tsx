@@ -305,7 +305,7 @@ export function ChatWorkspace() {
                       <div className="card-tactile border-[#cddfff]/80 p-5">
                         <div className="mb-3 flex items-center justify-between border-b border-[#f0f2f5] pb-2.5 text-xs">
                           <span className="inline-flex items-center gap-1.5 font-semibold text-[#245bdb]">
-                            <Sparkles size={14} className="text-[#3370ff]" /> 知微 · 个人记忆回复
+                            <Sparkles size={14} className="text-[#3370ff]" /> Replica · 个人记忆回复
                           </span>
                           {msg.latency_ms ? (
                             <span className="font-mono-num text-[11px] text-[#8f959e]">
@@ -367,7 +367,7 @@ export function ChatWorkspace() {
               onKeyDown={handleKeyDown}
               disabled={!activeSpace || sendingMessage || loadingMessages}
               aria-label="聊天消息"
-              placeholder="和知微聊点什么…（Enter 发送，Shift+Enter 换行）"
+              placeholder="和 Replica 聊点什么…（Enter 发送，Shift+Enter 换行）"
               className="max-h-36 min-h-[28px] flex-1 resize-none border-0 bg-transparent py-1 text-[14px] leading-relaxed text-[#1f2329] placeholder:text-[#9ea4ae] focus:outline-none"
             />
             <button
