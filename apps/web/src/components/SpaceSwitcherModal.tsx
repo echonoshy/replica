@@ -101,7 +101,7 @@ export function SpaceSwitcherModal({ onClose }: { onClose: () => void }) {
             <p className="text-xs text-[#8f959e]">
               {creating
                 ? "创建一个独立的空白空间，从零开始体验对话与做梦整理"
-                : "可在「林远示例账号」与「我的空白个人空间」之间自由切换"}
+                : "选择空间，查看其中的对话和记忆"}
             </p>
           </div>
           <button type="button" onClick={onClose} className="icon-button" aria-label="关闭空间管理">

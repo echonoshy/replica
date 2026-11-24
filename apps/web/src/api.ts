@@ -330,9 +330,14 @@ export function formatShortDate(iso: string) {
   }
 }
 
+const spaceLabels = new Map([
+  ["personal:lin_yuan", "林远 · 复杂样例"],
+  ["personal:my_space", "我的个人空间"],
+  ["engineering:atlas_platform", "Atlas 平台 · 研发架构与排障"],
+  ["sales:enterprise_q4", "Q4 大客户 · 商务谈判空间"],
+  ["personal:zhou_ran", "周然 · 生活与独立开发"],
+]);
+
 export function spaceDisplayName(space: Space | null) {
-  if (!space) return "个人空间";
-  if (space.namespace === "personal" && space.space_id === "lin_yuan") return "林远 · 复杂样例";
-  if (space.namespace === "personal" && space.space_id === "my_space") return "我的个人空间";
-  return space.space_id;
+  return space ? spaceLabels.get(spaceKeyOf(space)) ?? space.space_id : "个人空间";
 }

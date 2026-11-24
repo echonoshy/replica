@@ -14,6 +14,20 @@ import { countTokens, relevantMarkdown, trimIndex, truncateTokens } from "./toke
 const noEvidence = (query: string) => /\p{Script=Han}/u.test(query)
   ? "当前快照没有足够的相关证据。" : "The snapshot does not contain enough relevant evidence.";
 
+const framingLeadIn = /^(?:(?:具体|分项|分别)?(?:说明|回答|答复|情况|要点|总结)(?:如下)?|以下(?:是|为)?(?:具体)?(?:回答|说明|要点)|(?:here (?:is|are) (?:the |a )?)?(?:summary|answers?|details|key points))\s*[:：]$/i;
+const evidenceGap = /未提及|未找到|没有.*(?:信息|记录|资料|数据|证据)|暂无.*(?:信息|记录|资料|证据)|无相关|无法确认|无法确定|not mentioned|no (?:relevant )?(?:evidence|information|record)|not found in|cannot (?:confirm|determine)|(?:passages|sources|records) do not (?:mention|cover|specify)/i;
+
+function needsCitation(text: string) {
+  if (!text) return false;
+  const body = text.replace(/^(?:关于|针对|就)[^，,。！？:：\n]{1,24}[，,]\s*/u, "");
+  if ([...text].length <= 40 && framingLeadIn.test(body)) return false;
+  // A disclaimer cannot exempt a separate assertion in the same paragraph.
+  const statement = body.replace(/^(?:根据(?:现有|当前|所提供的?)?(?:资料|材料|记录)|(?:in|according to) the (?:supplied|available|provided) passages)[，,]\s*/i, "");
+  const clauses = statement.split(/[。！？.!?；;，,\n]+|但(?:是)?|不过|\b(?:but|however)\b/i)
+    .map((part) => part.trim()).filter(Boolean);
+  return !clauses.length || clauses.some((part) => !evidenceGap.test(part));
+}
+
 export async function requireSpace(repo: MetadataRepository, ref: SpaceRef) {
   const space = await repo.findSpace(ref);
   if (!space) throw new ServiceError(404, "SPACE_NOT_FOUND", "Memory space not found");
@@ -155,12 +169,14 @@ export class Synthesizer {
       if (!answer) return;
       if (countTokens(answer) > budget) ctx.addIssue({ code: "custom", message: "Answer exceeds token budget" });
       const anchors = findAnchors(answer);
-      if (!anchors.length || anchors.some((tag) => !available.has(tag.anchor))) {
+      if (!anchors.length || anchors.length !== (answer.match(/\[src:/g) ?? []).length
+        || anchors.some((tag) => !available.has(tag.anchor))) {
         ctx.addIssue({ code: "custom", message: "Every answer citation must occur verbatim in a supplied passage" });
       }
       walk(markdownAst(answer), (node) => {
         if (node.type !== "paragraph" && node.type !== "tableCell") return;
-        if (plainText(node).trim() && !findAnchors(plainText(node)).length) {
+        const raw = answer.slice(node.position?.start.offset, node.position?.end.offset);
+        if (!findAnchors(raw).length && needsCitation(plainText(node).trim())) {
           ctx.addIssue({ code: "custom", message: "Each factual paragraph or bullet must include a citation" });
         }
       });

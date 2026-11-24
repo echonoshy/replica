@@ -240,7 +240,7 @@ export function chatRoutes(
       }) : EMPTY_RETRIEVAL,
       chatStore.syncDreamingSessions(session.space_key, (id) => repo.getJob(id)).then(() => ({
         conversationHits: chatStore.searchConversations(session.space_key, input.content, {
-          excludeSessionId: session_id, limit: 4, maxPerSession: 2,
+          excludeSessionId: session_id, limit: 8, maxPerSession: 2, maxPendingPerSession: 4, prioritizePending: true,
         }),
         recentSessions: chatStore.listRecentSessions(session.space_key, { excludeSessionId: session_id, limit: 5 }),
       })),

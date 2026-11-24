@@ -7,6 +7,7 @@ import type { Space } from "@replica/shared";
 import { SQLiteChatStore } from "../apps/api/src/chat/chat-store.js";
 import { readConfig } from "../apps/api/src/config.js";
 import { SQLiteConnection } from "../apps/api/src/db/sqlite-repo.js";
+import { OpenAiGateway } from "../apps/api/src/llm/openai-gateway.js";
 import type { Claim } from "../apps/api/src/pipeline/analyzer.js";
 import { lintDraft } from "../apps/api/src/pipeline/linter.js";
 import { compileWiki, vocabularyOf } from "../apps/api/src/pipeline/wiki-compiler.js";
@@ -423,6 +424,74 @@ describe("memory pipeline optimizations", () => {
     expect(await test.claims(4)).toMatchObject([{ docId: kept }]);
   });
 
+  it("accepts framing and missing-evidence paragraphs while enforcing citations on factual answers", async () => {
+    const test = await setup();
+    const { accepted_docs: [doc] } = await test.ingest({ filename: "rail.md", content: "我的高铁座位偏好是靠窗。" });
+    const tag = `[src:${doc.doc_id}#s1]`;
+    const cited = `高铁座位偏好是靠窗。${tag}`;
+    const gap = "现有资料未提及违约金条款。";
+    let answer = "";
+    const complete = OpenAiGateway.prototype.complete;
+    const mock = vi.spyOn(OpenAiGateway.prototype, "complete").mockImplementation(function (this: OpenAiGateway, ...args) {
+      if (args[1][0]?.content?.toString().startsWith("Answer in")) {
+        return Promise.resolve({
+          id: "synthesis", object: "chat.completion", created: 0, model: "fixture",
+          choices: [{ index: 0, finish_reason: "stop", logprobs: null,
+            message: { role: "assistant", content: JSON.stringify({ answer }), refusal: null } }],
+        });
+      }
+      return complete.apply(this, args);
+    });
+    cleanup.push(() => { mock.mockRestore(); });
+    const retrieve = () => test.json("/v1/memories/retrieve", {
+      ...ref, query: "高铁座位偏好是什么？违约金条款呢？", return_mode: "answer",
+    });
+    for (const disclaimer of [gap, "根据现有资料，无法确认违约金。", "The supplied passages do not cover penalties."]) {
+      answer = ["关于这两个问题，说明如下：", cited, disclaimer].join("\n\n");
+      const response = await retrieve();
+      expect(response.status, answer).toBe(200);
+      expect(await response.json()).toMatchObject({ answer, citations: [{ anchor: `${doc.doc_id}#s1` }] });
+    }
+
+    for (answer of [
+      gap,
+      [cited, "- 违约金是五万元。"].join("\n\n"),
+      [cited, "违约金是五万元："].join("\n\n"),
+      [cited, gap + "违约金是五万元。"].join("\n\n"),
+      [cited, gap + "[src:doc_missing#s1]"].join("\n\n"),
+      [cited, gap + "[src:broken]"].join("\n\n"),
+    ]) {
+      const invalid = await retrieve();
+      expect(invalid.status, answer).toBe(502);
+      expect(await invalid.json()).toMatchObject({ error: { code: "LLM_INVALID_OUTPUT" } });
+    }
+  });
+
+  it("recalls pending evidence for both clients when the first clause fills the available slots", async () => {
+    const { chatStore } = await setup();
+    const first = "星海制造最终报价和违约金条款是什么";
+    const second = "锦程医药 12 月 3 日演示有什么注意事项";
+    for (const id of ["报价一", "报价二", "报价三", "锦程", "当前"]) {
+      chatStore.createSession({ sessionId: id, title: id, spaceKey: key });
+      const content = id === "锦程" ? "锦程医药的演示只用脱敏数据。" : id === "当前" ? second : first;
+      for (let turn = 0; turn < 3; turn++) chatStore.appendMessage({ sessionId: id, role: "user", content });
+    }
+    const opts = { limit: 6, maxPerSession: 2, excludeSessionId: "当前" };
+    expect(chatStore.searchConversations(key, first + " " + second, opts).every((hit) => hit.session_id !== "锦程")).toBe(true);
+    const hits = chatStore.searchConversations(key, first + "？" + second + "？", opts);
+    expect(hits).toHaveLength(6);
+    expect(hits).toEqual(expect.arrayContaining([
+      expect.objectContaining({ session_status: "pending", session_id: expect.stringMatching(/^报价/) }),
+      expect.objectContaining({ session_status: "pending", session_id: "锦程", excerpt: expect.stringContaining("脱敏数据") }),
+    ]));
+    expect(hits.some((hit) => hit.session_id === "当前")).toBe(false);
+    expect(chatStore.searchConversations(key, ["unmatched", first, second].join("；"), opts))
+      .toEqual(expect.arrayContaining([expect.objectContaining({ session_id: "锦程" })]));
+    for (const id of new Set(hits.map(({ session_id }) => session_id))) {
+      expect(hits.filter((hit) => hit.session_id === id).length).toBeLessThanOrEqual(2);
+    }
+  });
+
   it("prefers pending conversation turns on a lexical tie while preserving match priority", async () => {
     const test = await setup();
     for (const id of ["dreamed", "pending"]) {
@@ -435,5 +504,29 @@ describe("memory pipeline optimizations", () => {
       .toEqual(["pending", "dreamed"]);
     test.chatStore.appendMessage({ sessionId: "dreamed", role: "user", content: "release checklist emergency", preserveStatus: true });
     expect(test.chatStore.searchConversations(key, "checklist emergency")[0]?.session_id).toBe("dreamed");
+  });
+
+  it("prioritizes multi-turn pending sessions over dreamed sessions when prioritizePending is enabled", async () => {
+    const { chatStore } = await setup();
+    for (const id of ["old_1", "old_2", "old_3"]) {
+      chatStore.createSession({ sessionId: id, spaceKey: key, title: "莫干山攻略", status: "dreamed" });
+      chatStore.appendMessage({ sessionId: id, role: "user", content: "莫干山住宿预算方案参考", preserveStatus: true });
+      chatStore.appendMessage({ sessionId: id, role: "assistant", content: "记下了。", preserveStatus: true });
+    }
+    chatStore.createSession({ sessionId: "pending_trip", spaceKey: key, title: "莫干山滑梯房能带狗吗", status: "pending" });
+    chatStore.appendMessage({ sessionId: "pending_trip", role: "user", content: "12月19号带娃和狗去莫干山住一晚。" });
+    chatStore.appendMessage({ sessionId: "pending_trip", role: "assistant", content: "好的，先按一晚看。" });
+    chatStore.appendMessage({ sessionId: "pending_trip", role: "user", content: "预算卡死每晚不超过 1500 元，含清洁费。" });
+    chatStore.appendMessage({ sessionId: "pending_trip", role: "assistant", content: "实付总价 1500 元以内。" });
+    chatStore.appendMessage({ sessionId: "pending_trip", role: "user", content: "莫干山庭院房要确认狗能进滑梯房，今天先不订。" });
+    chatStore.appendMessage({ sessionId: "pending_trip", role: "assistant", content: "已记为待选住宿。" });
+
+    const hits = chatStore.searchConversations(key, "海鲜过敏怎么办？拾光记怎么收费？莫干山住宿预算多少？", {
+      limit: 8, maxPerSession: 2, maxPendingPerSession: 4, prioritizePending: true,
+    });
+    const pendingHits = hits.filter((h) => h.session_id === "pending_trip");
+    expect(pendingHits.length).toBe(3);
+    expect(pendingHits.some((h) => h.excerpt.includes("1500 元"))).toBe(true);
+    expect(hits[0]?.session_status).toBe("pending");
   });
 });

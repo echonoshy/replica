@@ -249,13 +249,9 @@ export class SQLiteChatStore {
     }
   }
 
-  searchConversations(spaceKey: string, query: string, opts?: {
-    excludeSessionId?: string; limit?: number; maxPerSession?: number;
-  }): ConversationSearchHit[] {
-    const { excludeSessionId = null, limit = 4, maxPerSession = 2 } = opts ?? {};
-    const terms = queryTerms(query);
+  private rankConversationTurns(spaceKey: string, terms: string[], excludeSessionId?: string) {
     const meaningful = terms.filter((term) => [...term].length > 1);
-    if (!meaningful.length || limit <= 0 || maxPerSession <= 0) return [];
+    if (!meaningful.length) return [];
 
     const match = meaningful.map((term) => `"${term.replaceAll('"', "")}"`).join(" OR ");
     const candidates = this.client.prepare(`
@@ -266,12 +262,12 @@ export class SQLiteChatStore {
       WHERE chat_turns_fts MATCH ? AND f.space_key = ?
         AND (? IS NULL OR f.session_id <> ?)
       ORDER BY score, s.session_date DESC
-      LIMIT 30
-    `).all(match, spaceKey, excludeSessionId, excludeSessionId) as Array<RawSessionRow & {
+      LIMIT 50
+    `).all(match, spaceKey, excludeSessionId ?? null, excludeSessionId ?? null) as Array<RawSessionRow & {
       turn_locator: string; indexed_title: string; indexed_content: string; score: number;
     }>;
 
-    const ranked = candidates.flatMap((row) => {
+    return candidates.flatMap((row) => {
       const titleTokens = new Set(row.indexed_title.match(/[\p{L}\p{N}]+/gu));
       const turnTokens = new Set(row.indexed_content.match(/[\p{L}\p{N}]+/gu));
       const matchedTerms = meaningful.filter((term) => titleTokens.has(term) || turnTokens.has(term));
@@ -288,20 +284,90 @@ export class SQLiteChatStore {
         || Number(b.session_status === "pending") - Number(a.session_status === "pending")
         || b.session_date.localeCompare(a.session_date);
     });
+  }
 
+  searchConversations(spaceKey: string, query: string, opts?: {
+    excludeSessionId?: string; limit?: number; maxPerSession?: number;
+    maxPendingPerSession?: number; prioritizePending?: boolean;
+  }): ConversationSearchHit[] {
+    const {
+      excludeSessionId,
+      limit = 4,
+      maxPerSession = 2,
+      prioritizePending = false,
+      maxPendingPerSession = prioritizePending ? Math.max(maxPerSession, 4) : maxPerSession,
+    } = opts ?? {};
+    if (limit <= 0 || maxPerSession <= 0) return [];
+    const ranked = this.rankConversationTurns(spaceKey, queryTerms(query), excludeSessionId);
     const hits: ConversationSearchHit[] = [];
     const turnsBySession = new Map<string, ReturnType<typeof groupMessagesIntoTurns>>();
-    const hitCount = new Map<string, number>();
-    for (const hit of ranked) {
-      const count = hitCount.get(hit.session_id) ?? 0;
-      if (count >= maxPerSession) continue;
+    const selected = new Map<string, Set<string>>();
+    const include = (hit: typeof ranked[number]) => {
+      if (hits.length >= limit) return false;
+      const locators = selected.get(hit.session_id) ?? new Set<string>();
+      if (locators.has(hit.turn_locator)) return false;
+      const cap = hit.session_status === "pending" ? maxPendingPerSession : maxPerSession;
+      if (locators.size >= cap) return false;
       const turns = turnsBySession.get(hit.session_id) ?? this.getTurns(hit.session_id);
       turnsBySession.set(hit.session_id, turns);
       const turn = turns.find(({ locator }) => locator === hit.turn_locator);
-      if (!turn) continue;
+      if (!turn) return false;
       hits.push({ ...hit, excerpt: clip(turn.text, 900) });
-      hitCount.set(hit.session_id, count + 1);
+      locators.add(hit.turn_locator);
+      selected.set(hit.session_id, locators);
+      return true;
+    };
+
+    const clausePools: Array<typeof ranked> = [];
+    if (limit >= 4) {
+      const clauses = new Map<string, string[]>();
+      for (const part of query.split(/[？?。；;\n]+/)) {
+        const terms = queryTerms(part).filter((term) => [...term].length > 1);
+        if (terms.length) clauses.set(terms.join(" "), terms);
+        if (clauses.size >= limit) break;
+      }
+      if (clauses.size >= 2) {
+        // Each question gets its own FTS pool, even if one client dominates all 50 overall candidates.
+        for (const terms of clauses.values()) {
+          clausePools.push(this.rankConversationTurns(spaceKey, terms, excludeSessionId));
+        }
+      }
+    }
+
+    if (prioritizePending) {
+      // Un-dreamed (pending) turns are absent from the Wiki (Channel 1), so give each
+      // clause up to 2 pending hits first, then remaining pending turns, before filling
+      // leftover slots with already-dreamed raw turns.
+      for (const pool of clausePools) {
+        let added = 0;
+        for (const match of pool) {
+          if (match.session_status !== "pending") continue;
+          const overall = ranked.find((hit) => hit.session_id === match.session_id && hit.turn_locator === match.turn_locator);
+          if (include(overall ?? match) && ++added >= 2) break;
+        }
+      }
+      for (const hit of ranked) {
+        if (hits.length >= limit) break;
+        if (hit.session_status === "pending") include(hit);
+      }
+      for (const pool of clausePools) {
+        if (hits.length >= limit) break;
+        for (const match of pool) {
+          const overall = ranked.find((hit) => hit.session_id === match.session_id && hit.turn_locator === match.turn_locator);
+          if (include(overall ?? match)) break;
+        }
+      }
+    } else {
+      for (const pool of clausePools) {
+        for (const match of pool) {
+          const overall = ranked.find((hit) => hit.session_id === match.session_id && hit.turn_locator === match.turn_locator);
+          if (include(overall ?? match)) break;
+        }
+      }
+    }
+    for (const hit of ranked) {
       if (hits.length >= limit) break;
+      include(hit);
     }
     return hits;
   }
