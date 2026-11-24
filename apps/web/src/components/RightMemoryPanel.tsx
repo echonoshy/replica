@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  BookOpen, Calendar, CheckCircle2, ChevronDown, ChevronRight, FileText, GitPullRequestArrow,
+  ArrowUpRight, BookOpen, Calendar, CheckCircle2, ChevronDown, ChevronRight, FileText, GitPullRequestArrow,
   Hash, Layers, Loader2, MessageSquareQuote, Moon, Sparkles, X,
 } from "lucide-react";
 import type { SourceResult } from "@replica/shared";
@@ -8,6 +8,7 @@ import { api, buildDocLabelMap, conversationPreview, formatNumber, formatShortDa
 import type { SessionTurnResult, SnapshotDiffResponse } from "../api";
 import { CompileJobTracker } from "./CompileJobTracker";
 import { ConflictCard } from "./ConflictCard";
+import { RichMarkdown } from "./RichMarkdown";
 import { useApp } from "../context/AppContext";
 import type { SourceInspectTarget } from "../context/AppContext";
 
@@ -53,6 +54,7 @@ export function RightMemoryPanel() {
     rightTab,
     setRightTab,
     setRightOpen,
+    openMemory,
     selectSession,
     focusedRetrieval,
     focusedConversationHits,
@@ -139,7 +141,7 @@ export function RightMemoryPanel() {
               rightTab === "details" ? "recessed-pill-active text-[#245bdb]" : "text-[#646a73] hover:text-[#1f2329]"
             }`}
           >
-            本场记忆
+            本次引用
           </button>
           <button
             type="button"
@@ -196,31 +198,34 @@ export function RightMemoryPanel() {
                     {focusedRetrieval.contexts.map((ctx) => (
                       <div key={ctx.page_id} className="card-tactile p-3.5 text-xs">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="inline-flex items-center gap-1.5 font-semibold text-[#245bdb]">
-                            <BookOpen size={12} /> {ctx.title}
+                          <span className="inline-flex min-w-0 items-center gap-1.5 font-semibold text-[#245bdb]">
+                            <BookOpen size={12} className="shrink-0" />
+                            <span className="truncate">{ctx.title}</span>
                           </span>
-                          <span className="font-mono-num text-[10px] text-[#8f959e]">{ctx.page_id}</span>
+                          <button
+                            type="button"
+                            onClick={() => openMemory(ctx.page_id)}
+                            className="inline-flex shrink-0 items-center gap-0.5 text-[11px] font-medium text-[#646a73] transition-colors hover:text-[#245bdb]"
+                          >
+                            整页 <ArrowUpRight size={11} />
+                          </button>
                         </div>
                         <p className="mt-1 text-[11.5px] leading-relaxed text-[#5c6370]">{ctx.relevance_reason}</p>
-                        {ctx.citations.length > 0 ? (
-                          <div className="mt-2 flex flex-wrap gap-1">
-                            {ctx.citations.slice(0, 4).map((c) => (
-                              <button
-                                key={c.anchor}
-                                type="button"
-                                onClick={() =>
-                                  activeSpace &&
-                                  inspectSource({
-                                    space: activeSpace,
-                                    anchor: c.anchor,
-                                    version: focusedRetrieval.snapshot_version || undefined,
-                                  })
-                                }
-                                className="source-pill"
-                              >
-                                ↗ #{c.anchor.split("#")[1]}
-                              </button>
-                            ))}
+                        {ctx.content ? (
+                          <div className="mt-2 rounded-[8px] border border-[#eef0f5] bg-[#f8f9fb] px-2.5 py-2">
+                            <RichMarkdown
+                              markdown={ctx.content}
+                              docLabelMap={docLabelMap}
+                              className="text-[12px] leading-[1.65]"
+                              onSource={(anchor) =>
+                                activeSpace &&
+                                inspectSource({
+                                  space: activeSpace,
+                                  anchor,
+                                  version: focusedRetrieval.snapshot_version || undefined,
+                                })
+                              }
+                            />
                           </div>
                         ) : null}
                       </div>
@@ -238,8 +243,7 @@ export function RightMemoryPanel() {
               <section className="space-y-2.5">
                 <h3 className="flex items-center gap-1.5 text-xs font-semibold">
                   <MessageSquareQuote size={14} className="text-[#6d28d9]" aria-hidden="true" />
-                  通道 2 · 原始对话直搜
-                  <code className="text-[10.5px] font-normal text-[#646a73]">conversation_search</code>
+                  通道 2 · 历史原话直搜
                 </h3>
                 {focusedConversationHits.map((hit) => {
                   const dreamed = hit.session_status === "dreamed";

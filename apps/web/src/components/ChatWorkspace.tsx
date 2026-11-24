@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import {
   ArrowUp, ArrowUpRight, BookOpen, Bot, ChevronDown, ChevronRight,
-  Loader2, LockKeyhole, MessageSquareQuote, Moon, Sparkles,
+  Columns2, Loader2, MessageSquareQuote, Moon, Sparkles,
 } from "lucide-react";
 import { buildDocLabelMap, conversationPreview, formatNumber, spaceDisplayName } from "../api";
 import type { ChatMessage } from "../api";
@@ -128,12 +128,13 @@ export function ChatWorkspace() {
     loadingMessages,
     sendingMessage,
     compareBaseline,
+    setCompareBaseline,
     sendChatMessage,
     overview,
     scenarios,
-    model,
     sessions,
     pendingCount,
+    openMemory,
     setRightOpen,
     setRightTab,
     focusRecall,
@@ -195,16 +196,21 @@ export function ChatWorkspace() {
           ) : isEmpty ? (
             <div className="mx-auto max-w-[700px] space-y-5 pt-4 pb-3 sm:pt-8">
               <section className="card-tactile overflow-hidden">
-                <div className="flex items-center gap-3 px-4 py-4 sm:px-5">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-[8px] border border-[#dbeafe] bg-[#eff6ff] text-[#3370ff]">
-                    <Sparkles size={17} />
-                  </span>
-                  <div className="min-w-0">
-                    <h2 className="text-[20px] leading-tight font-semibold text-[#1f2329]">
-                      {isExampleLin ? scenarios?.default_space.persona ?? "林远 · 产品负责人" : spaceDisplayName(activeSpace)}
-                    </h2>
-                    <p className="mt-1 text-xs text-[#646a73]">个人记忆工作区</p>
+                <div className="flex items-center justify-between gap-3 px-4 py-4 sm:px-5">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-[8px] border border-[#dbeafe] bg-[#eff6ff] text-[#3370ff]">
+                      <Sparkles size={17} />
+                    </span>
+                    <div className="min-w-0">
+                      <h2 className="text-[20px] leading-tight font-semibold text-[#1f2329]">
+                        {isExampleLin ? scenarios?.default_space.persona ?? "林远 · 产品负责人" : spaceDisplayName(activeSpace)}
+                      </h2>
+                      <p className="mt-1 text-xs text-[#646a73]">个人记忆工作区</p>
+                    </div>
                   </div>
+                  <button type="button" className="control" onClick={() => openMemory()}>
+                    <BookOpen size={13} /> 查看记忆库
+                  </button>
                 </div>
                 <dl className="grid grid-cols-3 divide-x divide-[#eceef2] border-t border-[#eceef2] bg-[#fcfcfd]">
                   {[
@@ -221,7 +227,17 @@ export function ChatWorkspace() {
               </section>
 
               <section aria-label="示例提问">
-                <h3 className="mb-2 text-xs font-semibold text-[#646a73]">从一个问题开始</h3>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <h3 className="text-xs font-semibold text-[#646a73]">一键验证记忆效果</h3>
+                  <button
+                    type="button"
+                    aria-pressed={compareBaseline}
+                    onClick={() => setCompareBaseline(!compareBaseline)}
+                    className="control"
+                  >
+                    <Columns2 size={12} /> {compareBaseline ? "已开启：同屏对比无记忆" : "开启同屏对比无记忆"}
+                  </button>
+                </div>
                 <div className="grid gap-2.5 sm:grid-cols-2">
                   {isExampleLin ? scenarios?.prompts.map((prompt) => (
                     <button key={prompt.id} type="button" disabled={sendingMessage}
@@ -379,13 +395,8 @@ export function ChatWorkspace() {
               <ArrowUp size={16} strokeWidth={2.2} />
             </button>
           </div>
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-2 text-[11px] text-[#8f959e]">
-            {model ? (
-              <span className="inline-flex items-center gap-1.5 text-[#646a73]">
-                <LockKeyhole size={11} aria-hidden="true" /> 模型：{model.label}（{model.note}）
-              </span>
-            ) : <span />}
-            {pendingCount > 0 ? (
+          {pendingCount > 0 ? (
+            <div className="mt-2 flex items-center justify-end px-2 text-[11px] text-[#8f959e]">
               <button
                 type="button"
                 onClick={() => { setRightTab("dream"); setRightOpen(true); }}
@@ -393,8 +404,8 @@ export function ChatWorkspace() {
               >
                 <Moon size={11} /> {pendingCount} 场对话待入梦
               </button>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </form>
       </div>
     </div>

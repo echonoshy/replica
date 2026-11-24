@@ -134,39 +134,55 @@ export function MemoryLibraryView({ initialPath }: { initialPath: string }) {
     if (activeSpace) inspectSource({ space: activeSpace, anchor, version: resolvedVersion });
   };
 
+  const FRIENDLY_PAGE_TITLES: Record<string, string> = {
+    "_index.md": "总览目录",
+    "timeline.md": "关键时间线",
+    "conflicts.md": "冲突与修订审计",
+  };
+  const displayPageTitle = FRIENDLY_PAGE_TITLES[selectedPath] ?? tree?.titles[selectedPath] ?? currentFile?.frontmatter?.title ?? selectedPath;
+
   return (
     <div className="@container flex h-full min-h-0 flex-col bg-white">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#eceef2] px-4 py-2.5">
-        <button type="button" onClick={() => setCenterMode("chat")} className="control"><ArrowLeft size={13} /> 返回对话</button>
-        {tree?.versions.length ? (
-          <div className="flex flex-wrap items-center gap-1.5" aria-label="版本快照" aria-busy={loadingTree}>
-            <span className="mr-0.5 inline-flex items-center gap-1 text-xs text-[#646a73]"><History size={14} /> 快照</span>
-            {[...tree.versions].sort((a, b) => a.version - b.version).map((snapshot) => {
-              const isCurrent = snapshot.version === currentVersion;
-              return (
-                <button key={snapshot.version} type="button" aria-pressed={snapshot.version === resolvedVersion}
-                  onClick={() => { setSelectedVersion(isCurrent ? undefined : snapshot.version); setRawView(false); setNotice(null); }}
-                  className="control font-mono-num">
-                  v{snapshot.version}{isCurrent ? <span className="font-sans text-[10px]">当前</span> : null}
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
-        {isHistory ? (
-          <button type="button" className="status-chip tone-amber" disabled={rollingBack || loadingTree}
-            onClick={() => void handleRollback()}><RotateCcw size={12} /> 回滚至 v{resolvedVersion}</button>
-        ) : null}
-      </div>
-      {lint ? (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[#f0f1f4] bg-[#fcfcfd] px-4 py-1.5 text-[11.5px] text-[#646a73]">
-          <span className="inline-flex items-center gap-1 font-medium text-[#047857]"><ShieldCheck size={13} /> 校验通过</span>
-          <span className="font-mono-num">{lint.index_lines}/{INDEX_MAX_LINES} 行</span>
-          <span className="font-mono-num">{(lint.index_bytes / 1024).toFixed(1)}/{INDEX_MAX_BYTES / 1024} KiB</span>
-          <span className="font-mono-num">{lint.broken_links} 断链</span>
-          <span className="text-[#646a73]">· 薄 Wiki 模式：仅沉淀长期认知/红线/修订，细节由原文直搜兜底</span>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#eceef2] px-4 py-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={() => setCenterMode("chat")} className="control"><ArrowLeft size={13} /> 返回对话</button>
+          {lint ? (
+            <details className="group relative text-[11.5px]">
+              <summary className="status-chip tone-mint list-none select-none">
+                <ShieldCheck size={12} /> 校验通过
+                <span className="font-mono-num opacity-75">· {lint.broken_links} 断链</span>
+              </summary>
+              <div className="card-floating absolute left-0 z-20 mt-1.5 w-64 space-y-1 p-3 text-[11.5px] text-[#4e5969] shadow-lg">
+                <div className="font-medium text-[#1f2329]">快照门禁指标</div>
+                <div className="font-mono-num">索引行数：{lint.index_lines} / {INDEX_MAX_LINES} 行</div>
+                <div className="font-mono-num">索引体积：{(lint.index_bytes / 1024).toFixed(1)} / {INDEX_MAX_BYTES / 1024} KiB</div>
+                <div className="font-mono-num">断链 / 孤岛页：{lint.broken_links} / {lint.orphan_pages}</div>
+              </div>
+            </details>
+          ) : null}
         </div>
-      ) : null}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {tree?.versions.length ? (
+            <div className="flex flex-wrap items-center gap-1" aria-label="版本快照" aria-busy={loadingTree}>
+              <span className="mr-0.5 inline-flex items-center gap-1 text-xs text-[#646a73]"><History size={13} /> 快照</span>
+              {[...tree.versions].sort((a, b) => a.version - b.version).map((snapshot) => {
+                const isCurrent = snapshot.version === currentVersion;
+                return (
+                  <button key={snapshot.version} type="button" aria-pressed={snapshot.version === resolvedVersion}
+                    onClick={() => { setSelectedVersion(isCurrent ? undefined : snapshot.version); setRawView(false); setNotice(null); }}
+                    className="control font-mono-num">
+                    v{snapshot.version}{isCurrent ? <span className="font-sans text-[10px]">当前</span> : null}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+          {isHistory ? (
+            <button type="button" className="status-chip tone-amber" disabled={rollingBack || loadingTree}
+              onClick={() => void handleRollback()}><RotateCcw size={12} /> 回滚至 v{resolvedVersion}</button>
+          ) : null}
+        </div>
+      </div>
       {notice ? <div role="status" className="flex items-center gap-2 bg-[#ecfdf5] px-4 py-2 text-xs text-[#047857]"><CheckCircle2 size={14} /> {notice}</div> : null}
       {error ? <div role="alert" className="bg-[#fef2f2] px-4 py-2 text-xs text-[#dc2626]">{error}</div> : null}
 
@@ -214,7 +230,7 @@ export function MemoryLibraryView({ initialPath }: { initialPath: string }) {
               <div className="card-tactile overflow-hidden">
                 <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[#eceef2] bg-[#fcfcfd] px-4 py-2">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <span className="font-mono-num text-xs break-all text-[#646a73]">{selectedPath}</span>
+                    <span className="text-xs font-semibold text-[#1f2329]" title={selectedPath}>{displayPageTitle}</span>
                     {isHistory ? <span className="status-chip tone-amber">历史快照 v{resolvedVersion}</span> : null}
                   </div>
                   <div className="flex items-center gap-2">

@@ -61,7 +61,30 @@
   }
 
   .workspace-sidebar > div:first-child { height: 48px; }
-  .sidebar-frame { width: 240px; flex: none; }
+  .sidebar-frame { width: var(--sidebar-width, 240px); flex: none; }
+
+  .pane-resizer {
+    position: relative;
+    z-index: 15;
+    width: 8px;
+    flex: none;
+    cursor: col-resize;
+    touch-action: none;
+    margin-inline: -3px;
+  }
+  .pane-resizer::after {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 50%;
+    width: 2px;
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background: transparent;
+    transition: background-color 140ms ease;
+  }
+  .pane-resizer:hover::after, .pane-resizer[data-dragging="true"]::after {
+    background: var(--blue);
+  }
 
   .workspace-sheet {
     display: flex;
@@ -205,7 +228,7 @@
   .tone-rose { color: #dc2626; background: #fef2f2; border-color: #fee2e2; }
   .tone-amber { color: #b45309; background: #fffbeb; border-color: #fef3c7; }
 
-  .workspace-search { position: relative; width: 240px; min-width: 0; }
+  .workspace-search { position: relative; width: 170px; min-width: 0; }
   .search-field {
     display: flex;
     align-items: center;
@@ -242,7 +265,7 @@
 
   .inspector-frame { display: flex; flex: none; }
   .inspector-frame.inspector-hidden { display: none; }
-  .memory-inspector { width: 376px; max-width: 100vw; }
+  .memory-inspector { width: var(--inspector-width, 380px); max-width: 100vw; }
   .drawer-backdrop { position: fixed; inset: 0; z-index: 30; background: rgb(31 35 41 / 22%); }
 
   .card-tactile { background: white; border: 1px solid var(--line-subtle); border-radius: 11px; }
@@ -259,7 +282,10 @@
 }
 
 @media (min-width: 640px) {
-  .workspace-search { width: 280px; }
+  .workspace-search { width: 200px; }
+}
+@media (min-width: 1280px) {
+  .workspace-search { width: 230px; }
 }
 @media (min-width: 1024px) {
   .workspace-sheet { margin: 8px 8px 0 0; border: 1px solid var(--line-default); border-radius: 12px 12px 0 0; box-shadow: 0 1px 3px rgb(16 24 40 / 3%); }
@@ -268,11 +294,13 @@
 }
 @media (max-width: 1279px) {
   .inspector-frame { position: fixed; inset: 0; z-index: 40; justify-content: flex-end; }
-  .memory-inspector { position: relative; z-index: 31; }
+  .memory-inspector { position: relative; z-index: 31; width: min(390px, 92vw); }
+  .pane-resizer-right { display: none; }
 }
 @media (max-width: 1023px) {
   .sidebar-frame { display: none; }
-  .sidebar-mobile-open { display: block; position: fixed; inset: 0 auto 0 0; z-index: 35; }
+  .sidebar-mobile-open { display: block; position: fixed; inset: 0 auto 0 0; z-index: 35; width: 260px; }
+  .pane-resizer-left { display: none; }
 }
 @media (hover: none) {
   .thread-row .thread-delete { position: static; margin-right: 3px; opacity: 1; pointer-events: auto; }

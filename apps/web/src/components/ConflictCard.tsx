@@ -47,7 +47,7 @@ export function ConflictCard({
             ? "border border-[#fee2e2] bg-[#fef2f2] text-[#dc2626]"
             : "bg-[#f0f2f5] text-[#646a73]"
         }`}>
-          {p.rule} · supersedes
+          {p.rule} · 新旧替换
         </span>
       </div>
 
