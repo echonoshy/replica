@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { api, conversationPreview, spaceKeyOf } from "./api";
 import type { ChatSession, ConversationSearchHit } from "./api";
+import { SHOWCASE_SPACES } from "./demoTestCases";
 import { AppProvider, useApp } from "./context/AppContext";
 import { ChatWorkspace } from "./components/ChatWorkspace";
 import { MemoryLibraryView } from "./components/MemoryLibraryView";
@@ -42,8 +43,12 @@ function Sidebar({
 }) {
   const app = useApp();
   const version = app.overview?.space ?? app.activeSpace;
-  const linSpace = app.spaces.find((s) => spaceKeyOf(s) === "personal:lin_yuan");
-  const blankSpace = app.spaces.find((s) => spaceKeyOf(s) === "personal:my_space");
+  const quickSpaces = SHOWCASE_SPACES
+    .map((meta) => {
+      const space = app.spaces.find((s) => spaceKeyOf(s) === meta.key);
+      return space ? { space, meta } : null;
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
   const groups = [
     { label: "待入梦整理", dreamed: false, sessions: sessions.filter((s) => s.status !== "dreamed") },
     { label: "已沉淀进记忆", dreamed: true, sessions: sessions.filter((s) => s.status === "dreamed") },
@@ -110,22 +115,46 @@ function Sidebar({
         {sessions.length === 0 ? <p className="px-2 text-xs text-[#646a73]">{hasQuery ? "暂无匹配对话" : "暂无对话"}</p> : null}
       </div>
 
-      <footer className="space-y-1 border-t border-[#eceef2] pt-2 pb-2">
-        {linSpace && blankSpace ? (
-          <div className="recessed-track mb-1 grid grid-cols-[1.25fr_1fr] text-[11.5px]" aria-label="切换工作区">
-            {[{ space: linSpace, label: "林远 · 样例" }, { space: blankSpace, label: "我的空间" }].map(({ space, label }) => {
-              const selected = app.activeSpace?.namespace === space.namespace && app.activeSpace.space_id === space.space_id;
-              return (
-                <button key={space.space_id} type="button" aria-pressed={selected}
-                  onClick={() => { app.selectSpace(spaceKeyOf(space)); onSelect(); }}
-                  className={`rounded-[5px] px-1 py-1 ${selected ? "recessed-pill-active" : "text-[#646a73]"}`}>
-                  {label}
-                </button>
-              );
-            })}
+      <footer className="space-y-1.5 border-t border-[#eceef2] pt-2.5 pb-2">
+        {quickSpaces.length > 0 ? (
+          <div className="space-y-1" aria-label="测试场景空间快速切换">
+            <div className="group-label px-1">
+              <span>测试场景空间</span>
+              <span className="font-mono-num">{quickSpaces.length}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-1">
+              {quickSpaces.map(({ space, meta }) => {
+                const selected = app.activeSpace && spaceKeyOf(app.activeSpace) === meta.key;
+                const isDeep = meta.badgeTone === "deep";
+                return (
+                  <button
+                    key={meta.key}
+                    type="button"
+                    aria-pressed={Boolean(selected)}
+                    title={meta.subtitle}
+                    onClick={() => { app.selectSpace(meta.key); onSelect(); }}
+                    className={`flex min-w-0 items-center justify-between gap-1 rounded-[7px] border px-2 py-1.5 text-left text-[11.5px] transition-all ${
+                      selected
+                        ? "border-[#b9d4ff] bg-[#eef4ff] font-medium text-[#245bdb]"
+                        : "border-[#eceef2] bg-white text-[#4e5969] hover:border-[#d5dce6] hover:bg-[#f8faff]"
+                    }`}
+                  >
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                        selected ? "bg-[#3370ff]" : isDeep ? "bg-[#059669]" : "bg-[#aeb5c0]"
+                      }`} />
+                      <span className="truncate">{meta.shortLabel}</span>
+                    </span>
+                    <span className="font-mono-num shrink-0 text-[10px] opacity-75">
+                      {space.current_version ? `v${space.current_version}` : "空"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         ) : null}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 pt-0.5">
           <button type="button" className="nav-row flex-1" onClick={onManage}><Settings size={14} /> 空间管理</button>
           <a href="/docs" target="_blank" rel="noreferrer" className="icon-button" aria-label="OpenAPI 文档" title="OpenAPI 开发者文档">
             <ExternalLink size={13} />

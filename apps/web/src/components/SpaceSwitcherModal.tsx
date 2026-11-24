@@ -3,10 +3,11 @@ import type { FormEvent } from "react";
 import { Check, FolderKanban, Plus, Sparkles, User, X } from "lucide-react";
 import type { Space } from "@replica/shared";
 import { api, spaceDisplayName, spaceKeyOf } from "../api";
+import { getShowcaseMeta, getSpaceTestCases } from "../demoTestCases";
 import { useApp } from "../context/AppContext";
 
 export function SpaceSwitcherModal({ onClose }: { onClose: () => void }) {
-  const { spaces, activeSpace, selectSpace, refreshSpaceData } = useApp();
+  const { spaces, activeSpace, scenarios, selectSpace, refreshSpaceData } = useApp();
   const [creating, setCreating] = useState(false);
   const [spaceId, setSpaceId] = useState(() => `user_${new Date().toISOString().slice(11, 19).replace(/:/g, "")}`);
   const [purpose, setPurpose] = useState(
@@ -20,8 +21,16 @@ export function SpaceSwitcherModal({ onClose }: { onClose: () => void }) {
     dialog.current?.showModal();
   }, []);
 
-  const personalSpaces = spaces.filter((s) => s.namespace === "personal");
-  const otherSpaces = spaces.filter((s) => s.namespace !== "personal");
+  const showcaseSpaces = spaces
+    .filter((s) => {
+      const meta = getShowcaseMeta(s);
+      return meta && meta.badgeTone !== "blank";
+    })
+    .sort((a, b) => {
+      const order = ["engineering:atlas_platform", "sales:enterprise_q4", "personal:zhou_ran", "personal:lin_yuan"];
+      return order.indexOf(spaceKeyOf(a)) - order.indexOf(spaceKeyOf(b));
+    });
+  const otherSpaces = spaces.filter((s) => !showcaseSpaces.includes(s));
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
@@ -44,8 +53,15 @@ export function SpaceSwitcherModal({ onClose }: { onClose: () => void }) {
 
   function renderRow(item: Space) {
     const isCurrent = activeSpace && spaceKeyOf(activeSpace) === spaceKeyOf(item);
-    const isExample = item.namespace === "personal" && item.space_id === "lin_yuan";
-    const isBlankPersonal = item.namespace === "personal" && item.space_id === "my_space";
+    const meta = getShowcaseMeta(item);
+    const testCaseCount = getSpaceTestCases(item, scenarios).length;
+    const badgeClass = meta?.badgeTone === "deep"
+      ? "bg-[#e8f8f1] text-[#0b7a55]"
+      : meta?.badgeTone === "classic"
+        ? "bg-[#f3f1ff] text-[#5344c7]"
+        : meta?.badgeTone === "blank"
+          ? "bg-[#eef4ff] text-[#245bdb]"
+          : "";
     return (
       <button
         key={spaceKeyOf(item)}
@@ -68,13 +84,14 @@ export function SpaceSwitcherModal({ onClose }: { onClose: () => void }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-semibold text-[#1f2329]">{spaceDisplayName(item)}</span>
-            {isExample ? (
-              <span className="rounded-[7px] bg-[#f3f1ff] px-2 py-0.5 text-[10px] font-medium text-[#5344c7]">
-                预置真实样例
+            {meta ? (
+              <span className={`rounded-[7px] px-2 py-0.5 text-[10px] font-medium ${badgeClass}`}>
+                {meta.badge}
               </span>
-            ) : isBlankPersonal ? (
-              <span className="rounded-[7px] bg-[#e8f8f1] px-2 py-0.5 text-[10px] font-medium text-[#0b7a55]">
-                自己从零聊
+            ) : null}
+            {testCaseCount > 0 ? (
+              <span className="rounded-[7px] bg-[#f4f6fa] px-2 py-0.5 font-mono-num text-[10px] text-[#5c6370]">
+                {testCaseCount} 个用例
               </span>
             ) : null}
             <span className="ml-auto font-mono-num text-[11px] text-[#8f959e]">
@@ -148,23 +165,36 @@ export function SpaceSwitcherModal({ onClose }: { onClose: () => void }) {
             </form>
           ) : (
             <div className="space-y-4">
-              <div>
-                <div className="mb-2.5 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-[#3370ff]">个人记忆空间</span>
-                  <button
-                    type="button"
-                    onClick={() => setCreating(true)}
-                    className="inline-flex items-center gap-1 rounded-[7px] bg-[#3370ff] px-3 py-1 text-xs font-medium text-white hover:bg-[#245bdb]"
-                  >
-                    <Plus size={12} /> 新建空间
-                  </button>
+              {showcaseSpaces.length > 0 ? (
+                <div>
+                  <div className="mb-2.5 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[#3370ff]">预置测试场景空间</span>
+                    <button
+                      type="button"
+                      onClick={() => setCreating(true)}
+                      className="inline-flex items-center gap-1 rounded-[7px] bg-[#3370ff] px-3 py-1 text-xs font-medium text-white hover:bg-[#245bdb]"
+                    >
+                      <Plus size={12} /> 新建空间
+                    </button>
+                  </div>
+                  <div className="space-y-2">{showcaseSpaces.map(renderRow)}</div>
                 </div>
-                <div className="space-y-2">{personalSpaces.map(renderRow)}</div>
-              </div>
+              ) : null}
 
               {otherSpaces.length > 0 ? (
                 <div>
-                  <div className="mb-2 text-xs font-semibold text-[#8f959e]">其他空间</div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[#8f959e]">个人与自定义空间</span>
+                    {showcaseSpaces.length === 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setCreating(true)}
+                        className="inline-flex items-center gap-1 rounded-[7px] bg-[#3370ff] px-3 py-1 text-xs font-medium text-white hover:bg-[#245bdb]"
+                      >
+                        <Plus size={12} /> 新建空间
+                      </button>
+                    ) : null}
+                  </div>
                   <div className="space-y-2">{otherSpaces.map(renderRow)}</div>
                 </div>
               ) : null}

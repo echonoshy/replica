@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import {
   ArrowUp, ArrowUpRight, BookOpen, Bot, ChevronDown, ChevronRight,
-  Columns2, Loader2, MessageSquareQuote, Moon, Sparkles,
+  Columns2, FlaskConical, Loader2, MessageSquareQuote, Moon, Sparkles, X,
 } from "lucide-react";
 import { buildDocLabelMap, conversationPreview, formatNumber, spaceDisplayName } from "../api";
 import type { ChatMessage } from "../api";
+import { getShowcaseMeta, getSpaceTestCases } from "../demoTestCases";
 import { RichMarkdown } from "./RichMarkdown";
 import { useApp } from "../context/AppContext";
 
@@ -143,9 +144,16 @@ export function ChatWorkspace() {
   } = useApp();
 
   const [draft, setDraft] = useState("");
+  const [casesOpen, setCasesOpen] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   const docLabelMap = useMemo(() => buildDocLabelMap(overview?.documents), [overview]);
+  const showcaseMeta = useMemo(() => getShowcaseMeta(activeSpace), [activeSpace]);
+  const spaceTestCases = useMemo(() => getSpaceTestCases(activeSpace, scenarios), [activeSpace, scenarios]);
+
+  useEffect(() => {
+    setCasesOpen(false);
+  }, [activeSpace?.namespace, activeSpace?.space_id, activeSession?.session_id]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -184,6 +192,13 @@ export function ChatWorkspace() {
 
   const isExampleLin = activeSpace?.namespace === "personal" && activeSpace?.space_id === "lin_yuan";
   const isEmpty = !loadingMessages && messages.length === 0;
+  const hasTestCases = spaceTestCases.length > 0;
+
+  function triggerTestCase(query: string) {
+    if (!activeSpace || sendingMessage) return;
+    setCasesOpen(false);
+    void sendChatMessage(query);
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
@@ -202,10 +217,19 @@ export function ChatWorkspace() {
                       <Sparkles size={17} />
                     </span>
                     <div className="min-w-0">
-                      <h2 className="text-[20px] leading-tight font-semibold text-[#1f2329]">
-                        {isExampleLin ? scenarios?.default_space.persona ?? "林远 · 产品负责人" : spaceDisplayName(activeSpace)}
-                      </h2>
-                      <p className="mt-1 text-xs text-[#646a73]">个人记忆工作区</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-[20px] leading-tight font-semibold text-[#1f2329]">
+                          {isExampleLin ? scenarios?.default_space.persona ?? "林远 · 产品负责人" : spaceDisplayName(activeSpace)}
+                        </h2>
+                        {showcaseMeta && showcaseMeta.badgeTone !== "blank" ? (
+                          <span className={`status-chip ${showcaseMeta.badgeTone === "deep" ? "tone-mint" : "tone-violet"}`}>
+                            {showcaseMeta.badge}
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-1 text-xs text-[#646a73]">
+                        {showcaseMeta?.subtitle ?? "个人记忆工作区"}
+                      </p>
                     </div>
                   </div>
                   <button type="button" className="control" onClick={() => openMemory()}>
@@ -226,9 +250,16 @@ export function ChatWorkspace() {
                 </dl>
               </section>
 
-              <section aria-label="示例提问">
+              <section aria-label="测试用例">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <h3 className="text-xs font-semibold text-[#646a73]">一键验证记忆效果</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs font-semibold text-[#646a73]">
+                      {hasTestCases ? "一键验证测试用例" : "快速开始对话"}
+                    </h3>
+                    {hasTestCases ? (
+                      <span className="status-chip tone-blue font-mono-num">{spaceTestCases.length} 个用例</span>
+                    ) : null}
+                  </div>
                   <button
                     type="button"
                     aria-pressed={compareBaseline}
@@ -239,16 +270,16 @@ export function ChatWorkspace() {
                   </button>
                 </div>
                 <div className="grid gap-2.5 sm:grid-cols-2">
-                  {isExampleLin ? scenarios?.prompts.map((prompt) => (
+                  {hasTestCases ? spaceTestCases.map((prompt) => (
                     <button key={prompt.id} type="button" disabled={sendingMessage}
-                      onClick={() => void sendChatMessage(prompt.query)}
+                      onClick={() => triggerTestCase(prompt.query)}
                       className="group card-tactile px-3.5 py-3 text-left hover:border-[#b9d4ff] hover:bg-[#fcfdff]">
                       <div className="flex items-center justify-between gap-2">
-                        <span className={`status-chip ${PROMPT_TONES[prompt.id] ?? "tone-blue"}`}>{prompt.badge}</span>
+                        <span className={`status-chip ${prompt.tone ?? PROMPT_TONES[prompt.id] ?? "tone-blue"}`}>{prompt.badge}</span>
                         <ArrowUpRight size={14} className="text-[#646a73] group-hover:text-[#3370ff]" />
                       </div>
-                      <div className="mt-2 text-[13.5px] font-medium leading-snug">{prompt.title}</div>
-                      <div className="mt-1 text-[11.5px] text-[#646a73]">{prompt.description}</div>
+                      <div className="mt-2 text-[13.5px] font-medium leading-snug text-[#1f2329]">{prompt.title}</div>
+                      <div className="mt-1 text-[11.5px] leading-relaxed text-[#646a73]">{prompt.description}</div>
                     </button>
                   )) : BLANK_STARTER_PROMPTS.map((prompt) => (
                     <button key={prompt} type="button" disabled={!activeSpace || sendingMessage}
@@ -375,6 +406,43 @@ export function ChatWorkspace() {
           onSubmit={handleSubmit}
           className={`mx-auto w-full ${hasComparisonTurn || compareBaseline ? "max-w-[1060px]" : "max-w-[780px]"}`}
         >
+          {casesOpen && hasTestCases ? (
+            <div className="card-tactile mb-2.5 overflow-hidden border-[#cddfff] bg-[#fbfcff]">
+              <div className="flex items-center justify-between border-b border-[#eceef2] px-3.5 py-2">
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1f2329]">
+                  <FlaskConical size={13} className="text-[#3370ff]" />
+                  当前空间测试用例 · 点击即刻发问
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCasesOpen(false)}
+                  className="icon-button"
+                  aria-label="收起测试用例"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+              <div className="grid max-h-56 gap-2 overflow-y-auto p-2.5 sm:grid-cols-2">
+                {spaceTestCases.map((prompt) => (
+                  <button
+                    key={prompt.id}
+                    type="button"
+                    disabled={sendingMessage}
+                    onClick={() => triggerTestCase(prompt.query)}
+                    className="group rounded-[8px] border border-[#eceef2] bg-white px-3 py-2 text-left transition-all hover:border-[#b9d4ff] hover:bg-[#f8faff] disabled:opacity-50"
+                  >
+                    <div className="flex items-center justify-between gap-1.5">
+                      <span className={`status-chip ${prompt.tone ?? PROMPT_TONES[prompt.id] ?? "tone-blue"}`}>{prompt.badge}</span>
+                      <ArrowUpRight size={13} className="text-[#8f959e] group-hover:text-[#3370ff]" />
+                    </div>
+                    <div className="mt-1.5 text-[12.5px] font-medium leading-snug text-[#1f2329]">{prompt.title}</div>
+                    <div className="mt-0.5 line-clamp-1 text-[11px] text-[#646a73]">{prompt.description}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           <div className="card-floating flex items-end gap-2.5 px-4 py-2.5 transition-all focus-within:border-[#3370ff] focus-within:ring-2 focus-within:ring-[#3370ff]/12">
             <textarea
               rows={1}
@@ -395,15 +463,34 @@ export function ChatWorkspace() {
               <ArrowUp size={16} strokeWidth={2.2} />
             </button>
           </div>
-          {pendingCount > 0 ? (
-            <div className="mt-2 flex items-center justify-end px-2 text-[11px] text-[#8f959e]">
-              <button
-                type="button"
-                onClick={() => { setRightTab("dream"); setRightOpen(true); }}
-                className="inline-flex items-center gap-1 font-medium text-[#6d28d9] hover:underline"
-              >
-                <Moon size={11} /> {pendingCount} 场对话待入梦
-              </button>
+          {(!isEmpty && hasTestCases) || pendingCount > 0 ? (
+            <div className="mt-2 flex items-center justify-between gap-2 px-1 text-[11px] text-[#8f959e]">
+              <div>
+                {!isEmpty && hasTestCases ? (
+                  <button
+                    type="button"
+                    aria-expanded={casesOpen}
+                    onClick={() => setCasesOpen((v) => !v)}
+                    className={`inline-flex items-center gap-1 rounded-[6px] px-2 py-0.5 font-medium transition-colors ${
+                      casesOpen
+                        ? "bg-[#eef4ff] text-[#245bdb]"
+                        : "text-[#5c6370] hover:bg-[#f4f6fa] hover:text-[#245bdb]"
+                    }`}
+                  >
+                    <FlaskConical size={11} />
+                    测试用例（{spaceTestCases.length}）
+                  </button>
+                ) : null}
+              </div>
+              {pendingCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => { setRightTab("dream"); setRightOpen(true); }}
+                  className="inline-flex items-center gap-1 font-medium text-[#6d28d9] hover:underline"
+                >
+                  <Moon size={11} /> {pendingCount} 场对话待入梦
+                </button>
+              ) : null}
             </div>
           ) : null}
         </form>
