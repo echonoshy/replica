@@ -1,0 +1,22 @@
+{
+  "name": "@replica/shared",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./wiki-format": {
+      "types": "./dist/wiki-format.d.ts",
+      "default": "./dist/wiki-format.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "zod": "^4.3.0"
+  }
+}
