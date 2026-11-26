@@ -1,4 +1,4 @@
-import type { Space } from "@replica/shared";
+import type { Space } from "@wiki-memory/shared";
 import { spaceKey } from "../db/interfaces.js";
 import type { MetadataRepository } from "../db/interfaces.js";
 import type { Ingestion } from "../pipeline/ingestion.js";
@@ -30,7 +30,21 @@ export function digestPendingChatSessions(
       session.status === "pending" && session.message_count > session.dreamed_message_count));
     if (!pending.length) return undefined;
     const exports = pending.map((session) => {
-      const messages = chatStore.getMessages(session.session_id).map(({ role, content }) => ({ role, content }));
+      const sessionCreatedDay = session.created_at.slice(0, 10);
+      const rawMessages = chatStore.getMessages(session.session_id);
+      const messages = rawMessages.map(({ role, content, created_at }) => {
+        const msgDay = created_at.slice(0, 10);
+        // Preserve backdated session_date for same-day messages, while recording
+        // true later calendar dates when a user continues an older session on a new day.
+        const effectiveDate = msgDay > sessionCreatedDay && msgDay > session.session_date
+          ? msgDay
+          : session.session_date;
+        return { role, content, created_at: effectiveDate };
+      });
+      const latestDate = messages.reduce(
+        (latest, message) => (message.created_at > latest ? message.created_at : latest),
+        session.session_date,
+      );
       const filename = `session_${session.session_id}_m${messages.length}.json`;
       const replacesDocId = session.dreamed_version !== null && session.dreamed_message_count > 0
         ? session.dreamed_doc_id ?? undefined : undefined;
@@ -44,7 +58,7 @@ export function digestPendingChatSessions(
       return {
         session, messageCount: messages.length,
         item: {
-          filename, docDate: session.session_date, replacesDocId, analyzeFromTurn,
+          filename, docDate: latestDate, replacesDocId, analyzeFromTurn,
           bytes: Buffer.from(JSON.stringify({ session_id: session.session_id, messages })),
         },
       };

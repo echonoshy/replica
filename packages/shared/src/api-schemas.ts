@@ -2,6 +2,8 @@ import { z } from "zod";
 import {
   identifierSchema, docIdSchema, jobIdSchema, locatorSchema, wikiPagePathSchema,
   anchorSchema, frontmatterSchema, snapshotSchema,
+  memoryTierSchema, privacyScopeSchema, proceduralRuleSchema, hotMemorySummarySchema,
+  conversationHitSummarySchema,
 } from "./wiki-types.js";
 import { UPLOAD_MAX_ITEMS } from "./wiki-format.js";
 
@@ -12,8 +14,11 @@ export const versionSchema = z.number().int().positive().max(Number.MAX_SAFE_INT
 export const warningSchema = z.enum(["SCANNED_PDF_NO_TEXT_LAYER", "NO_EXTRACTABLE_TEXT"]);
 export const errorSchema = z.object({ error: z.object({ code: z.string(), message: z.string() }) });
 export const docDateSchema = z.iso.date();
+const privacyModeSchema = z.enum(["full", "external_safe"]);
+const retrievalStrategySchema = z.enum(["fast", "multi_hop", "agentic"]);
 const ingestBaseSchema = spaceRefSchema.extend({
   purpose: purposeSchema.optional(),
+  organize_mode: z.enum(["auto", "skip", "full"]).optional(),
   mode: z.enum(["async", "sync"]).default("async"),
   idempotency_key: z.string().trim().min(1).max(180).optional(),
 });
@@ -27,6 +32,8 @@ export const ingestSchema = ingestBaseSchema.extend({
 export const multipartFieldsSchema = ingestBaseSchema.extend({
   doc_dates: z.string().max(10_000).optional(),
 });
+export const dreamModeSchema = z.enum(["digest", "consolidate", "full"]);
+export const dreamRequestSchema = spaceRefSchema.extend({ mode: dreamModeSchema.default("consolidate") });
 export const forgetSchema = spaceRefSchema.extend({
   doc_ids: z.array(docIdSchema).min(1).max(50),
   mode: z.enum(["async", "sync"]).default("async"),
@@ -64,13 +71,24 @@ export const jobResultSchema = ingestResultSchema.extend({
   created_at: z.iso.datetime(),
   updated_at: z.iso.datetime(),
 });
-export const retrieveSchema = spaceRefSchema.extend({
-  query: z.string().trim().min(1).max(4000),
+const retrieveBaseSchema = spaceRefSchema.extend({
+  query: z.string().trim().min(1).max(16_000),
   return_mode: z.enum(["context", "answer", "both"]).default("context"),
-  max_tokens: z.number().int().min(128).max(12_000).default(3000),
+  max_tokens: z.number().int().min(128).max(64_000).default(16_000),
   include_index: z.boolean().default(true),
   verify_raw_sources: z.boolean().default(false),
   snapshot_version: versionSchema.nullish(),
+});
+export const retrieveSchema = retrieveBaseSchema.extend({
+  privacy_mode: privacyModeSchema.default("full"),
+  include_core_card: z.boolean().default(false),
+  include_hot_memories: z.boolean().default(false),
+  include_pending_chats: z.boolean().default(false),
+  include_rules: z.boolean().default(false),
+  retrieval_strategy: retrievalStrategySchema.default("fast"),
+  as_of_date: docDateSchema.optional(),
+  boost_safety: z.boolean().default(false),
+  needs_inventory: z.boolean().default(false),
 });
 export const citationSchema = z.object({
   anchor: anchorSchema,
@@ -88,6 +106,12 @@ export const contextSchema = z.object({
 });
 export const retrieveResultSchema = z.object({
   snapshot_version: z.number().int().nonnegative(),
+  core_card: z.string().nullable().optional(),
+  hot_memories: z.array(hotMemorySummarySchema).optional(),
+  rules: z.array(proceduralRuleSchema).optional(),
+  pending_chat_hits: z.array(conversationHitSummarySchema).optional(),
+  strategy_used: retrievalStrategySchema.optional(),
+  hops: z.number().int().nonnegative().optional(),
   index_excerpt: z.string().nullable(),
   contexts: z.array(contextSchema),
   answer: z.string().nullable(),
@@ -127,6 +151,77 @@ export const sourceResultSchema = citationSchema.extend({
   next: z.string().nullable(),
 });
 
+export const toolIndexQuerySchema = spaceRefSchema.extend({
+  version: versionSchema.optional(),
+  privacy_mode: privacyModeSchema.default("full"),
+});
+export const toolIndexResultSchema = z.object({
+  snapshot_version: z.number().int().nonnegative(),
+  index_markdown: z.string(),
+  core_card: z.string().nullable(),
+  rules: z.array(proceduralRuleSchema),
+  hot_memories: z.array(hotMemorySummarySchema),
+  page_count: z.number().int().nonnegative(),
+});
+export const toolSearchSchema = spaceRefSchema.extend({
+  query: z.string().trim().min(1).max(4000),
+  limit: z.number().int().min(1).max(30).default(8),
+  include_pending_chats: z.boolean().default(true),
+  include_audit: z.boolean().default(false),
+  privacy_mode: privacyModeSchema.default("full"),
+  snapshot_version: versionSchema.optional(),
+});
+export const toolSearchResultSchema = z.object({
+  snapshot_version: z.number().int().nonnegative(),
+  wiki_hits: z.array(z.object({
+    page_id: wikiPagePathSchema,
+    title: z.string(),
+    excerpt: z.string(),
+    score: z.number(),
+    source: z.string(),
+  })),
+  chat_hits: z.array(conversationHitSummarySchema),
+});
+export const toolPageQuerySchema = toolIndexQuerySchema.extend({ path: wikiPagePathSchema });
+export const toolPageResultSchema = fileResultSchema.extend({
+  title: z.string(),
+  outgoing_links: z.array(z.string()),
+});
+export const toolSourceQuerySchema = toolIndexQuerySchema.extend(sourceQuerySchema.shape);
+export const toolHotMemorySchema = spaceRefSchema.extend({
+  kind: hotMemorySummarySchema.shape.kind,
+  content: z.string().trim().min(1).max(2000),
+  target_hint: z.string().trim().max(300).optional(),
+  tier: memoryTierSchema.optional(),
+  scope: privacyScopeSchema.optional(),
+  session_id: z.string().trim().max(80).optional(),
+});
+
+export const compactMessageSchema = z.object({
+  role: z.enum(["user", "assistant", "system", "tool"]),
+  content: z.string(),
+  created_at: z.string().optional(),
+});
+export const compactRequestSchema = spaceRefSchema.extend({
+  messages: z.array(compactMessageSchema).min(1).max(400),
+  max_tokens: z.number().int().min(256).max(32_000).default(2000),
+  keep_recent_turns: z.number().int().min(0).max(20).default(4),
+  persist_hot_memories: z.boolean().default(false),
+  session_id: z.string().trim().max(80).optional(),
+});
+export const compactResultSchema = z.object({
+  summary: z.string(),
+  active_goals: z.array(z.string()),
+  confirmed_constraints: z.array(z.string()),
+  recent_decisions: z.array(z.string()),
+  open_questions: z.array(z.string()),
+  extracted_hot_memories: z.array(hotMemorySummarySchema.pick({ kind: true, content: true })),
+  persisted_hot_ids: z.array(z.string()).default([]),
+  kept_recent_messages: z.array(compactMessageSchema),
+  original_tokens: z.number().int().nonnegative(),
+  compacted_tokens: z.number().int().nonnegative(),
+});
+
 export type SpaceRef = z.infer<typeof spaceRefSchema>;
 export type Space = z.infer<typeof spaceResultSchema>;
 export type Warning = z.infer<typeof warningSchema>;
@@ -135,10 +230,24 @@ export type JobStatus = z.infer<typeof jobStatusSchema>;
 export type JobUsage = z.infer<typeof jobUsageSchema>;
 export type JobProgress = z.infer<typeof jobProgressSchema>;
 export type JobResult = z.infer<typeof jobResultSchema>;
-export type RetrieveInput = z.infer<typeof retrieveSchema>;
+// Preserve the original parsed fields for callers that construct RetrieveInput directly.
+export type RetrieveInput = z.infer<typeof retrieveBaseSchema> & z.input<typeof retrieveSchema>;
 export type RetrieveResult = z.infer<typeof retrieveResultSchema>;
 export type Citation = z.infer<typeof citationSchema>;
 export type WikiContext = z.infer<typeof contextSchema>;
 export type TreeResult = z.infer<typeof treeResultSchema>;
 export type FileResult = z.infer<typeof fileResultSchema>;
 export type SourceResult = z.infer<typeof sourceResultSchema>;
+export type DreamMode = z.infer<typeof dreamModeSchema>;
+export type DreamRequest = z.infer<typeof dreamRequestSchema>;
+export type ToolIndexQuery = z.infer<typeof toolIndexQuerySchema>;
+export type ToolIndexResult = z.infer<typeof toolIndexResultSchema>;
+export type ToolSearch = z.infer<typeof toolSearchSchema>;
+export type ToolSearchResult = z.infer<typeof toolSearchResultSchema>;
+export type ToolPageQuery = z.infer<typeof toolPageQuerySchema>;
+export type ToolPageResult = z.infer<typeof toolPageResultSchema>;
+export type ToolSourceQuery = z.infer<typeof toolSourceQuerySchema>;
+export type ToolHotMemory = z.infer<typeof toolHotMemorySchema>;
+export type CompactMessage = z.infer<typeof compactMessageSchema>;
+export type CompactRequest = z.infer<typeof compactRequestSchema>;
+export type CompactResult = z.infer<typeof compactResultSchema>;

@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
-import { UPLOAD_BATCH_BYTES, UPLOAD_FILE_BYTES } from "@replica/shared";
-import type { AcceptedDocument, JobResult, Space, SpaceRef } from "@replica/shared";
+import { UPLOAD_BATCH_BYTES, UPLOAD_FILE_BYTES } from "@wiki-memory/shared";
+import type { AcceptedDocument, JobResult, Space, SpaceRef } from "@wiki-memory/shared";
 import { spaceKey } from "../db/interfaces.js";
-import type { DocumentRecord, Job, JobQueue, MetadataRepository, NormalizedDocument, SpaceConfigProjection, WikiStorage } from "../db/interfaces.js";
+import type { DocumentRecord, Job, JobPayload, JobQueue, MetadataRepository, NormalizedDocument, SpaceConfigProjection, WikiStorage } from "../db/interfaces.js";
 import { ServiceError } from "../errors.js";
 import { documentType } from "./normalizer.js";
 import type { DocumentNormalizer } from "./normalizer.js";
@@ -25,7 +25,10 @@ export class Ingestion {
     private readonly projection: SpaceConfigProjection, private readonly normalizer: DocumentNormalizer,
   ) {}
 
-  async submit(ref: SpaceRef, items: UploadItem[], purpose: string | undefined, key?: string, onEnqueued?: (job: Job) => void): Promise<Job> {
+  async submit(
+    ref: SpaceRef, items: UploadItem[], purpose: string | undefined, key?: string, onEnqueued?: (job: Job) => void,
+    organizeMode?: JobPayload["organize_mode"],
+  ): Promise<Job> {
     const totalBytes = items.reduce((size, item) => size + item.bytes.byteLength, 0);
     if (totalBytes > UPLOAD_BATCH_BYTES || items.some((item) => item.bytes.byteLength > UPLOAD_FILE_BYTES)) {
       throw new ServiceError(413, "UPLOAD_TOO_LARGE", "Upload ≤20 MiB per file and ≤48 MiB per request");
@@ -34,7 +37,7 @@ export class Ingestion {
     const fingerprint = sha(JSON.stringify([purpose ?? null, files.map((file) => [
       file.filename, file.hash, file.docDate ?? null,
       ...(file.replacesDocId || file.analyzeFromTurn ? [file.replacesDocId ?? null, file.analyzeFromTurn ?? null] : []),
-    ])]));
+    ]), ...(organizeMode ? [organizeMode] : [])]));
     const id = spaceKey(ref);
     if (key) {
       const existing = await this.repo.findIdempotentJob(id, key);
@@ -89,7 +92,8 @@ export class Ingestion {
     const latest = await this.repo.findSpace(ref);
     return this.queue.enqueue({
       id: newJobId(), type: "ingest", spaceKey: id, idempotencyKey: key ?? null,
-      payload: { docs: accepted, baseVersion: latest?.current_version ?? space.current_version, fingerprint },
+      payload: { docs: accepted, baseVersion: latest?.current_version ?? space.current_version, fingerprint,
+        ...(organizeMode ? { organize_mode: organizeMode } : {}) },
     }, onEnqueued);
   }
 }

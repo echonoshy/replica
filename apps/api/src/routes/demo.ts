@@ -2,13 +2,14 @@ import { createRoute, z } from "@hono/zod-openapi";
 import type { OpenAPIHono } from "@hono/zod-openapi";
 import {
   docIdSchema, findAnchors, identifierSchema, jobIdSchema, spaceRefSchema, versionSchema,
-} from "@replica/shared";
-import type { Citation, SpaceRef } from "@replica/shared";
+} from "@wiki-memory/shared";
+import type { Citation, SpaceRef } from "@wiki-memory/shared";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { spaceKey, zeroUsage } from "../db/interfaces.js";
 import type { MetadataRepository, WikiStorage } from "../db/interfaces.js";
 import { ServiceError } from "../errors.js";
 import type { ModelInfo, OpenAiGateway } from "../llm/openai-gateway.js";
+import type { SQLiteMemoryStateStore } from "../memory/memory-state.js";
 import { isFact } from "../pipeline/analyzer.js";
 import type { Claim } from "../pipeline/analyzer.js";
 import { jobResponse } from "../pipeline/ingestion.js";
@@ -18,19 +19,20 @@ import { readPage } from "../pipeline/wiki-markdown.js";
 import { requireSpace, snapshotFor, SourceReader } from "../retrieval/synthesizer.js";
 import type { Synthesizer } from "../retrieval/synthesizer.js";
 import { PERSONAL_DEMO_DAYS, PERSONAL_DEMO_PROMPTS, PERSONAL_DEMO_SPACE } from "../demo/scenarios.js";
+import { memoryControlsView } from "./memory-controls.js";
 
 const spaceParams = z.object({ ns: identifierSchema, id: identifierSchema });
 const fromParams = ({ ns, id }: z.infer<typeof spaceParams>): SpaceRef => ({ namespace: ns, space_id: id });
 const optionalVersion = z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional();
 
 const chatInputSchema = spaceRefSchema.extend({
-  message: z.string().trim().min(1).max(4000),
+  message: z.string().trim().min(1).max(16_000),
   history: z.array(z.object({
     role: z.enum(["user", "assistant"]),
-    content: z.string().trim().min(1).max(4000),
-  })).max(20).default([]),
+    content: z.string().trim().min(1).max(16_000),
+  })).max(40).default([]),
   compare_baseline: z.boolean().default(true),
-  max_tokens: z.number().int().min(256).max(8000).default(2400),
+  max_tokens: z.number().int().min(256).max(64_000).default(16_000),
   verify_raw_sources: z.boolean().default(true),
   snapshot_version: versionSchema.nullish(),
 });
@@ -111,6 +113,7 @@ export function demoRoutes(
   gateway: OpenAiGateway,
   synthesizer: Synthesizer,
   modelInfo: ModelInfo,
+  memoryState?: SQLiteMemoryStateStore,
 ) {
   const tags = ["Demo"];
 
@@ -151,7 +154,7 @@ export function demoRoutes(
       ? retrieval.contexts.map((ctx) => `### ${ctx.title} (${ctx.page_id})\n召回原因：${ctx.relevance_reason}\n${ctx.content}`).join("\n\n---\n\n")
       : "（当前记忆空间暂无已发布的相关记忆）";
 
-    const recentHistory: ChatCompletionMessageParam[] = input.history.slice(-8).map((turn) => ({
+    const recentHistory: ChatCompletionMessageParam[] = input.history.slice(-24).map((turn) => ({
       role: turn.role,
       content: turn.content,
     }));
@@ -174,9 +177,9 @@ export function demoRoutes(
     const baseStart = Date.now();
 
     const [withCompletion, baselineCompletion] = await Promise.all([
-      gateway.complete("strong", withMemoryMessages, withUsage, { maxTokens: 1400 }),
+      gateway.complete("strong", withMemoryMessages, withUsage, { maxTokens: 8192 }),
       input.compare_baseline
-        ? gateway.complete("strong", baselineMessages, baseUsage, { maxTokens: 1000 })
+        ? gateway.complete("strong", baselineMessages, baseUsage, { maxTokens: 8192 })
         : Promise.resolve(null),
     ]);
 
@@ -276,6 +279,7 @@ export function demoRoutes(
 
     const targetJobId = requestedJobId ?? snapshot?.job_id ?? jobs[0]?.job_id;
     const stageNotes = targetJobId ? await storage.listStagingNotes(ref, targetJobId) : [];
+    const controls = memoryState ? memoryControlsView(memoryState, key, claims) : undefined;
 
     return c.json({
       space,
@@ -311,6 +315,17 @@ export function demoRoutes(
         job_id: targetJobId ?? null,
         notes: stageNotes,
       },
+      ...(controls && { memory_v2: {
+        core_profile_card: controls.core_profile_card,
+        aliases_count: controls.aliases.length,
+        hot_memories_count: controls.hot_memories.length,
+        tier_breakdown: {
+          pinned: controls.stats.pinned_count,
+          durable: controls.stats.durable_count,
+          working: controls.stats.working_count,
+          archived: controls.stats.archived_count,
+        },
+      } }),
     }, 200);
   });
 

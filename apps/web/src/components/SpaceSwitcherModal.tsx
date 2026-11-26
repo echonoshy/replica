@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Check, FolderKanban, Plus, Sparkles, User, X } from "lucide-react";
-import type { Space } from "@replica/shared";
+import type { Space } from "@wiki-memory/shared";
 import { api, spaceDisplayName, spaceKeyOf } from "../api";
 import { getShowcaseMeta, getSpaceTestCases } from "../demoTestCases";
 import { useApp } from "../context/AppContext";
@@ -27,7 +27,7 @@ export function SpaceSwitcherModal({ onClose }: { onClose: () => void }) {
       return meta && meta.badgeTone !== "blank";
     })
     .sort((a, b) => {
-      const order = ["engineering:atlas_platform", "sales:enterprise_q4", "personal:zhou_ran", "personal:lin_yuan"];
+      const order = ["personal:chen_mo", "personal:lin_xi"];
       return order.indexOf(spaceKeyOf(a)) - order.indexOf(spaceKeyOf(b));
     });
   const otherSpaces = spaces.filter((s) => !showcaseSpaces.includes(s));

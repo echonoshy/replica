@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useState } from "react";
 import { AlertTriangle, Check, CheckCircle2, Clock3, Loader2, Sparkles, XCircle } from "lucide-react";
-import type { JobResult } from "@replica/shared";
+import type { JobResult } from "@wiki-memory/shared";
 import { api, formatNumber } from "../api";
 
 const STAGES = [

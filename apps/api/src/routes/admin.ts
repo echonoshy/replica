@@ -1,13 +1,14 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import type { OpenAPIHono } from "@hono/zod-openapi";
 import {
-  createSpaceSchema, fileResultSchema, forgetSchema, identifierSchema, jobResultSchema, purposeSchema, sourceQuerySchema,
-  sourceResultSchema, spaceRefSchema, spaceResultSchema, spacesResultSchema, treeResultSchema, versionSchema, wikiPagePathSchema,
-} from "@replica/shared";
-import type { SpaceRef } from "@replica/shared";
+  createSpaceSchema, dreamRequestSchema, fileResultSchema, forgetSchema, identifierSchema, jobResultSchema, purposeSchema, sourceQuerySchema,
+  sourceResultSchema, spaceResultSchema, spacesResultSchema, treeResultSchema, versionSchema, wikiPagePathSchema,
+} from "@wiki-memory/shared";
+import type { SpaceRef } from "@wiki-memory/shared";
 import { spaceKey } from "../db/interfaces.js";
 import type { JobQueue, MetadataRepository, SpaceConfigProjection, WikiStorage } from "../db/interfaces.js";
 import { ServiceError } from "../errors.js";
+import { digestPendingChatSessions, type ChatDreamDependencies } from "../chat/dream-chats.js";
 import { enqueueDream } from "../pipeline/dreaming.js";
 import { enqueueRetraction, jobResponse, waitForCompile } from "../pipeline/ingestion.js";
 import { readPage } from "../pipeline/wiki-markdown.js";
@@ -60,7 +61,7 @@ const rollbackRoute = createRoute({
 });
 const dreamRoute = createRoute({
   method: "post", path: "/v1/memories/dream", tags: ["Memory"], summary: "Enqueue offline Dreaming for a space",
-  request: { body: jsonBody(spaceRefSchema) },
+  request: { body: jsonBody(dreamRequestSchema) },
   responses: { 202: json(jobResultSchema, "Dreaming job accepted"), ...requestErrors },
 });
 const forgetRoute = createRoute({
@@ -76,7 +77,8 @@ const forgetRoute = createRoute({
 export function adminRoutes(
   app: OpenAPIHono, repo: MetadataRepository, queue: JobQueue, storage: WikiStorage,
   projection: SpaceConfigProjection, wake: () => void, onSnapshotChanged?: (ref: SpaceRef, version: number) => Promise<void>,
-  syncWait = 120_000,
+  syncWait = 120_000, onRollback?: (ref: SpaceRef, version: number, documents: string[]) => Promise<void> | void,
+  chatDeps?: Pick<ChatDreamDependencies, "chatStore" | "ingestion">,
 ) {
   app.openapi(spacesRoute, async (c) => c.json({ spaces: await repo.listSpaces() }, 200));
   app.openapi(createSpaceRoute, async (c) => {
@@ -127,6 +129,8 @@ export function adminRoutes(
     let space;
     try {
       space = await repo.rollback(lease, c.req.valid("json").version);
+      const targetSnapshot = await repo.getSnapshot(spaceKey(ref), space.current_version);
+      await onRollback?.(ref, space.current_version, targetSnapshot?.documents ?? []);
       await onSnapshotChanged?.(ref, space.current_version);
       await syncSpaceConfig(repo, projection, ref);
     } finally {
@@ -136,9 +140,17 @@ export function adminRoutes(
     return c.json(space, 200);
   });
   app.openapi(dreamRoute, async (c) => {
-    const space = await requireSpace(repo, c.req.valid("json"));
-    if (!space.current_version) throw new ServiceError(409, "NO_PUBLISHED_SNAPSHOT", "Publish a snapshot before Dreaming");
-    const job = await enqueueDream(queue, space);
+    const input = c.req.valid("json");
+    const space = await requireSpace(repo, input);
+    const digestion = input.mode !== "consolidate" && chatDeps
+      ? await digestPendingChatSessions(space, { ...chatDeps, getJob: (id) => repo.getJob(id), wake }) : undefined;
+    if (input.mode === "digest") {
+      if (!digestion) throw new ServiceError(409, "NO_PENDING_CHATS", "No pending chat sessions to digest");
+      return c.json(await jobResponse(repo, digestion.job), 202);
+    }
+    if (!space.current_version && !digestion) throw new ServiceError(409, "NO_PUBLISHED_SNAPSHOT", "Publish a snapshot before Dreaming");
+    // Space jobs execute in FIFO order, including the digest of a space's first session.
+    const job = await enqueueDream(queue, space, input.mode);
     wake();
     return c.json(await jobResponse(repo, job), 202);
   });

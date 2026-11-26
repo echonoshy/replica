@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { retrieveResultSchema } from "@replica/shared";
+import { retrieveResultSchema } from "@wiki-memory/shared";
 import { SQLiteChatStore } from "../apps/api/src/chat/chat-store.js";
 import { readConfig } from "../apps/api/src/config.js";
 import type { DocumentRecord } from "../apps/api/src/db/interfaces.js";
@@ -248,7 +248,8 @@ describe("raw conversation search", () => {
       ]);
       expect(reply.conversation_hits).toHaveLength(2);
       expect(store.getMessages("active").at(-1)?.conversation_hits).toEqual(reply.conversation_hits);
-      const system = complete.mock.calls[0][1][0].content;
+      const chatCall = complete.mock.calls.find((call) => call[0] === "strong")!;
+      const system = chatCall[1][0].content;
       expect(system).toContain("# 差旅 Wiki");
       expect(system).toContain("【通道 1 · 长期 Wiki 记忆");
       expect(system).toContain("【通道 2 · 原始对话直搜");

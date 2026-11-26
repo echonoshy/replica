@@ -3,9 +3,9 @@ import mammoth from "mammoth";
 import TurndownService from "turndown";
 import { extractText, getDocumentProxy } from "unpdf";
 import { z } from "zod";
-import { extensions } from "@replica/shared";
-import type { DocumentExtension, Warning } from "@replica/shared";
-import { groupMessagesIntoTurns, locatorMarker, normalizeText } from "../chat/turns.js";
+import { extensions } from "@wiki-memory/shared";
+import type { DocumentExtension, Warning } from "@wiki-memory/shared";
+import { dateMarker, groupMessagesIntoTurns, locatorMarker, normalizeText } from "../chat/turns.js";
 import type { NormalizedDocument } from "../db/interfaces.js";
 import { ServiceError } from "../errors.js";
 
@@ -34,9 +34,19 @@ function countText(parts: string[]) {
   return parts.reduce((sum, part) => sum + (part.match(/[\p{L}\p{N}]/gu)?.length ?? 0), 0);
 }
 
-function anchored(parts: string[], prefix: "p" | "s" | "t", warnings: Warning[] = []): NormalizedDocument {
-  const charCount = countText(parts);
-  const markdown = parts.map((part, i) => `<!-- loc:${prefix}${i + 1} -->\n\n${part}`).join("\n\n");
+function anchored(
+  parts: Array<string | { text: string; date?: string }>,
+  prefix: "p" | "s" | "t",
+  warnings: Warning[] = [],
+): NormalizedDocument {
+  const texts = parts.map((part) => (typeof part === "string" ? part : part.text));
+  const charCount = countText(texts);
+  const markdown = parts.map((part, i) => {
+    const text = typeof part === "string" ? part : part.text;
+    const date = typeof part === "string" ? undefined : part.date;
+    const meta = date ? `\n<!-- date:${date} -->` : "";
+    return `<!-- loc:${prefix}${i + 1} -->${meta}\n\n${text}`;
+  }).join("\n\n");
   if (markdown.length > MAX_TEXT) {
     throw new ServiceError(422, "DOCUMENT_TOO_LONG", "Extracted document exceeds 1,000,000 characters");
   }
@@ -51,6 +61,7 @@ const message = z.object({
   role: z.enum(["user", "assistant", "system", "developer", "tool"]),
   content: z.union([z.string(), z.array(z.object({ text: z.string() }))]).transform((content) =>
     typeof content === "string" ? content : content.map((part) => part.text).join("\n")),
+  created_at: z.string().optional(),
 });
 const conversation = z.union([
   z.array(message),
@@ -63,7 +74,7 @@ function readTurns(text: string) {
   if (!parsed.success) {
     throw new ServiceError(422, "INVALID_CONVERSATION", "JSON conversation must contain role/content messages");
   }
-  return anchored(groupMessagesIntoTurns(parsed.data).map(({ text }) => text), "t");
+  return anchored(groupMessagesIntoTurns(parsed.data).map(({ text, date }) => ({ text, date })), "t");
 }
 
 export class TextDocumentNormalizer implements DocumentNormalizer {
@@ -106,8 +117,11 @@ export class TextDocumentNormalizer implements DocumentNormalizer {
 
 export function anchoredSections(markdown: string) {
   const matches = [...markdown.matchAll(locatorMarker)];
-  return matches.map((match, index) => ({
-    locator: match[1],
-    text: markdown.slice(match.index! + match[0].length, matches[index + 1]?.index ?? markdown.length).trim(),
-  }));
+  return matches.map((match, index) => {
+    const raw = markdown.slice(match.index! + match[0].length, matches[index + 1]?.index ?? markdown.length).trim();
+    const dateMatch = raw.match(dateMarker);
+    const date = dateMatch?.[1];
+    const text = dateMatch ? raw.slice(dateMatch[0].length).trim() : raw;
+    return { locator: match[1], text, ...(date ? { date } : {}) };
+  });
 }

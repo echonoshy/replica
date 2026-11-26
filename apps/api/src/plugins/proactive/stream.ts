@@ -1,4 +1,4 @@
-import type { NudgesQuery } from "@replica/shared";
+import type { NudgesQuery } from "@wiki-memory/shared";
 import { spaceKey } from "../../db/interfaces.js";
 import type { Store } from "./store.js";
 import { iso } from "./time.js";

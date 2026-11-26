@@ -1,12 +1,12 @@
 import { createRoute } from "@hono/zod-openapi";
 import type { OpenAPIHono } from "@hono/zod-openapi";
-import { retrieveSchema, retrieveResultSchema } from "@replica/shared";
+import { retrieveSchema, retrieveResultSchema } from "@wiki-memory/shared";
 import type { Synthesizer } from "../retrieval/synthesizer.js";
 import { json, requestErrors } from "./responses.js";
 
 const route = createRoute({
   method: "post", path: "/v1/memories/retrieve", tags: ["Memory"],
-  summary: "Retrieve sourced context, an answer, or both from a published snapshot",
+  summary: "Retrieve snapshot evidence with fast, multi-hop, or agentic navigation",
   request: { body: { required: true, content: { "application/json": { schema: retrieveSchema } } } },
   responses: { 200: json(retrieveResultSchema, "Version-pinned retrieval result"), ...requestErrors },
 });

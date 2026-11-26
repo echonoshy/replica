@@ -1,8 +1,10 @@
 import { encode, decode } from "gpt-tokenizer/encoding/o200k_base";
-import { findAnchors } from "@replica/shared";
+import { findAnchors } from "@wiki-memory/shared";
 import { indexText, queryTerms } from "../db/tokenize.js";
 
 const encoderOptions = { disallowedSpecial: new Set<string>() };
+const safetyLinePattern = /过敏|急诊|医嘱|禁忌|红线|禁|绝对不能|严禁|不耐受|底线|上限|不能碰|不吃|过敏原|allergy|medical|emergency|prohibit|redline/i;
+
 export const countTokens = (text: string | null | undefined) => text ? encode(text, encoderOptions).length : 0;
 
 export function truncateTokens(text: string, limit: number) {
@@ -19,13 +21,17 @@ export function trimIndex(markdown: string, limit: number) {
   return lastLine > 0 ? clipped.slice(0, lastLine).trimEnd() : clipped;
 }
 
-export function relevantMarkdown(markdown: string, query: string, limit: number) {
+export function relevantMarkdown(markdown: string, query: string | string[], limit: number, boostSafety = false) {
   if (countTokens(markdown) <= limit) return markdown;
-  const terms = queryTerms(query);
+  const queryList = Array.isArray(query) ? query : [query];
+  const terms = [...new Set(queryList.flatMap((q) => queryTerms(q)))];
+  const queryHasSafetyCue = boostSafety || queryList.some((q) =>
+    /吃|喝|餐|饭|奶|酒|药|烧|病|过敏|禁忌|红线|健康|猫|狗|宠|预算|杠杆|投资|应急|日程|盘点|规划|生日|聚餐|医/i.test(q));
   const lines = markdown.split("\n").map((line, index) => {
     const words = new Set(indexText(line).match(/[\p{L}\p{N}]+/gu) ?? []);
-    const score = terms.reduce((sum, word) => sum + Number(words.has(word)), 0);
-    return { line, index, score, citations: findAnchors(line) };
+    const lexicalScore = terms.reduce((sum, word) => sum + Number(words.has(word)), 0);
+    const safetyBonus = queryHasSafetyCue && safetyLinePattern.test(line) ? 1.5 : 0;
+    return { line, index, score: lexicalScore + safetyBonus, citations: findAnchors(line) };
   }).filter(({ citations }) => citations.length);
   lines.sort((a, b) => b.score - a.score || a.index - b.index);
   const kept = new Map<number, string>();

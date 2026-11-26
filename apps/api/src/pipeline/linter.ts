@@ -1,7 +1,7 @@
 import {
   contentPagePathSchema, findAnchors, INDEX_MAX_BYTES, INDEX_MAX_LINES, wikiPagePathSchema,
-} from "@replica/shared";
-import type { LintReport } from "@replica/shared";
+} from "@wiki-memory/shared";
+import type { LintReport } from "@wiki-memory/shared";
 import type { Root } from "mdast";
 import type { WikiDraft } from "../db/interfaces.js";
 import { EMPTY_CONFLICTS, EMPTY_TIMELINE } from "./wiki-compiler.js";
@@ -65,7 +65,8 @@ export function lintDraft(
         const text = plainText(node).trim();
         const nav = node.children.every((child) => child.type === "link" || child.type === "linkReference"
           || (child.type === "text" && /^[\s·,，、;；]*$/.test(child.value)));
-        if (text && !nav && ![EMPTY_TIMELINE, EMPTY_CONFLICTS].includes(text) && !findAnchors(text).length) {
+        const raw = body.slice(node.position!.start.offset, node.position!.end.offset);
+        if (text && !nav && ![EMPTY_TIMELINE, EMPTY_CONFLICTS].includes(text) && !/^别名[:：]/.test(text) && !findAnchors(raw).length) {
           issue("UNCITED_STATEMENT", path, `Add a source to: ${text.slice(0, 150)}`);
         }
       });
@@ -86,6 +87,7 @@ export function lintDraft(
   }
 
   const indexed = new Set<string>();
+  const hubLinks = new Map<string, Set<string>>();
   for (const [path, { ast }] of parsed) {
     const definitions = new Map<string, string>();
     walk(ast, (node) => { if (node.type === "definition") definitions.set(node.identifier, node.url); });
@@ -99,13 +101,20 @@ export function lintDraft(
         issue("BROKEN_LINK", path, `Link target does not exist: ${url}`);
       } else if (path === "_index.md" && contentPagePathSchema.safeParse(target.path).success) {
         indexed.add(target.path);
+      } else if (/^(?:topics|entities)\/hub-[\w-]+\.md$/.test(path)) {
+        const links = hubLinks.get(path) ?? new Set<string>();
+        links.add(target.path);
+        hubLinks.set(path, links);
       }
     });
+  }
+  for (const hub of [...indexed]) {
+    for (const member of hubLinks.get(hub) ?? []) indexed.add(member);
   }
   for (const path of draft.keys()) {
     if (contentPagePathSchema.safeParse(path).success && !indexed.has(path)) {
       report.orphan_pages++;
-      issue("ORPHAN_PAGE", path, "Add a relative link from _index.md");
+      issue("ORPHAN_PAGE", path, "Link this page from _index.md or one of its linked hub pages");
     }
   }
 

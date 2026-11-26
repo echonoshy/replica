@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import type { Space } from "@replica/shared";
+import type { Space } from "@wiki-memory/shared";
 import { readConfig } from "../apps/api/src/config.js";
 import type { Job, NewJob } from "../apps/api/src/db/interfaces.js";
 import { zeroUsage } from "../apps/api/src/db/interfaces.js";

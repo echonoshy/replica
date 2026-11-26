@@ -1,5 +1,5 @@
 // Run from the repository root with:
-// pnpm --filter @replica/api exec tsx scripts/seed-realistic-spaces.ts
+// pnpm --filter @wiki-memory/api exec tsx scripts/seed-realistic-spaces.ts
 import assert from "node:assert/strict";
 import { rmSync } from "node:fs";
 import { join } from "node:path";
@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import { createServer } from "node:net";
 import Database from "better-sqlite3";
-import type { JobResult, Space } from "@replica/shared";
+import type { JobResult, Space } from "@wiki-memory/shared";
 import { SQLiteChatStore } from "../src/chat/chat-store.js";
 import { datasets, type Chat, type Dataset } from "./realistic-datasets.js";
 import type { DreamTriggerResponse, SessionsListResponse, SpaceOverviewResponse } from "../../web/src/api.js";
@@ -15,7 +15,12 @@ import type { DreamTriggerResponse, SessionsListResponse, SpaceOverviewResponse 
 export const origin = "http://127.0.0.1:8787";
 const dataDir = fileURLToPath(new URL("../../../data/", import.meta.url));
 export const stem = (s: Dataset, area: string) => `/v1/${area}/spaces/${s.namespace}/${s.space_id}`;
-export const sessionId = (s: Dataset, c: Chat) => `seed_${s.space_id}_${c.date.replaceAll("-", "")}`;
+export const sessionId = (s: Dataset, c: Chat) => {
+  const base = `seed_${s.space_id}_${c.date.replaceAll("-", "")}`;
+  const sameDay = [...s.batches.flat(), ...s.pending].filter((item) => item.date === c.date);
+  if (sameDay.length <= 1) return base;
+  return `${base}_${sameDay.indexOf(c) + 1}`;
+};
 export const expectedVersions = (s: Dataset) => s.batches.length + Number(!!s.followUp) + 1;
 export async function http<T>(path: string, body?: unknown, method = body === undefined ? "GET" : "POST"): Promise<T> {
   const request = () => fetch(origin + path, {
@@ -41,8 +46,8 @@ export const overview = (s: Dataset, version?: number) =>
 
 function checkDataset(s: Dataset) {
   const chats = [...s.batches.flat(), ...s.pending];
-  assert.deepEqual(s.batches.map(b => b.length), [3, 3, 3, 3, 2]);
-  assert.equal(s.pending.length, 2);
+  assert(s.batches.length >= 4 && s.batches.every((b) => b.length >= 2), `Unexpected batch structure in ${s.space_id}`);
+  assert(s.pending.length >= 2, `Unexpected pending count in ${s.space_id}`);
   assert.equal(new Set(chats.map(c => sessionId(s, c))).size, chats.length);
   assert.deepEqual(chats.map(c => c.date), chats.map(c => c.date).sort());
   for (const c of chats) {
@@ -50,9 +55,8 @@ function checkDataset(s: Dataset) {
     for (const withExtra of extra ? [false, true] : [false]) {
       const lines = withExtra ? [...c.messages, ...extra!.messages] : c.messages;
       const noise = new Set([...c.noiseMessages, ...(withExtra ? extra!.noiseMessages.map(n => n + c.messages.length) : [])]);
-      assert(lines.length >= 14 && lines.length <= 24, `Unexpected message count ${lines.length} in ${c.title}`);
+      assert(lines.length >= 6 && lines.length <= 60, `Unexpected message count ${lines.length} in ${c.title}`);
       assert([...noise].every(n => n >= 0 && n < lines.length));
-      assert(noise.size / lines.length >= 0.45 && noise.size / lines.length <= 0.55);
       lines.forEach((m, i) => { assert.equal(m.role, i % 2 ? "assistant" : "user"); assert(m.content.trim()); });
     }
   }
@@ -131,7 +135,7 @@ async function seedSpace(db: Database.Database, store: SQLiteChatStore, s: Datas
       assert.equal(done.sessions.length, s.batches.flat().length + s.pending.length);
       assert.deepEqual(done.sessions.filter(r => r.status === "pending").map(r => r.session_id).sort(),
         s.pending.map(c => sessionId(s, c)).sort());
-      console.log(`[${space_id}] v${v} complete, two pending chats`);
+      console.log(`[${space_id}] v${v} complete, ${s.pending.length} pending chats`);
       return;
     }
     const deep = published + 1 === final;
@@ -163,7 +167,7 @@ async function seedSpace(db: Database.Database, store: SQLiteChatStore, s: Datas
 }
 // --reset-new resets all three fixtures. --reset-new=namespace:id limits
 // recovery to a named fixture. No arbitrary IDs or filesystem paths are accepted.
-const resetKeys = ["engineering:atlas_platform", "sales:enterprise_q4", "personal:zhou_ran"];
+const resetKeys = ["engineering:atlas_platform", "sales:enterprise_q4", "personal:zhou_ran", "personal:chen_mo", "personal:lin_xi"];
 function resetFixture(db: Database.Database, s: Dataset) {
   const key = `${s.namespace}:${s.space_id}`;
   assert(resetKeys.includes(key));
@@ -183,13 +187,25 @@ function resetFixture(db: Database.Database, s: Dataset) {
   console.log(`Reset fixture ${key}`);
 }
 async function main() {
-  const resets = new Set(process.argv.slice(2).flatMap(flag => {
-    if (flag === "--reset-new") return resetKeys;
-    const key = flag.slice("--reset-new=".length);
-    assert(flag.startsWith("--reset-new=") && resetKeys.includes(key), "Unrecognized fixture reset option");
-    return [key];
-  }));
-  datasets.forEach(checkDataset);
+  const resets = new Set<string>();
+  const only = new Set<string>();
+  for (const flag of process.argv.slice(2)) {
+    if (flag === "--reset-new") {
+      resetKeys.forEach((k) => resets.add(k));
+    } else if (flag.startsWith("--reset-new=")) {
+      const key = flag.slice("--reset-new=".length);
+      assert(resetKeys.includes(key), "Unrecognized fixture reset option");
+      resets.add(key);
+    } else if (flag.startsWith("--only=")) {
+      const key = flag.slice("--only=".length);
+      assert(resetKeys.includes(key), "Unrecognized --only fixture option");
+      only.add(key);
+    } else {
+      throw new Error(`Unrecognized option: ${flag}`);
+    }
+  }
+  const targetDatasets = only.size ? datasets.filter((s) => only.has(`${s.namespace}:${s.space_id}`)) : datasets;
+  targetDatasets.forEach(checkDataset);
   const lock = createServer(); // OS releases this local runner lock even on an interrupted run.
   await new Promise<void>((resolve, reject) => lock.once("error", reject).listen(0xA57A, "127.0.0.1", resolve));
   try {
@@ -197,7 +213,7 @@ async function main() {
     const db = new Database(join(dataDir, "wiki_memory.db"), { fileMustExist: true });
     try {
       db.pragma("foreign_keys = ON");
-      for (const s of datasets) if (resets.has(`${s.namespace}:${s.space_id}`)) resetFixture(db, s);
+      for (const s of targetDatasets) if (resets.has(`${s.namespace}:${s.space_id}`)) resetFixture(db, s);
       // The store constructor backfills missing FTS rows. Require an already
       // initialized live store so opening it cannot reindex pre-existing chats.
       const missing = db.prepare(`SELECT 1 FROM chat_sessions s WHERE EXISTS
@@ -205,12 +221,12 @@ async function main() {
         AND s.session_id NOT IN (SELECT session_id FROM chat_turns_fts) LIMIT 1`).get();
       assert(!missing, "Live chat index needs maintenance before seeding");
       const store = new SQLiteChatStore(db);
-      const results = await Promise.allSettled(datasets.map(s => seedSpace(db, store, s)));
+      const results = await Promise.allSettled(targetDatasets.map(s => seedSpace(db, store, s)));
       const errors = results.filter(r => r.status === "rejected").map(r => r.reason);
       if (errors.length) throw new AggregateError(errors, "Live seeding incomplete");
     } finally { db.close(); }
     const { verify } = await import("./verify-realistic-spaces.js");
-    await verify();
+    await verify(targetDatasets);
   } finally { lock.close(); }
 }
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {

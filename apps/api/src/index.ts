@@ -23,7 +23,7 @@ if (existsSync(webDir)) {
 
 service.start();
 const server = serve({ fetch: service.app.fetch, hostname: config.HOST, port: config.PORT }, (info) => {
-  console.log(`Replica Memory API · http://${config.HOST}:${info.port}/docs`);
+  console.log(`Wiki Memory API · http://${config.HOST}:${info.port}/docs`);
 });
 let stopping = false;
 function stop() {

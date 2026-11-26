@@ -1,15 +1,15 @@
 import { randomUUID } from "node:crypto";
-import type { Space } from "@replica/shared";
+import type { Space } from "@wiki-memory/shared";
 import type { Config } from "../config.js";
 import { digestPendingChatSessions } from "../chat/dream-chats.js";
 import type { ChatDreamDependencies } from "../chat/dream-chats.js";
 import type { JobQueue, MetadataRepository } from "../db/interfaces.js";
 import { spaceKey } from "../db/interfaces.js";
 
-export function enqueueDream(queue: Pick<JobQueue, "enqueue">, space: Space) {
+export function enqueueDream(queue: Pick<JobQueue, "enqueue">, space: Space, mode?: "consolidate" | "full") {
   return queue.enqueue({
     id: `job_${randomUUID().replaceAll("-", "")}`, type: "dream", spaceKey: spaceKey(space),
-    idempotencyKey: null, payload: { docs: [], baseVersion: space.current_version },
+    idempotencyKey: null, payload: { docs: [], baseVersion: space.current_version, ...(mode ? { dream_mode: mode } : {}) },
   });
 }
 

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { and, desc, eq, gt, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { readMigrationFiles } from "drizzle-orm/migrator";
-import type { JobStatus, JobUsage, Space, SpaceRef } from "@replica/shared";
+import type { JobStatus, JobUsage, Space, SpaceRef } from "@wiki-memory/shared";
 import { ServiceError } from "../errors.js";
 import { spaceKey, zeroUsage } from "./interfaces.js";
 import type {
@@ -211,17 +211,33 @@ export class SQLiteLexicalSearch implements LexicalSearchProvider {
   constructor(private readonly connection: SQLiteConnection) {}
 
   async search(key: string, version: number, query: string, limit: number, includeAudit: boolean) {
-    const terms = queryTerms(query);
+    const terms = queryTerms(query).filter((term) => [...term].length > 1 || /[a-z0-9]/i.test(term));
     if (!terms.length) return [];
-    const expression = terms.map((term) => `"${term}"`).join(" OR ");
+    const expression = terms.map((term) => `"${term.replaceAll('"', "")}"`).join(" OR ");
     const rows = this.connection.client.prepare(`
-      SELECT page_id FROM wiki_fts
+      SELECT page_id, title, content FROM wiki_fts
       WHERE wiki_fts MATCH ? AND space_key = ? AND version = ?
       AND (? = 1 OR page_id <> 'conflicts.md')
       ORDER BY bm25(wiki_fts, 0, 0, 0, 4, 1), page_id
       LIMIT ?
-    `).all(expression, key, version, Number(includeAudit), limit);
-    return rows.map((row) => String((row as { page_id: string }).page_id));
+    `).all(expression, key, version, Number(includeAudit), Math.max(limit * 3, 12)) as Array<{
+      page_id: string; title: string; content: string;
+    }>;
+    const minMatches = terms.length >= 4 ? 2 : 1;
+    const filtered: string[] = [];
+    for (const row of rows) {
+      const titleTokens = new Set(row.title.match(/[\p{L}\p{N}]+/gu) ?? []);
+      const bodyTokens = new Set(row.content.match(/[\p{L}\p{N}]+/gu) ?? []);
+      const matched = terms.filter((term) => titleTokens.has(term) || bodyTokens.has(term));
+      const strongTitleOrAscii = matched.some((term) =>
+        (titleTokens.has(term) && (/[a-z0-9]/i.test(term) || matched.filter((t) => titleTokens.has(t)).length >= 2))
+        || (/^[a-z0-9]{3,}$/i.test(term)));
+      if (matched.length >= minMatches || strongTitleOrAscii) {
+        filtered.push(row.page_id);
+        if (filtered.length >= limit) break;
+      }
+    }
+    return filtered;
   }
 }
 

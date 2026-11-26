@@ -2,10 +2,11 @@
 
 面向个人与多部门 Agent 的可审计、可溯源、带版本演化的长期记忆服务（Memory Layer for AI）。
 
-上传文档或进行日常对话后，Replica 通过离线编译与「做梦整理（Dreaming）」持续维护结构化的 Markdown Wiki 快照；调用方通过 HTTP 或 Web 工作台检索已发布记忆与未入梦原话，获得带精确出处 `[src:doc_id#loc]` 的上下文与回答。
+上传文档或进行日常对话后，Replica 通过离线编译与「做梦整理（Dreaming）」持续维护结构化的 Markdown Wiki 快照；调用方通过 HTTP 或 Web 工作台检索已发布记忆与未入梦原话，获得带精确出处 `[src:doc_id#loc]` / `[chat:session_id#tN]` 的上下文与回答，并支持克制的主动轻提醒（Proactive Whisper）。
 
 > [!NOTE]
-> 旧版 Python 实现已完整归档至 [`legacy/v0-deprecated`](https://github.com/echonoshy/replica/tree/legacy/v0-deprecated) 分支（及历史标签 `v0.1.0`–`v0.3.0`）。当前 `master` 分支为基于四层记忆模型、Markdown Wiki 编译管线与离线 Dreaming 架构的新一代实现。
+> 旧版 Python 实现已完整归档至 [`legacy/v0-deprecated`](https://github.com/echonoshy/replica/tree/legacy/v0-deprecated) 分支（及历史标签 `v0.1.0`–`v0.3.0`）。当前分支为基于四层记忆模型、Markdown Wiki 编译管线、离线 Dreaming 与主动轻提醒引擎的新一代实现。
+> 完整方案架构说明见 [docs/memory-architecture-report.md](docs/memory-architecture-report.md)。
 
 ## 快速启动
 
@@ -87,11 +88,12 @@ curl -sS http://127.0.0.1:8787/v1/memories/retrieve \
   }'
 ```
 
-支持通过 `snapshot_version` 指定历史快照。上下文与答案中的 `[src:doc_id#loc]` 可精确回查至 PDF 页码、文本段落或对话轮次。`max_tokens` 按 `o200k_base` 严格预算控制索引摘录、Wiki 上下文、答案与原文切片总长度。
+支持通过 `snapshot_version` 指定历史快照，或通过 `as_of_date` 进行历史时间切面查询；支持 `fast` / `multi_hop` / `agentic` 检索策略与 `external_safe` 对外隐私隔离。上下文与答案中的 `[src:doc_id#loc]` 可精确回查至 PDF 页码、文本段落或对话轮次。`max_tokens` 按 `o200k_base` 严格预算控制索引摘录、Wiki 上下文、答案与原文切片总长度。
 
-### 3. 做梦整理与记忆撤回（Dream & Forget）
+### 3. 做梦整理、记忆管控与撤回（Dream / Controls / Forget）
 
-- **离线做梦整理**：`POST /v1/memories/dream` 或通过 Web 工作台 / 后台 `DreamScheduler` 自动触发，支持合并重叠事实（`merge_claims`）、将已完成的一次性旧安排归档至审计页（`archive_claim`），以及对已入梦会话追加新轮次时的纯增量轮次抽取。
+- **离线做梦整理**：`POST /v1/memories/dream` 或通过 Web 工作台 / 后台 `DreamScheduler` 自动触发，支持合并同名实体与重叠事实（`merge_subjects` / `merge_claims`）、回查原文纠错（`correct_claim`）、归档已完成/过期旧安排（`archive_claim` / `archive_event`）、消化即时热记忆，以及对已入梦会话追加新轮次时的纯增量抽取。
+- **实时记忆管控**：支持即时热记忆（“记住/忘掉”当场生效）、实体别名映射、三档遗忘衰减（红线永驻 / 长期稳定 / 短期工作态）、五档隐私分区以及手动编辑/置顶/归档恢复。
 - **记忆撤回 / 遗忘**：`POST /v1/memories/forget` 支持按 `doc_ids` 从当前活跃快照中确定性撤回对应事实（零 LLM 调用），删除已入梦聊天会话时也会自动触发撤回并发布干净的新版本快照。
 
 ```sh
@@ -105,11 +107,15 @@ curl -sS http://127.0.0.1:8787/v1/memories/forget \
   }'
 ```
 
+### 4. 主动轻提醒（Proactive Whisper）
+
+内置 Proactive 插件，基于时间线、有效期、同日冲突、前瞻意图（Intentions）、巡检侦察兵（Scout）与外部事件 L1 快筛生成克制的轻提醒；配备每日限额、冷却期、免打扰时段、严格紧急校验、跟进深度限制与状态并发围栏，并在 Web 收件箱提供零污染的「模拟时间 / 模拟事件」Dry-Run 预览。
+
 ## 架构与存储设计
 
-- **四层记忆落盘**：`raw/` 按 SHA-256 不可变保存原始文件与锚点化文本；`staging/{job_id}/notes/` 保存并行 Analyzer 的抽取笔记；`snapshots/v{N}/` 保存不可变 Markdown Wiki 快照（含 `_index.md`、`entities/`、`topics/`、`timeline.md`、`conflicts.md` 与 `_claims.json`）；SQLite 同时维护元数据、`wiki_fts` 与 `chat_turns_fts` 双路全文索引。
-- **确定性归并 + 单写者门禁**：并行抽取新文档后，由确定性编译器按日期与显式修订裁决冲突，再由持有空间写锁的 Organizer 结合 L2 笔记进行编排与梦境合并/归档；Linter 严格校验 `200 行 / 25,600 字节` 索引上限、断链、孤岛页与出处完整性后，在 SQLite 事务内原子切换版本指针。
-- **双路召回与主动提醒**：对话模式并发融合「薄 Wiki 长期认知」与「历史原话直搜（覆盖尚未入梦的新对话与细碎细节）」；内置 Proactive 插件支持免打扰时段、频控与基于时间线的主动提醒。
+- **四层记忆体系**：常驻核心红线卡（Core Profile Card）+ 即时热记忆（Hot Memory）+ 不可变 Markdown Wiki 快照（`snapshots/v{N}/`，含 `_index.md`、`entities/`、`topics/`、`timeline.md`、`rules.md`、`conflicts.md` 与 `_claims.json`）+ SHA-256 去重的原始档案与锚点文本（`raw/`）。
+- **确定性归并 + 单写者门禁**：并行抽取新文档后，由确定性编译器按日期与显式修订裁决冲突，再由持有空间写锁的 Organizer 编排整理；Linter 严格校验 `200 行 / 25,600 字节` 索引上限、断链、孤岛页与出处完整性后，在 SQLite 事务内原子切换版本指针并重建 FTS5 / 向量索引。
+- **双通道召回 + 流式对话**：前台路由自动分诊、补全指代与拆题，并发融合「长期 Wiki（目录 + FTS5 + 语义向量）」与「历史原话直搜」，支持长对话自动压缩、SSE 流式输出、基线对照与出处二次核验。
 
 ## 验收测试
 
@@ -119,10 +125,10 @@ pnpm test
 pnpm build
 ```
 
-Vitest 使用临时 SQLite 数据目录、真实 PDF/DOCX 夹具与本地 OpenAI 兼容模拟网关，无需真实模型密钥即可完整验证混合摄取、时间冲突、梦境合并/归档、增量追聊入梦、自动定时入梦、百页索引导航、零模型调用记忆撤回与版本回滚。
+Vitest 使用临时 SQLite 数据目录、实际 PDF/DOCX 文件及本地 OpenAI 兼容夹具，无需真实模型密钥即可重复验证全链路能力。
 
 ## 参考
 
-- 四层记忆与离线 Dreaming：[Anthropic Engineering — The Components of Agent Memory](https://www.anthropic.com/research/components-of-agent-memory)
-- 并行抽取与单写者流程：[Claude Cookbook — Dreaming with a Dynamic Workflow](https://github.com/anthropics/claude-cookbooks/blob/main/managed_agents/CMA_dreaming_with_a_dynamic_workflow.ipynb)
-- 知识 Wiki 的蒸馏与出处：[Claude Quickstarts — Knowledge Wiki](https://github.com/anthropics/claude-quickstarts/blob/main/managed-agents/knowledge-wiki/README.md)
+- 四层记忆和离线整理：[Anthropic Engineering](https://www.anthropic.com/research/components-of-agent-memory)
+- 并行抽取与单写者流程：[Claude Cookbook](https://github.com/anthropics/claude-cookbooks/blob/main/managed_agents/CMA_dreaming_with_a_dynamic_workflow.ipynb)
+- 知识 Wiki 的蒸馏与出处：[Claude Quickstarts Knowledge Wiki](https://github.com/anthropics/claude-quickstarts/blob/main/managed_agents/knowledge-wiki/README.md)

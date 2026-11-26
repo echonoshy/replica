@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import {
-  BookOpen, Columns2, ExternalLink, Menu, MessageSquare, Moon,
+  Bell, BookOpen, Check, ChevronDown, ChevronRight, Columns2, ExternalLink, Menu, MessageSquare, Moon,
   PanelLeftClose, PanelRight, Plus, Search, Settings, Sparkles, Trash2, X,
 } from "lucide-react";
-import { api, conversationPreview, spaceKeyOf } from "./api";
+import { api, conversationPreview, isAwaitingNudgeReply, spaceDisplayName, spaceKeyOf } from "./api";
 import type { ChatSession, ConversationSearchHit } from "./api";
 import { SHOWCASE_SPACES } from "./demoTestCases";
 import { AppProvider, useApp } from "./context/AppContext";
 import { ChatWorkspace } from "./components/ChatWorkspace";
 import { MemoryLibraryView } from "./components/MemoryLibraryView";
+import { ProactiveInboxView } from "./components/ProactiveInboxView";
 import { RightMemoryPanel } from "./components/RightMemoryPanel";
 import { SpaceSwitcherModal } from "./components/SpaceSwitcherModal";
 
@@ -19,7 +20,7 @@ const WIKI_LABELS: Record<string, string> = {
   "conflicts.md": "冲突与修订审计",
 };
 
-const LEFT_DEFAULT = 240;
+const LEFT_DEFAULT = 248;
 const RIGHT_DEFAULT = 380;
 const LEFT_STORAGE_KEY = "replica:left-width";
 const RIGHT_STORAGE_KEY = "replica:right-width";
@@ -43,23 +44,73 @@ function Sidebar({
 }) {
   const app = useApp();
   const version = app.overview?.space ?? app.activeSpace;
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const switcher = useRef<HTMLDivElement>(null);
+  const switcherButton = useRef<HTMLButtonElement>(null);
+  const activeName = spaceDisplayName(app.activeSpace);
+  useEffect(() => {
+    if (!switcherOpen) return;
+    function dismiss(event: PointerEvent) {
+      if (event.target instanceof Node && !switcher.current?.contains(event.target)) setSwitcherOpen(false);
+    }
+    document.addEventListener("pointerdown", dismiss);
+    return () => document.removeEventListener("pointerdown", dismiss);
+  }, [switcherOpen]);
+
   const quickSpaces = SHOWCASE_SPACES
     .map((meta) => {
       const space = app.spaces.find((s) => spaceKeyOf(s) === meta.key);
       return space ? { space, meta } : null;
     })
     .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const awaitingNudgeReplies = sessions.filter(isAwaitingNudgeReply);
   const groups = [
-    { label: "待入梦整理", dreamed: false, sessions: sessions.filter((s) => s.status !== "dreamed") },
-    { label: "已沉淀进记忆", dreamed: true, sessions: sessions.filter((s) => s.status === "dreamed") },
+    ...(awaitingNudgeReplies.length ? [{ label: "来自轻提醒", dreamed: false, sessions: awaitingNudgeReplies }] : []),
+    { label: "待入梦", dreamed: false, sessions: sessions.filter((s) => s.status !== "dreamed" && !isAwaitingNudgeReply(s)) },
+    { label: "已沉淀", dreamed: true, sessions: sessions.filter((s) => s.status === "dreamed") },
   ];
 
   return (
     <aside className="workspace-sidebar" aria-label="工作区导航">
       <div className="flex h-12 shrink-0 items-center justify-between px-1">
-        <div className="flex items-center gap-2">
-          <span className="brand-mark" aria-hidden="true"><Sparkles size={13} strokeWidth={2} /></span>
-          <span className="text-sm font-semibold">Replica</span>
+        <div ref={switcher} className="workspace-switcher"
+          onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setSwitcherOpen(false); }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && switcherOpen) {
+              event.stopPropagation();
+              setSwitcherOpen(false);
+              switcherButton.current?.focus();
+            }
+          }}>
+          <button ref={switcherButton} type="button" className="switcher-trigger" aria-expanded={switcherOpen}
+            title={activeName} aria-label={`切换空间：${activeName}`} onClick={() => setSwitcherOpen(!switcherOpen)}>
+            <span className="brand-mark shrink-0" aria-hidden="true"><Sparkles size={14} /></span>
+            <span className="truncate font-semibold">{activeName}</span>
+            {version && <span className="switcher-version">v{version.current_version}</span>}
+            <ChevronDown size={12} className="shrink-0 text-[var(--ink-muted)]" />
+          </button>
+          {switcherOpen && (
+            <div className="space-dropdown" role="group" aria-label="切换空间">
+              {quickSpaces.map(({ space, meta }) => {
+                const selected = !!app.activeSpace && spaceKeyOf(app.activeSpace) === meta.key;
+                return (
+                  <button type="button" key={meta.key} className="space-option" aria-pressed={selected}
+                    onClick={() => { setSwitcherOpen(false); app.selectSpace(meta.key); onSelect(); switcherButton.current?.focus(); }}>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-medium">{spaceDisplayName(space)}</span>
+                      <span className="space-subtitle">{meta.subtitle}</span>
+                    </span>
+                    <span className="switcher-version">v{space.current_version}</span>
+                    <span className="w-3.5 shrink-0">{selected && <Check size={14} />}</span>
+                  </button>
+                );
+              })}
+              <button type="button" className="manage-spaces" onClick={() => { setSwitcherOpen(false); onManage(); }}>
+                <Settings size={14} /> 管理全部空间…
+              </button>
+            </div>
+          )}
         </div>
         <button type="button" onClick={onClose} className="icon-button" aria-label="收起左侧导航" title="收起左侧导航">
           <PanelLeftClose size={14} />
@@ -67,44 +118,44 @@ function Sidebar({
       </div>
 
       <button type="button" className="control sidebar-create" onClick={() => { app.startNewChat(); onSelect(); }}>
-        <Plus size={14} /> 新建验证对话
+        <Plus size={14} /> 新对话
       </button>
 
       <nav className="mt-3 space-y-0.5" aria-label="记忆工作区">
+        <button type="button" className="nav-row" aria-current={app.centerMode === "chat" ? "page" : undefined}
+          onClick={() => { app.setCenterMode("chat"); onSelect(); }}>
+          <MessageSquare size={14} /> 对话
+        </button>
         <button type="button" className="nav-row" aria-current={app.centerMode === "memory" ? "page" : undefined}
           onClick={() => { app.openMemory(); onSelect(); }}>
           <BookOpen size={14} /> <span className="flex-1">记忆库</span>
-          <span className="mono-meta">{version?.current_version ? `v${version.current_version} · ${version.page_count}页` : "空白"}</span>
+          {version && version.current_version > 0 && <span className="mono-meta">{version.page_count} 页</span>}
         </button>
-        <button type="button" className="nav-row" aria-pressed={app.rightOpen && app.rightTab === "dream"}
-          onClick={() => { app.setRightTab("dream"); app.setRightOpen(true); onSelect(); }}>
-          <Moon size={14} /> <span className="flex-1">做梦整理</span>
-          {app.pendingCount > 0 ? <span className="status-chip tone-violet font-mono-num">{app.pendingCount}</span> : null}
+        <button type="button" className="nav-row" disabled={!app.proactiveAvailable} aria-current={app.centerMode === "inbox" ? "page" : undefined}
+          onClick={() => { app.openInbox(); onSelect(); }}>
+          <Bell size={14} /> <span className="flex-1">轻提醒</span>
+          {app.pendingNudges.length > 0 && <span className="nudge-count">{app.pendingNudges.length}</span>}
         </button>
       </nav>
 
       <div className="mt-3 min-h-0 flex-1 space-y-4 overflow-y-auto border-t border-[#eceef2] py-3">
         {groups.map((group) => (
           <section key={group.label} aria-label={group.label}>
-            <div className="group-label">
-              <span>{group.label}</span><span className="font-mono-num">{group.sessions.length}</span>
-            </div>
-            {group.sessions.map((session) => {
+            <button type="button" className="history-heading" aria-expanded={!collapsedGroups[group.label]}
+              onClick={() => setCollapsedGroups(prev => ({ ...prev, [group.label]: !prev[group.label] }))}>
+              {collapsedGroups[group.label] ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+              {group.label}<span className="ml-auto font-mono-num">{group.sessions.length}</span>
+            </button>
+            {!collapsedGroups[group.label] && group.sessions.map((session) => {
               const current = app.centerMode === "chat" && app.activeSessionId === session.session_id;
               return (
                 <div key={session.session_id} className={`thread-row ${current ? "thread-current" : ""}`}>
                   <button type="button" title={session.title} aria-current={current ? "page" : undefined}
                     onClick={() => { app.selectSession(session.session_id); onSelect(); }}>
-                    <span className={`status-dot ${group.dreamed ? "bg-[#059669]" : "bg-[#7c3aed]"}`} />
-                    <span className="min-w-0">
-                      <span className="block truncate text-[12.5px]">{session.title}</span>
-                      <span className="mono-meta block">
-                        {session.session_date}
-                        {!group.dreamed ? ` · ${session.message_count} 条` : ""}
-                      </span>
-                    </span>
+                    {!group.dreamed && <span className="history-dot" aria-hidden="true" />}
+                    <span className="min-w-0 flex-1 truncate">{session.title}</span>
+                    <time className="mono-meta" dateTime={session.session_date}>{session.session_date.slice(5, 10)}</time>
                   </button>
-                  {group.dreamed ? <span className="thread-version status-chip tone-mint font-mono-num">v{session.dreamed_version}</span> : null}
                   <button type="button" className="thread-delete icon-button" aria-label={`删除对话：${session.title}`}
                     onClick={() => void app.deleteSession(session.session_id)}><Trash2 size={13} /></button>
                 </div>
@@ -115,51 +166,9 @@ function Sidebar({
         {sessions.length === 0 ? <p className="px-2 text-xs text-[#646a73]">{hasQuery ? "暂无匹配对话" : "暂无对话"}</p> : null}
       </div>
 
-      <footer className="space-y-1.5 border-t border-[#eceef2] pt-2.5 pb-2">
-        {quickSpaces.length > 0 ? (
-          <div className="space-y-1" aria-label="测试场景空间快速切换">
-            <div className="group-label px-1">
-              <span>测试场景空间</span>
-              <span className="font-mono-num">{quickSpaces.length}</span>
-            </div>
-            <div className="grid grid-cols-2 gap-1">
-              {quickSpaces.map(({ space, meta }) => {
-                const selected = app.activeSpace && spaceKeyOf(app.activeSpace) === meta.key;
-                const isDeep = meta.badgeTone === "deep";
-                return (
-                  <button
-                    key={meta.key}
-                    type="button"
-                    aria-pressed={Boolean(selected)}
-                    title={meta.subtitle}
-                    onClick={() => { app.selectSpace(meta.key); onSelect(); }}
-                    className={`flex min-w-0 items-center justify-between gap-1 rounded-[7px] border px-2 py-1.5 text-left text-[11.5px] transition-all ${
-                      selected
-                        ? "border-[#b9d4ff] bg-[#eef4ff] font-medium text-[#245bdb]"
-                        : "border-[#eceef2] bg-white text-[#4e5969] hover:border-[#d5dce6] hover:bg-[#f8faff]"
-                    }`}
-                  >
-                    <span className="flex min-w-0 items-center gap-1.5">
-                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                        selected ? "bg-[#3370ff]" : isDeep ? "bg-[#059669]" : "bg-[#aeb5c0]"
-                      }`} />
-                      <span className="truncate">{meta.shortLabel}</span>
-                    </span>
-                    <span className="font-mono-num shrink-0 text-[10px] opacity-75">
-                      {space.current_version ? `v${space.current_version}` : "空"}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-        <div className="flex items-center gap-1 pt-0.5">
-          <button type="button" className="nav-row flex-1" onClick={onManage}><Settings size={14} /> 空间管理</button>
-          <a href="/docs" target="_blank" rel="noreferrer" className="icon-button" aria-label="OpenAPI 文档" title="OpenAPI 开发者文档">
-            <ExternalLink size={13} />
-          </a>
-        </div>
+      <footer className="sidebar-footer">
+        <button type="button" onClick={onManage}><Settings size={14} /> 空间管理</button>
+        <a href="/docs" target="_blank" rel="noreferrer">API 文档 <ExternalLink size={12} /></a>
       </footer>
     </aside>
   );
@@ -294,8 +303,8 @@ function WorkspaceShell() {
       setSearchOpen(true);
       window.setTimeout(() => { swallowNextSlashRef.current = false; }, 120);
     }
-    window.addEventListener("keydown", handleShortcut, true);
-    return () => window.removeEventListener("keydown", handleShortcut, true);
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
   }, [spaceModalOpen]);
 
   const stats = app.overview?.stats;
@@ -335,40 +344,10 @@ function WorkspaceShell() {
               <Menu size={16} />
             </button>
 
-            <div className="recessed-track inline-flex shrink-0 items-center gap-0.5 text-[12px] font-medium" role="tablist" aria-label="主视图切换">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={app.centerMode === "chat"}
-                onClick={() => app.setCenterMode("chat")}
-                className={`inline-flex items-center gap-1.5 rounded-[5px] px-2.5 py-1 transition-all ${
-                  app.centerMode === "chat" ? "recessed-pill-active" : "text-[#646a73] hover:text-[#1f2329]"
-                }`}
-              >
-                <MessageSquare size={12} /> 对话演示
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={app.centerMode === "memory"}
-                onClick={() => app.openMemory()}
-                className={`inline-flex items-center gap-1.5 rounded-[5px] px-2.5 py-1 transition-all ${
-                  app.centerMode === "memory" ? "recessed-pill-active" : "text-[#646a73] hover:text-[#1f2329]"
-                }`}
-              >
-                <BookOpen size={12} /> 记忆库
-                {version ? <span className="font-mono-num text-[10.5px] opacity-80">v{version}</span> : null}
-              </button>
-            </div>
-
-            <div className="hidden items-center gap-1.5 xl:flex">
-              <button type="button" className="status-chip tone-mint" onClick={() => app.openMemory()} title="查看已沉淀的所有记忆事实">
-                {stats?.fact_count ?? 0} 条事实
-              </button>
-              <button type="button" className="status-chip tone-rose" onClick={() => app.openMemory("conflicts.md")} title="查看新旧记忆冲突与修订记录">
-                {stats?.conflict_count ?? 0} 处修订
-              </button>
-            </div>
+            <h1 className="truncate text-[14px] font-semibold" title={app.centerMode === "chat" ? app.activeSession?.title : undefined}>
+              {app.centerMode === "chat" ? app.activeSession?.title ?? "新对话" : app.centerMode === "memory" ? "记忆库" : "轻提醒"}
+            </h1>
+            {app.centerMode === "memory" && <span className="mono-meta hidden md:inline">v{version} · {stats?.fact_count ?? 0} 条事实</span>}
           </div>
 
           <div className="utility-actions">
@@ -377,8 +356,8 @@ function WorkspaceShell() {
             }}>
               <div className="search-field" role="search">
                 <Search size={13} aria-hidden="true" />
-                <input ref={searchInput} value={query} type="search" aria-label="搜索对话与记忆"
-                  placeholder="搜索记忆或原话…" autoComplete="off"
+                <input ref={searchInput} value={query} type="search" aria-label="搜索对话、记忆或原话"
+                  placeholder="搜索对话、记忆或原话…" autoComplete="off"
                   onFocus={() => setSearchOpen(true)}
                   onBeforeInput={(event) => {
                     const data = (event.nativeEvent as InputEvent).data;
@@ -464,16 +443,16 @@ function WorkspaceShell() {
               </button>
             ) : null}
 
-            <button type="button" className="control control-dark"
+            <button type="button" className={app.pendingCount > 0 ? "control control-primary" : "control"}
               disabled={app.triggeringDream || app.dreamRunning || (!app.pendingCount && !version)}
               onClick={() => void app.triggerDream(app.pendingCount === 0)}>
               {app.pendingCount || app.dreamRunning || !version ? <Moon size={13} /> : <Sparkles size={13} />}
               <span>
-                {app.dreamRunning ? "整理中…" : app.triggeringDream ? "启动中…" : app.pendingCount > 0 ? `做梦整理 (${app.pendingCount})` : !version ? "做梦整理" : "深度压缩"}
+                {app.dreamRunning ? "整理中…" : app.triggeringDream ? "启动中…" : app.pendingCount > 0 ? `整理记忆 (${app.pendingCount})` : "深度整理"}
               </span>
             </button>
 
-            <button type="button" className="control" aria-pressed={app.rightOpen} aria-label="记忆透视面板" title="展开/收起右侧记忆透视面板"
+            <button type="button" className="control" aria-pressed={app.rightOpen} aria-label="记忆透视" title="展开/收起右侧记忆透视面板"
               onClick={() => app.setRightOpen(!app.rightOpen)}>
               <PanelRight size={13} /><span className="hidden md:inline">记忆透视</span>
             </button>
@@ -491,7 +470,9 @@ function WorkspaceShell() {
           <div className="min-w-0 flex-1">
             {app.centerMode === "memory"
               ? <MemoryLibraryView key={`${spaceKey}:${app.memoryTarget.request}`} initialPath={app.memoryTarget.path} />
-              : <ChatWorkspace key={spaceKey} />}
+              : app.centerMode === "inbox"
+                ? <ProactiveInboxView key={spaceKey} />
+                : <ChatWorkspace key={spaceKey} />}
           </div>
           {app.rightOpen ? (
             <div

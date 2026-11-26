@@ -4,8 +4,8 @@ import remarkGfm from "remark-gfm";
 import { unified } from "unified";
 import { parse } from "yaml";
 import type { Nodes, Root } from "mdast";
-import { frontmatterSchema } from "@replica/shared";
-import type { Frontmatter } from "@replica/shared";
+import { frontmatterSchema } from "@wiki-memory/shared";
+import type { Frontmatter } from "@wiki-memory/shared";
 
 const parser = unified().use(remarkParse).use(remarkGfm);
 const frontmatterBlock = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;

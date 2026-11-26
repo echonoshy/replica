@@ -1,6 +1,12 @@
 import type {
-  Citation, FileResult, JobResult, RetrieveResult, Snapshot, SourceResult, Space, SpaceRef, TreeResult,
-} from "@replica/shared";
+  CreateIntentionInput, ExecuteNudgeActionResult, IntentionsResult, ProactiveEventInput, ProactiveEventResult, ProactiveProfile, ProspectiveIntention, ScoutResult, UpdateIntentionInput,
+  Citation, CompactRequest, CompactResult, EvaluateInput, EvaluateResult, FileResult, JobResult, Nudge, NudgeAck, NudgesQuery, NudgesResult, OpenNudgeSessionResult,
+  ProceduralRule, ProactivePolicy, RetrieveResult, Snapshot, SourceResult, Space, SpaceRef, ToolIndexQuery, ToolIndexResult, TreeResult,
+} from "@wiki-memory/shared";
+
+export type {
+  AckReason, ProposedAction, CreateIntentionInput, ExecuteNudgeActionResult, IntentionsResult, ProactiveEventInput, ProactiveEventResult, ProactiveProfile, ProspectiveIntention, ScoutResult, UpdateIntentionInput,
+  EvaluateResult, Nudge, NudgeAck, NudgesResult, OpenNudgeSessionResult, ProactivePolicy } from "@wiki-memory/shared";
 
 export type ChatSessionStatus = "pending" | "dreaming" | "dreamed";
 
@@ -22,9 +28,14 @@ export interface ChatSession {
   dreamed_job_id: string | null;
   dreamed_message_count: number;
   message_count: number;
+  source_nudge_id?: string | null;
+  source_nudge_kind?: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export const isAwaitingNudgeReply = (session: ChatSession) => Boolean(session.source_nudge_id)
+  && session.status === "pending" && session.message_count <= session.dreamed_message_count;
 
 interface SessionTurnSource {
   session_id: string;
@@ -56,7 +67,7 @@ export interface ChatMessage {
   baseline_reply: string | null;
   retrieval: RetrieveResult | null;
   citations: Citation[];
-  conversation_hits?: ConversationSearchHit[];
+  conversation_hits: ConversationSearchHit[];
   tokens: number | null;
   latency_ms: number | null;
   created_at: string;
@@ -71,14 +82,125 @@ export interface SessionsListResponse {
   active_dream_job_id: string | null;
 }
 
-export interface SendMessageResponse {
+export type MemoryTier = "pinned_redline" | "durable" | "working";
+export type PrivacyScope = "private_health" | "family" | "work_internal" | "work_shareable" | "general";
+export type ProactiveOutboxItem = Nudge;
+export type ProactiveNudgeStatus = Nudge["status"];
+type AliasKind = "entity" | "topic";
+
+export interface EntityAliasRecord {
+  space_key: string;
+  kind: AliasKind;
+  canonical_subject: string;
+  alias: string;
+  created_at: string;
+}
+
+export interface HotMemoryRecord {
+  id: string;
+  space_key: string;
+  session_id: string | null;
+  kind: "remember" | "forget";
+  content: string;
+  target_hint: string | null;
+  tier: MemoryTier;
+  scope: PrivacyScope;
+  status: "active" | "consumed" | "dismissed";
+  created_at: string;
+}
+
+interface FactTelemetryRecord {
+  space_key: string;
+  fact_key: string;
+  tier_override: MemoryTier | null;
+  scope_override: PrivacyScope | null;
+  pinned: boolean;
+  archived_reason: string | null;
+  edited_value: string | null;
+  recall_count: number;
+  last_recalled_at: string | null;
+  updated_at: string;
+}
+
+export type FactControlPatch = Pick<FactTelemetryRecord, "fact_key"> &
+  Partial<Pick<FactTelemetryRecord, "pinned" | "tier_override" | "scope_override" | "edited_value" | "archived_reason">> &
+  { restore?: boolean };
+
+export interface EnrichedFactView {
+  fact_key: string;
+  kind: AliasKind;
+  subject: string;
+  predicate: string;
+  value: string;
+  original_value: string;
+  valid_from?: string | null;
+  valid_to?: string | null;
+  doc_id: string;
+  locator: string;
+  doc_date: string;
+  sources: string[];
+  tier: MemoryTier;
+  scope: PrivacyScope;
+  pinned: boolean;
+  archived: boolean;
+  archived_reason: string | null;
+  recall_count: number;
+  last_recalled_at: string | null;
+  activation_score: number;
+  decay_state: "pinned" | "fresh" | "fading" | "cold";
+  aliases: string[];
+}
+
+export interface MemoryControlsResponse {
+  space_key: string;
+  snapshot_version: number;
+  core_profile_card: string;
+  rules?: ProceduralRule[];
+  facts: EnrichedFactView[];
+  archived_facts: EnrichedFactView[];
+  aliases: EntityAliasRecord[];
+  hot_memories: HotMemoryRecord[];
+  stats: {
+    rules_count?: number;
+    total_active: number;
+    pinned_count: number;
+    durable_count: number;
+    working_count: number;
+    fading_count: number;
+    cold_count: number;
+    archived_count: number;
+  };
+}
+
+interface ChatTurnResponse {
   session: ChatSession;
   user_message: ChatMessage;
   assistant_message: ChatMessage;
 }
 
+export interface SendMessageResponse extends ChatTurnResponse {
+  hot_memory_action?: HotMemoryRecord;
+}
+
+export interface ChatStreamHandlers {
+  onUserMessage?: (userMessage: ChatMessage) => void;
+  onStatus?: (status: { stage: string; message: string }) => void;
+  onContext?: (ctx: {
+    retrieval: RetrieveResult;
+    conversation_hits: ConversationSearchHit[];
+    hot_memory_action?: HotMemoryRecord;
+  }) => void;
+  onDelta?: (delta: { channel: "memory" | "baseline"; text: string }) => void;
+}
+
+export interface ChatAttachmentResponse extends ChatTurnResponse {
+  attachment: { filename: string; doc_id: string; job_id: string; preview_chars: number; warnings: string[] };
+}
+
+export type ChatDreamMode = "digest_pending" | "consolidate_wiki" | "full";
+
 export interface DreamTriggerResponse {
-  mode: "digest_pending" | "consolidate_wiki";
+  mode: ChatDreamMode;
   digested_sessions: Array<{ session_id: string; title: string }>;
   job: JobResult;
 }
@@ -153,7 +275,7 @@ export interface ParsedConflict {
 
 export interface ConflictItem {
   raw: string;
-  type: "superseded" | "same_day_conflict" | "revision" | "archived";
+  type: "superseded" | "same_day_conflict" | "revision" | "archived" | "dream_correction";
   anchors: string[];
   parsed?: ParsedConflict | null;
 }
@@ -221,6 +343,12 @@ const demoSpaceUrl = (ref: SpaceRef) =>
   `/v1/demo/spaces/${encodeURIComponent(ref.namespace)}/${encodeURIComponent(ref.space_id)}`;
 const chatSpaceUrl = (ref: SpaceRef) =>
   `/v1/chat/spaces/${encodeURIComponent(ref.namespace)}/${encodeURIComponent(ref.space_id)}`;
+const proactiveSpaceUrl = (ref: SpaceRef) =>
+  `/v1/proactive/spaces/${encodeURIComponent(ref.namespace)}/${encodeURIComponent(ref.space_id)}`;
+const nudgeUrl = (id: string) => `/v1/proactive/nudges/${encodeURIComponent(id)}`;
+
+const memorySpaceUrl = (ref: SpaceRef) =>
+  `/v1/memory/spaces/${encodeURIComponent(ref.namespace)}/${encodeURIComponent(ref.space_id)}`;
 
 export function withQuery(path: string, params: Record<string, string | number | undefined | null>) {
   const qs = new URLSearchParams();
@@ -230,20 +358,34 @@ export function withQuery(path: string, params: Record<string, string | number |
   return qs.size ? `${path}?${qs.toString()}` : path;
 }
 
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number, readonly code?: string) {
+    super(message);
+  }
+}
+
 export async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
   const body = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(body?.error?.message ?? `请求失败（HTTP ${res.status}）`);
+  if (!res.ok) throw new ApiError(body?.error?.message ?? `请求失败（HTTP ${res.status}）`, res.status, body?.error?.code);
   if (body === null) throw new Error("服务端返回了空响应");
   return body as T;
 }
 
-export function apiPost<T>(url: string, payload?: unknown, method: "POST" | "PATCH" | "DELETE" = "POST") {
+export function apiPost<T>(url: string, payload?: unknown, method: "POST" | "PUT" | "PATCH" | "DELETE" = "POST") {
   return apiRequest<T>(url, {
     method,
     headers: payload !== undefined ? { "Content-Type": "application/json" } : undefined,
     body: payload !== undefined ? JSON.stringify(payload) : undefined,
   });
+}
+
+function listProactiveOutbox(ref: SpaceRef, options: Partial<Omit<NudgesQuery, keyof SpaceRef>> = {}) {
+  return apiRequest<NudgesResult>(withQuery("/v1/proactive/nudges", { ...spaceRefOf(ref), ...options }));
+}
+
+function ackProactiveNudge(id: string, payload: NudgeAck) {
+  return apiPost<Nudge>(`${nudgeUrl(id)}/ack`, payload);
 }
 
 export const api = {
@@ -277,8 +419,143 @@ export const api = {
     sessionId: string,
     payload: { content: string; compare_baseline?: boolean; max_tokens?: number; verify_raw_sources?: boolean },
   ) => apiPost<SendMessageResponse>(`/v1/chat/sessions/${encodeURIComponent(sessionId)}/messages`, payload),
-  triggerDream: (ref: SpaceRef, forceConsolidate = false) =>
-    apiPost<DreamTriggerResponse>(`${chatSpaceUrl(ref)}/dream`, { force_consolidate: forceConsolidate }),
+  sendMessageStream: async (
+    sessionId: string,
+    payload: { content: string; compare_baseline?: boolean; max_tokens?: number; verify_raw_sources?: boolean },
+    handlers: ChatStreamHandlers = {},
+    signal?: AbortSignal,
+  ): Promise<SendMessageResponse> => {
+    const res = await fetch(`/v1/chat/sessions/${encodeURIComponent(sessionId)}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+      body: JSON.stringify({ ...payload, stream: true }),
+      signal,
+    });
+    const contentType = res.headers.get("content-type")?.toLowerCase() ?? "";
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => null);
+      throw new ApiError(errBody?.error?.message ?? `请求失败（HTTP ${res.status}）`, res.status, errBody?.error?.code);
+    }
+    if (!contentType.includes("text/event-stream") || !res.body) {
+      const body = await res.json().catch(() => null);
+      if (body === null) throw new Error("服务端返回了空响应");
+      return body as SendMessageResponse;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let finalResult: SendMessageResponse | null = null;
+    let streamError: ApiError | null = null;
+
+    const processFrame = (frame: string) => {
+      let eventName = "message";
+      const dataLines: string[] = [];
+      for (const rawLine of frame.split(/\r?\n/)) {
+        if (!rawLine || rawLine.startsWith(":")) continue;
+        if (rawLine.startsWith("event:")) eventName = rawLine.slice(6).trim();
+        else if (rawLine.startsWith("data:")) dataLines.push(rawLine.slice(5).trimStart());
+      }
+      if (!dataLines.length) return;
+      const parsed = JSON.parse(dataLines.join("\n"));
+      if (eventName === "user_message" && parsed?.user_message) {
+        handlers.onUserMessage?.(parsed.user_message as ChatMessage);
+      } else if (eventName === "status") {
+        handlers.onStatus?.(parsed as { stage: string; message: string });
+      } else if (eventName === "context") {
+        handlers.onContext?.(parsed);
+      } else if (eventName === "delta") {
+        handlers.onDelta?.(parsed as { channel: "memory" | "baseline"; text: string });
+      } else if (eventName === "done") {
+        finalResult = parsed as SendMessageResponse;
+      } else if (eventName === "error") {
+        streamError = new ApiError(parsed?.error?.message ?? "流式生成失败", 502, parsed?.error?.code);
+      }
+    };
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+        const frames = buffer.split(/\r?\n\r?\n/);
+        buffer = frames.pop() ?? "";
+        for (const frame of frames) {
+          if (frame.trim()) processFrame(frame);
+        }
+        if (done) {
+          if (buffer.trim()) processFrame(buffer);
+          break;
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    if (streamError) throw streamError;
+    if (!finalResult) throw new Error("流式连接已提前结束，未收到完整回复");
+    return finalResult;
+  },
+  uploadChatAttachment: (sessionId: string, file: File, note?: string) => {
+    const form = new FormData();
+    form.append("file", file);
+    if (note) form.append("note", note);
+    return apiRequest<ChatAttachmentResponse>(`/v1/chat/sessions/${encodeURIComponent(sessionId)}/attachments`, {
+      method: "POST", body: form,
+    });
+  },
+  getMemoryControls: (ref: SpaceRef) => apiRequest<MemoryControlsResponse>(`${memorySpaceUrl(ref)}/controls`),
+  patchFactControl: (ref: SpaceRef, payload: FactControlPatch) =>
+    apiPost<{ telemetry: FactTelemetryRecord }>(`${memorySpaceUrl(ref)}/facts`, payload, "PATCH"),
+  addEntityAlias: (ref: SpaceRef, payload: { kind?: AliasKind; canonical_subject: string; alias: string }) =>
+    apiPost<{ alias: EntityAliasRecord | null; aliases: EntityAliasRecord[] }>(`${memorySpaceUrl(ref)}/aliases`, payload),
+  deleteEntityAlias: (ref: SpaceRef, kind: AliasKind, alias: string) =>
+    apiRequest<{ deleted: boolean; aliases: EntityAliasRecord[] }>(withQuery(`${memorySpaceUrl(ref)}/aliases`, { kind, alias }), { method: "DELETE" }),
+  addHotMemory: (ref: SpaceRef, payload: {
+    kind: HotMemoryRecord["kind"]; content: string; target_hint?: string; tier?: MemoryTier; scope?: PrivacyScope;
+  }) => apiPost<{ hot_memory: HotMemoryRecord }>(`${memorySpaceUrl(ref)}/hot`, payload),
+  dismissHotMemory: (ref: SpaceRef, hotId: string) =>
+    apiRequest<{ dismissed: boolean }>(`${memorySpaceUrl(ref)}/hot/${encodeURIComponent(hotId)}`, { method: "DELETE" }),
+  evaluateProactive: (ref: SpaceRef, options: Partial<Omit<EvaluateInput, keyof SpaceRef>> = {}) =>
+    apiPost<EvaluateResult>("/v1/proactive/evaluate", { ...spaceRefOf(ref), ...options }),
+  compactMessages: (ref: SpaceRef, input: Pick<CompactRequest, "messages"> & Partial<Omit<CompactRequest, keyof SpaceRef | "messages">>) =>
+    apiPost<CompactResult>("/v1/memories/compact", { ...input, ...spaceRefOf(ref) }),
+  getToolIndex: (ref: SpaceRef, options: Partial<Omit<ToolIndexQuery, keyof SpaceRef>> = {}) =>
+    apiRequest<ToolIndexResult>(withQuery("/v1/memories/tools/index", { ...options, ...spaceRefOf(ref) })),
+  triggerDream: (ref: SpaceRef, opts: boolean | { force_consolidate?: boolean; mode?: ChatDreamMode } = false) => {
+    const options = typeof opts === "boolean" ? { force_consolidate: opts } : opts;
+    return apiPost<DreamTriggerResponse>(`${chatSpaceUrl(ref)}/dream`, {
+      mode: options.mode,
+      force_consolidate: options.mode ? options.mode === "consolidate_wiki" : options.force_consolidate ?? false,
+    });
+  },
+
+  listIntentions: (ref: SpaceRef, opts: { status?: string; kind?: string; limit?: number } = {}) =>
+    apiRequest<IntentionsResult>(withQuery("/v1/proactive/intentions", { ...spaceRefOf(ref), ...opts })),
+  createIntention: (payload: CreateIntentionInput) =>
+    apiPost<ProspectiveIntention>("/v1/proactive/intentions", payload),
+  updateIntention: (id: string, payload: UpdateIntentionInput) =>
+    apiPost<ProspectiveIntention>(`/v1/proactive/intentions/${encodeURIComponent(id)}`, payload, "PATCH"),
+  deleteIntention: (id: string, ref: SpaceRef) =>
+    apiRequest<{ deleted: boolean }>(withQuery(`/v1/proactive/intentions/${encodeURIComponent(id)}`, { ...spaceRefOf(ref) }), { method: "DELETE" }),
+  ingestProactiveEvent: (payload: ProactiveEventInput) =>
+    apiPost<ProactiveEventResult>("/v1/proactive/events", payload),
+  runProactiveScout: (ref: SpaceRef, opts: { now?: string; dry_run?: boolean } = {}) =>
+    apiPost<ScoutResult>("/v1/proactive/scout", { ...spaceRefOf(ref), ...opts }),
+  getProactiveProfile: (ref: SpaceRef) => apiRequest<ProactiveProfile>(`${proactiveSpaceUrl(ref)}/profile`),
+  executeNudgeAction: (nudgeId: string, ref: SpaceRef, actionId: string, note?: string) =>
+    apiPost<ExecuteNudgeActionResult>(`${nudgeUrl(nudgeId)}/execute-action`, { ...spaceRefOf(ref), action_id: actionId, note }),
+  listNudges: listProactiveOutbox,
+  getProactiveOutbox: listProactiveOutbox,
+  listProactiveOutbox,
+  ackNudge: ackProactiveNudge,
+  ackProactiveNudge,
+  openNudgeSession: (nudgeId: string, ref: SpaceRef) =>
+    apiPost<OpenNudgeSessionResult>(`${nudgeUrl(nudgeId)}/session`, spaceRefOf(ref)),
+  getProactivePolicy: (ref: SpaceRef) => apiRequest<ProactivePolicy>(`${proactiveSpaceUrl(ref)}/policy`),
+  updateProactivePolicy: (ref: SpaceRef, patch: Partial<ProactivePolicy>) =>
+    apiPost<ProactivePolicy>(`${proactiveSpaceUrl(ref)}/policy`, patch, "PUT"),
+  proactiveStreamUrl: (ref: SpaceRef) =>
+    withQuery("/v1/proactive/nudges", { ...spaceRefOf(ref), status: "pending", limit: 100 }),
 
   getScenarios: () => apiRequest<ScenariosResponse>("/v1/demo/scenarios"),
   getOverview: (ref: SpaceRef, opts?: { version?: number; jobId?: string }) =>
@@ -331,11 +608,9 @@ export function formatShortDate(iso: string) {
 }
 
 const spaceLabels = new Map([
-  ["personal:lin_yuan", "林远 · 复杂样例"],
+  ["personal:chen_mo", "陈默 · 职场与家庭全能助理"],
+  ["personal:lin_xi", "林汐 · 独立开发与育儿生活"],
   ["personal:my_space", "我的个人空间"],
-  ["engineering:atlas_platform", "Atlas 平台 · 研发架构与排障"],
-  ["sales:enterprise_q4", "Q4 大客户 · 商务谈判空间"],
-  ["personal:zhou_ran", "周然 · 生活与独立开发"],
 ]);
 
 export function spaceDisplayName(space: Space | null) {

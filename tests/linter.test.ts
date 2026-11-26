@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { INDEX_MAX_BYTES, INDEX_MAX_LINES } from "@replica/shared";
-import type { Space } from "@replica/shared";
-import type { Claim } from "../apps/api/src/pipeline/analyzer.js";
+import { INDEX_MAX_BYTES, INDEX_MAX_LINES } from "@wiki-memory/shared";
+import type { Space } from "@wiki-memory/shared";
+import type { AtomicFact, Claim } from "../apps/api/src/pipeline/analyzer.js";
 import { lintDraft } from "../apps/api/src/pipeline/linter.js";
 import { compileWiki } from "../apps/api/src/pipeline/wiki-compiler.js";
 import { readPage, renderPage } from "../apps/api/src/pipeline/wiki-markdown.js";
@@ -11,7 +11,7 @@ const space: Space = {
   namespace: "finance", space_id: "alpha", purpose: "为项目复盘保留文档和修订",
   current_version: 0, document_count: 0, page_count: 0, last_dreamed_at: null, incremental_since_dream: 0,
 };
-const fact = (id: number, subject: string, value: string, docDate = "2026-11-22"): Claim => ({
+const fact = (id: number, subject: string, value: string, docDate = "2026-11-22"): AtomicFact => ({
   kind: "topic", subject, predicate: "高铁座位", value, locator: "s1",
   cardinality: "one", related: [], docId: `doc_${id}`, docDate,
 });

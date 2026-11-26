@@ -1,4 +1,4 @@
-import { errorSchema } from "@replica/shared";
+import { errorSchema } from "@wiki-memory/shared";
 import type { ZodType } from "zod";
 
 export function json<T extends ZodType>(schema: T, description: string) {

@@ -1,7 +1,7 @@
 import type {
   AcceptedDocument, DocumentExtension, JobProgress, JobStatus, JobUsage,
   Snapshot, Space, SpaceRef, Warning,
-} from "@replica/shared";
+} from "@wiki-memory/shared";
 
 export const spaceKey = (ref: SpaceRef) => `${ref.namespace}:${ref.space_id}`;
 
@@ -30,6 +30,8 @@ export interface JobPayload {
   baseVersion: number;
   fingerprint?: string;
   retract_doc_ids?: string[];
+  organize_mode?: "auto" | "skip" | "full";
+  dream_mode?: "digest" | "consolidate" | "full";
 }
 
 export interface Job {
@@ -72,6 +74,8 @@ export interface IndexedPage {
 export interface SnapshotRecord extends Snapshot {
   documents: string[];
   page_titles?: Record<string, string>;
+  processed_hot_ids?: string[];
+  digested_session_ids?: string[];
 }
 
 export interface MetadataRepository {

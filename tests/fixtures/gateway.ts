@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import { once } from "node:events";
 import { createServer } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { CompactMessage } from "@wiki-memory/shared";
 
 type Message = { role: string; content?: string; tool_call_id?: string };
 type Completion = {
@@ -98,7 +100,14 @@ export interface ProactiveContext {
   working_state: Array<{ title: string; status: string }>;
 }
 export interface GatewayOptions {
+  embed?: (input: string[]) => number[][] | { status: number; message: string };
+  compact?: (input: { messages: CompactMessage[]; max_tokens: number }) => unknown;
+  agentic?: (input: {
+    query: string; index: string; evidence: Array<{ path: string; excerpt: string }>;
+    candidates: string[]; anchors: string[]; verified: string | null;
+  }) => unknown;
   proactive?: (input: ProactiveContext) => unknown;
+  scout?: (input: unknown) => unknown;
   rejectTools?: boolean;
   rejectJson?: boolean;
   lint?: "accept" | "repair" | "reject";
@@ -120,17 +129,41 @@ export async function startFixtureGateway(options: GatewayOptions = {}) {
   });
 
   async function serve(req: IncomingMessage, res: ServerResponse) {
-    if (req.method !== "POST" || req.url !== "/v1/chat/completions") {
+    if (req.method !== "POST" || (req.url !== "/v1/chat/completions" && req.url !== "/v1/embeddings")) {
       res.writeHead(404).end();
       return;
     }
     const chunks: Buffer[] = [];
     for await (const chunk of req) chunks.push(Buffer.from(chunk));
-    const input = JSON.parse(Buffer.concat(chunks).toString()) as Completion;
+    const payload = JSON.parse(Buffer.concat(chunks).toString());
+    if (req.url === "/v1/embeddings") {
+      const { model, input } = payload as { model: string; input: string[] | string };
+      const texts = Array.isArray(input) ? input : [input];
+      requests.push({ stage: "embeddings", model, authorization: req.headers.authorization, native: true });
+      const vectors = options.embed?.(texts) ?? texts.map((text) => {
+        const bytes = Array.from(createHash("sha256").update(text).digest(), (byte) => byte - 127.5);
+        const norm = Math.hypot(...bytes);
+        return bytes.map((value) => value / norm);
+      });
+      if (!Array.isArray(vectors)) {
+        res.writeHead(vectors.status, { "Content-Type": "application/json" }).end(JSON.stringify({ error: { message: vectors.message } }));
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({
+        object: "list", model, data: vectors.map((embedding, index) => ({ object: "embedding", index, embedding })),
+        usage: { prompt_tokens: texts.length, total_tokens: texts.length },
+      }));
+      return;
+    }
+    const input = payload as Completion;
     const system = input.messages[0].content ?? "";
     const stage = system.startsWith("You extract") ? "analyzer"
+      : system.startsWith("Route this") ? "router"
       : system.startsWith("Decide whether") ? "proactive"
+      : system.startsWith("Scout the published personal memory") ? "scout"
       : system.startsWith("Select up") ? "navigator"
+      : system.startsWith("Summarize the older messages") ? "compactor"
+      : system.startsWith("Choose the next evidence") ? "agentic"
       : system.startsWith("Answer in") ? "synthesizer"
       : system.startsWith("你是") ? "chat"
       : system.includes("offline full review") ? "dreaming" : "organizer";
@@ -146,8 +179,24 @@ export async function startFixtureGateway(options: GatewayOptions = {}) {
     if (stage === "analyzer") {
       await options.beforeAnalysis?.(data);
       content = JSON.stringify(options.extract?.(data) ?? extract(data));
+    } else if (stage === "router") {
+      content = JSON.stringify({
+        memory_mode: "personal",
+        search_queries: [data.message],
+        needs_inventory: false,
+        safety_check: false,
+      });
     } else if (stage === "proactive") {
       content = JSON.stringify(await options.proactive?.(data) ?? { decision: "silent" });
+    } else if (stage === "scout") {
+      content = JSON.stringify(options.scout?.(data) ?? { findings: [] });
+    } else if (stage === "compactor") {
+      content = JSON.stringify(await options.compact?.(data) ?? {
+        summary: "Earlier messages reviewed", active_goals: [], confirmed_constraints: [],
+        recent_decisions: [], open_questions: [], extracted_hot_memories: [],
+      });
+    } else if (stage === "agentic") {
+      content = JSON.stringify(await options.agentic?.(data) ?? { read_pages: [], read_source: null });
     } else if (stage === "navigator") {
       content = JSON.stringify(navigate(data.index, data.query));
     } else if (stage === "synthesizer") {

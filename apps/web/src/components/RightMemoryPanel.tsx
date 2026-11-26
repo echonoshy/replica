@@ -1,22 +1,28 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowUpRight, BookOpen, Calendar, CheckCircle2, ChevronDown, ChevronRight, FileText, GitPullRequestArrow,
-  Hash, Layers, Loader2, MessageSquareQuote, Moon, Sparkles, X,
+  ArrowUpRight, BookOpen, CheckCircle2, ChevronDown, ChevronRight, FileText, GitPullRequestArrow,
+  Layers, Loader2, MessageSquareQuote, Moon, ShieldCheck, Sparkles, X,
 } from "lucide-react";
-import type { SourceResult } from "@replica/shared";
-import { api, buildDocLabelMap, conversationPreview, formatNumber, formatShortDate } from "../api";
+import type { SourceResult } from "@wiki-memory/shared";
+import { api, buildDocLabelMap, conversationPreview, friendlyDocLabel, formatNumber, formatShortDate, isAwaitingNudgeReply } from "../api";
 import type { SessionTurnResult, SnapshotDiffResponse } from "../api";
 import { CompileJobTracker } from "./CompileJobTracker";
+import { MEMORY_CONTROLS_PATH } from "./MemoryLibraryView";
 import { ConflictCard } from "./ConflictCard";
 import { RichMarkdown } from "./RichMarkdown";
 import { useApp } from "../context/AppContext";
 import type { SourceInspectTarget } from "../context/AppContext";
 
-function renderTurnExcerpt(text: string) {
+function locatorLabel(locator: string) {
+  const unit = { t: "轮", p: "页", s: "段" }[locator.charAt(0)];
+  return unit ? `第 ${locator.slice(1)} ${unit}` : locator;
+}
+
+function renderTurnExcerpt(text: string, neighboring = false) {
   const parts = text.split(/\n\n(?=\*\*(?:User|Assistant|System|Developer|Tool)\*\*)/);
   const looksLikeChat = parts.some((p) => /^\*\*(?:User|Assistant)\*\*/.test(p.trim()));
   if (!looksLikeChat) {
-    return <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-[#1f2329]">{text}</p>;
+    return <p className="whitespace-pre-wrap wrap-anywhere text-[13px] leading-relaxed text-[#1f2329]">{text}</p>;
   }
   return (
     <div className="space-y-2">
@@ -27,14 +33,14 @@ function renderTurnExcerpt(text: string) {
         return (
           <div
             key={idx}
-            className={`rounded-[8px] px-3 py-2 text-[12.5px] leading-relaxed ${
-              isUser
-                ? "border border-[#d6e4ff] bg-[#eff6ff] text-[#1f2329]"
-                : "border border-[#eceef2] bg-white text-[#4e5969]"
+            className={`rounded-[8px] text-[12.5px] leading-relaxed ${
+              neighboring ? "text-[#646a73]" : isUser
+                ? "bg-[#f0f4ff] px-3 py-2.5 text-[#1f2329]"
+                : "bg-[#f7f8fa] px-3 py-2.5 text-[#4e5969]"
             }`}
           >
             <div className="mb-0.5 text-[10px] font-medium text-[#8f959e]">
-              {isUser ? "用户原话" : "助理回复"}
+              {{ User: "用户原话", Assistant: "助理回复", System: "系统消息", Developer: "开发者消息", Tool: "工具结果" }[match[1]]}
             </div>
             <div className="whitespace-pre-wrap wrap-anywhere">{match[2].trim()}</div>
           </div>
@@ -48,6 +54,7 @@ export function RightMemoryPanel() {
   const {
     activeSpace,
     activeSession,
+    messages,
     sessions,
     pendingCount,
     overview,
@@ -82,7 +89,16 @@ export function RightMemoryPanel() {
   const currentSource = sourceResponse?.target === inspectedSource ? sourceResponse : null;
   const sourceData = currentSource?.data;
   const chatSource = sourceData && "session_id" in sourceData ? sourceData : null;
+  const docSource = sourceData && "doc_id" in sourceData ? sourceData : null;
+  const filenameSessionId = docSource?.filename.match(/^session_(.+?)(?:_m\d+)?\.json$/i)?.[1];
+  const sourceSession = docSource && sessions.find((session) =>
+    session.dreamed_doc_id === docSource.doc_id || session.session_id === filenameSessionId);
+  const sourceTitle = chatSource?.session_title || sourceSession?.title || (docSource
+    ? docLabelMap[docSource.doc_id] || friendlyDocLabel(docSource.filename, docSource.doc_date) : "");
+  const sourceDate = chatSource?.session_date || sourceSession?.session_date || docSource?.doc_date;
   const pendingSource = chatSource && chatSource.session_status !== "dreamed";
+  const focusedNudgeOpening = activeSession?.source_nudge_id && messages[0]?.role === "assistant"
+    && focusedRetrieval && focusedRetrieval === messages[0].retrieval;
 
   useEffect(() => {
     if (!inspectedSource) return;
@@ -124,6 +140,7 @@ export function RightMemoryPanel() {
     };
   }, [activeSession?.dreamed_doc_id, overview]);
 
+  const hasSnapshot = (activeSpace?.current_version ?? 0) > 0;
   const pendingSessions = useMemo(
     () => sessions.filter((s) => s.status === "pending" && s.message_count > s.dreamed_message_count),
     [sessions],
@@ -131,41 +148,18 @@ export function RightMemoryPanel() {
 
   return (
     <aside className="memory-inspector flex h-full min-h-0 flex-col border-l border-[#eceef2] bg-[#fafbfd]" aria-label="记忆细节">
-      <header className="flex h-[44px] shrink-0 items-center justify-between gap-2 border-b border-[#eceef2] px-3">
-        <div className="recessed-track flex items-center gap-0.5 text-[11.5px] font-medium">
-          <button
-            type="button"
-            aria-pressed={rightTab === "details"}
-            onClick={() => setRightTab("details")}
-            className={`rounded-[5px] px-3 py-1 transition-all ${
-              rightTab === "details" ? "recessed-pill-active text-[#245bdb]" : "text-[#646a73] hover:text-[#1f2329]"
-            }`}
-          >
-            本次引用
-          </button>
-          <button
-            type="button"
-            aria-pressed={rightTab === "source"}
-            onClick={() => setRightTab("source")}
-            className={`rounded-[5px] px-3 py-1 transition-all ${
-              rightTab === "source" ? "recessed-pill-active text-[#047857]" : "text-[#646a73] hover:text-[#1f2329]"
-            }`}
-          >
-            原话溯源
-          </button>
-          <button
-            type="button"
-            aria-pressed={rightTab === "dream"}
-            onClick={() => setRightTab("dream")}
-            className={`inline-flex items-center gap-1 rounded-[5px] px-3 py-1 transition-all ${
-              rightTab === "dream" ? "recessed-pill-active text-[#6d28d9]" : "text-[#646a73] hover:text-[#1f2329]"
-            }`}
-          >
-            <span>做梦整理</span>
-            {pendingCount > 0 ? (
-              <span className="status-chip tone-violet font-mono-num px-1 text-[10px]">{pendingCount}</span>
-            ) : null}
-          </button>
+      <header className="flex min-h-[50px] shrink-0 items-center justify-between gap-2 border-b border-[#eceef2] px-3">
+        <div role="group" aria-label="记忆细节视图" className="recessed-track flex flex-1 items-center gap-0.5 text-[12.5px] font-medium">
+          {([
+            ["details", "本次引用"], ["source", "原话溯源"], ["dream", "做梦队列"],
+          ] as const).map(([tab, label]) => (
+            <button key={tab} type="button" aria-pressed={rightTab === tab} onClick={() => setRightTab(tab)}
+              className={`inline-flex flex-1 items-center justify-center whitespace-nowrap rounded-[5px] px-2.5 py-1.5 transition-colors ${
+                rightTab === tab ? "recessed-pill-active text-[#245bdb]" : "text-[#646a73] hover:text-[#1f2329]"
+              }`}>
+              {label}
+            </button>
+          ))}
         </div>
 
         <button
@@ -179,10 +173,21 @@ export function RightMemoryPanel() {
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
+        {rightTab === "controls" && (
+          <section className="space-y-2 rounded-[10px] border border-[#ebedf0] bg-white p-4">
+            <h3 className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck size={15} className="text-[#3370ff]" />记忆管控</h3>
+            <p className="text-xs leading-relaxed text-[#646a73]">在记忆库中编辑个人档案里的事实，管理别名和遗忘规则。</p>
+          </section>
+        )}
         {/* TAB 1: Current Chat Memory Details */}
         {rightTab === "details" ? (
           <>
-            {focusedRetrieval ? (
+            {focusedNudgeOpening ? (
+              <p className="card-tactile p-3.5 text-xs leading-relaxed text-[#646a73]">
+                {focusedRetrieval.snapshot_version > 0 ? `此提醒基于记忆 v${focusedRetrieval.snapshot_version}。` : "此回复来自轻提醒。"}
+                点击对话中的引用即可查看原话。
+              </p>
+            ) : focusedRetrieval ? (
               <section className="space-y-2.5">
                 <div className="flex items-center justify-between text-xs font-semibold text-[#1f2329]">
                   <span className="inline-flex items-center gap-1.5">
@@ -255,7 +260,7 @@ export function RightMemoryPanel() {
                           {dreamed ? "已入梦" : "待入梦"}
                         </span>
                       </div>
-                      <div className="font-mono-num text-[10.5px] text-[#646a73]">{hit.session_date} · #{hit.turn_locator}</div>
+                      <div className="font-mono-num text-[10.5px] text-[#646a73]">{hit.session_date} · {locatorLabel(hit.turn_locator)}</div>
                       <p className="line-clamp-3 wrap-anywhere leading-relaxed text-[#4e5969]">{conversationPreview(hit.excerpt)}</p>
                       {hit.matched_terms.length ? (
                         <p className="wrap-anywhere text-[11px] text-[#646a73]">命中词 · {hit.matched_terms.join("、")}</p>
@@ -285,7 +290,12 @@ export function RightMemoryPanel() {
                   </span>
                 </div>
 
-                {activeSession.status === "pending" && activeSession.message_count > activeSession.dreamed_message_count ? (
+                {isAwaitingNudgeReply(activeSession) ? (
+                  <div className="card-tactile space-y-2 p-3.5 text-xs text-[#646a73]">
+                    <span className="status-chip tone-violet">来自提醒 · 待回复</span>
+                    <p>回复后，这场对话会进入待入梦队列。</p>
+                  </div>
+                ) : activeSession.status === "pending" && activeSession.message_count > activeSession.dreamed_message_count ? (
                   <div className="rounded-[10px] border border-[#ede9fe] bg-[#f5f3ff] p-4 space-y-3">
                     <div className="flex items-center gap-2 text-xs font-semibold text-[#6d28d9]">
                       <Moon size={14} className="text-[#6b5ce7]" /> 待入梦整理（共 {activeSession.message_count} 条消息）
@@ -355,7 +365,7 @@ export function RightMemoryPanel() {
                                 }
                                 className="source-pill"
                               >
-                                #{fact.locator}
+                                {locatorLabel(fact.locator)}
                               </button>
                             </div>
                             <p className="mt-1 leading-relaxed text-[#4e5969]">{fact.value}</p>
@@ -376,7 +386,7 @@ export function RightMemoryPanel() {
                           <div key={idx} className="card-tactile p-3 text-xs">
                             <div className="flex items-center justify-between">
                               <span className="font-mono-num font-medium text-[#3370ff]">{ev.date}</span>
-                              <span className="font-mono-num text-[10px] text-[#8f959e]">#{ev.locator}</span>
+                              <span className="font-mono-num text-[10px] text-[#8f959e]">{locatorLabel(ev.locator)}</span>
                             </div>
                             <p className="mt-1 text-[#4e5969]">{ev.text}</p>
                           </div>
@@ -414,29 +424,12 @@ export function RightMemoryPanel() {
               </div>
             ) : sourceData ? (
               <div className="space-y-4">
-                <div className="card-tactile p-3.5 space-y-2 text-xs">
-                  <div className="flex items-center gap-2">
-                    <FileText size={13} className="text-[#3370ff]" />
-                    <span className="text-[#8f959e]">来源记录</span>
-                    <span className="ml-auto min-w-0 truncate font-medium text-[#1f2329]"
-                      title={"filename" in sourceData ? sourceData.filename : sourceData.session_title}>
-                      {"filename" in sourceData ? sourceData.filename : sourceData.session_title}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Calendar size={13} className="text-[#3370ff]" />
-                    <span className="text-[#8f959e]">对话日期</span>
-                    <span className="ml-auto font-mono-num font-medium">
-                      {"doc_date" in sourceData ? sourceData.doc_date : sourceData.session_date}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Hash size={13} className="text-[#0f9d6e]" />
-                    <span className="text-[#8f959e]">锚点定位</span>
-                    <span className="ml-auto font-mono-num font-semibold text-[#047857]">
-                      #{sourceData.locator}
-                    </span>
-                  </div>
+                <header className="space-y-2 text-xs">
+                  <h3 className="flex items-start gap-2 text-[13px] leading-relaxed font-semibold text-[#1f2329]"
+                    title={docSource?.filename}>
+                    <FileText size={15} className="mt-0.5 shrink-0 text-[#3370ff]" />
+                    <span className="min-w-0 break-words">{sourceDate && <><time dateTime={sourceDate}>{sourceDate}</time> · </>}{sourceTitle}</span>
+                  </h3>
                   {chatSource ? (
                     <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#eceef2] pt-2">
                       <span className={`status-chip ${pendingSource ? "tone-violet" : "tone-mint"}`}>
@@ -447,31 +440,27 @@ export function RightMemoryPanel() {
                       </button>
                     </div>
                   ) : null}
-                </div>
+                </header>
 
                 <div className="space-y-2.5">
                   {sourceData.previous ? (
-                    <div className="rounded-[10px] border border-dashed border-[#dde0e7] bg-white/70 p-3 opacity-75">
+                    <div className="rounded-[10px] bg-[#f5f6f7] p-3.5">
                       <div className="mb-1 text-[11px] font-medium text-[#646a73]">上文语境</div>
-                      {renderTurnExcerpt(sourceData.previous)}
+                      {renderTurnExcerpt(sourceData.previous, true)}
                     </div>
                   ) : null}
 
-                  <div className={`rounded-[10px] border-2 p-3.5 ${pendingSource
-                    ? "border-[#ddd6fe] bg-[#f5f3ff]" : "border-[#0f9d6e]/35 bg-[#ecfdf5]"}`}>
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className={`status-chip ${pendingSource ? "tone-violet" : "tone-mint"} font-mono-num`}>
-                        命中原话 · #{sourceData.locator}
-                      </span>
-                      <span className={`font-mono-num text-[10px] ${pendingSource ? "text-[#6d28d9]" : "text-[#047857]"}`}>逐字溯源</span>
-                    </div>
+                  <div className="rounded-[10px] border border-[#ebedf0] border-l-[3px] border-l-[#3370ff] bg-white p-3.5">
+                    <h4 className="mb-2.5 text-xs font-semibold text-[#245bdb]">
+                      引用原文 · {locatorLabel(sourceData.locator)}
+                    </h4>
                     {renderTurnExcerpt(sourceData.raw_excerpt || "")}
                   </div>
 
                   {sourceData.next ? (
-                    <div className="rounded-[10px] border border-dashed border-[#dde0e7] bg-white/70 p-3 opacity-75">
+                    <div className="rounded-[10px] bg-[#f5f6f7] p-3.5">
                       <div className="mb-1 text-[11px] font-medium text-[#646a73]">下文语境</div>
-                      {renderTurnExcerpt(sourceData.next)}
+                      {renderTurnExcerpt(sourceData.next, true)}
                     </div>
                   ) : null}
                 </div>
@@ -523,29 +512,26 @@ export function RightMemoryPanel() {
                 </p>
               )}
 
-              <div className="pt-1">
-                {pendingSessions.length > 0 ? (
-                  <button
-                    type="button"
-                    disabled={triggeringDream || dreamRunning}
-                    onClick={() => void triggerDream(false)}
-                    className="control control-dark w-full"
-                  >
-                    <Moon size={14} />
-                    {dreamRunning ? "做梦整理中…" : triggeringDream ? "正在启动…" : "开始做梦整理"}
-                  </button>
-                ) : activeSpace?.current_version && !dreamRunning ? (
-                  <button
-                    type="button"
-                    disabled={triggeringDream || dreamRunning}
-                    onClick={() => void triggerDream(true)}
-                    className="control control-dark w-full"
-                  >
-                    <Sparkles size={13} />
-                    {triggeringDream ? "启动中…" : "深度做梦压缩"}
-                  </button>
-                ) : null}
-              </div>
+              {(pendingSessions.length > 0 || hasSnapshot) && (
+                <fieldset disabled={triggeringDream || dreamRunning} aria-label="做梦整理方式" className="flex flex-wrap gap-1.5 pt-1">
+                  {pendingSessions.length > 0 && (
+                    <button type="button" onClick={() => void triggerDream("digest_pending")} className="control control-dark w-full">
+                      <Moon size={14} aria-hidden="true" />消化新对话
+                    </button>
+                  )}
+                  {hasSnapshot && (
+                    <button type="button" onClick={() => void triggerDream("consolidate_wiki")}
+                      title="抽检原文并纠错、提炼行为准则、合并记忆并清理衰减内容"
+                      className={`control flex-auto ${pendingSessions.length ? "" : "control-dark"}`}>
+                      <Sparkles size={13} aria-hidden="true" />深度做梦整理
+                    </button>
+                  )}
+                  {pendingSessions.length > 0 && hasSnapshot && (
+                    <button type="button" onClick={() => void triggerDream("full")} className="control flex-auto"
+                      title="先消化新对话，再深度整理记忆库">完整整理</button>
+                  )}
+                </fieldset>
+              )}
             </section>
 
             {dreamJobId ? (
@@ -636,6 +622,13 @@ export function RightMemoryPanel() {
             </section>
           </div>
       </div>
+      <footer className="shrink-0 border-t border-[#ebedf0] bg-white px-4 py-2.5">
+        <button type="button" onClick={() => { openMemory(MEMORY_CONTROLS_PATH); setRightOpen(false); }}
+          className="rounded-sm py-1 text-xs text-[#646a73] hover:text-[#3370ff] focus-visible:outline-[#3370ff]">
+          管理全部事实、别名与遗忘规则 →
+        </button>
+      </footer>
     </aside>
   );
 }
+

@@ -1,5 +1,7 @@
 import { atlasDataset } from "./datasets/atlas-platform.js";
+import { chenMoDataset } from "./datasets/chen-mo.js";
 import { salesDataset } from "./datasets/enterprise-q4.js";
+import { linXiDataset } from "./datasets/lin-xi.js";
 import { zhouRanDataset } from "./datasets/zhou-ran.js";
 
 export interface Chat {
@@ -18,4 +20,4 @@ export interface Dataset {
   followUp?: { title: string; date: string; messages: Chat["messages"]; noiseMessages: number[] };
 }
 
-export const datasets: Dataset[] = [atlasDataset, salesDataset, zhouRanDataset];
+export const datasets: Dataset[] = [chenMoDataset, linXiDataset, atlasDataset, salesDataset, zhouRanDataset];

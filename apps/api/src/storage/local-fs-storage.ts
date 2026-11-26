@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { link, mkdir, open, readFile, readdir, rename, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { identifierSchema, jobIdSchema, docIdSchema, wikiPagePathSchema } from "@replica/shared";
-import type { Space, SpaceRef } from "@replica/shared";
+import { identifierSchema, jobIdSchema, docIdSchema, wikiPagePathSchema } from "@wiki-memory/shared";
+import type { Space, SpaceRef } from "@wiki-memory/shared";
 import type { DocumentRecord, NormalizedDocument, WikiDraft, WikiStorage, SpaceConfigProjection } from "../db/interfaces.js";
 
 const internalFiles = new Set(["_meta.json", "_claims.json"]);

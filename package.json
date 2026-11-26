@@ -1,5 +1,5 @@
 {
-  "name": "replica",
+  "name": "wiki-memory-service",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.33.0",
@@ -7,16 +7,16 @@
     "node": "^22.13.0 || >=24"
   },
   "scripts": {
-    "dev": "pnpm --filter @replica/shared build && pnpm --parallel --filter './apps/*' dev",
+    "dev": "pnpm --filter @wiki-memory/shared build && pnpm --parallel --filter './apps/*' dev",
     "build": "pnpm -r build",
-    "start": "pnpm --filter @replica/api start",
-    "test": "pnpm --filter @replica/shared build && vitest run",
-    "typecheck": "pnpm --filter @replica/shared build && pnpm --filter './apps/*' -r typecheck && tsc -p tests/tsconfig.json"
+    "start": "pnpm --filter @wiki-memory/api start",
+    "test": "pnpm --filter @wiki-memory/shared build && vitest run",
+    "typecheck": "pnpm --filter @wiki-memory/shared build && pnpm --filter './apps/*' -r typecheck && tsc -p tests/tsconfig.json"
   },
   "devDependencies": {
     "@types/node": "^22.19.0",
     "typescript": "~5.9.3",
     "vitest": "^4.1.0",
-    "@replica/shared": "workspace:*"
+    "@wiki-memory/shared": "workspace:*"
   }
 }

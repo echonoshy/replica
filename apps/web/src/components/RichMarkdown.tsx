@@ -2,7 +2,7 @@ import { lazy, Suspense } from "react";
 import type { HTMLAttributes, ReactNode } from "react";
 import remarkGfm from "remark-gfm";
 import type { Link, Nodes, PhrasingContent, Root } from "mdast";
-import { anchorPattern, isWikiPagePath } from "@replica/shared/wiki-format";
+import { anchorPattern, isWikiPagePath } from "@wiki-memory/shared/wiki-format";
 
 const SOURCE_PREFIX = "#zhiwei-src=";
 const CHAT_SOURCE_PREFIX = "#zhiwei-chat=";

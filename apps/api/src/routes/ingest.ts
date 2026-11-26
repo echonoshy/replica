@@ -4,7 +4,7 @@ import { bodyLimit } from "hono/body-limit";
 import {
   docDateSchema, filenameSchema, ingestSchema, jobIdSchema, jobResultSchema,
   multipartFieldsSchema, UPLOAD_BATCH_BYTES, UPLOAD_FILE_BYTES, UPLOAD_MAX_ITEMS,
-} from "@replica/shared";
+} from "@wiki-memory/shared";
 import type { MetadataRepository } from "../db/interfaces.js";
 import { ServiceError } from "../errors.js";
 import { jobResponse, waitForCompile } from "../pipeline/ingestion.js";
@@ -107,7 +107,7 @@ export function ingestRoutes(
     } else {
       throw new ServiceError(415, "UNSUPPORTED_MEDIA_TYPE", "Use application/json or multipart/form-data");
     }
-    const job = await ingestion.submit(fields, items, fields.purpose, fields.idempotency_key);
+    const job = await ingestion.submit(fields, items, fields.purpose, fields.idempotency_key, undefined, fields.organize_mode);
     wake();
     if (fields.mode === "async") return c.json(await jobResponse(repo, job), 202);
     const current = await waitForCompile(repo, job, syncWait);

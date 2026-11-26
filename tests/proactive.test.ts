@@ -7,8 +7,8 @@ import { SQLiteConnection } from "../apps/api/src/db/sqlite-repo.js";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   evaluateResultSchema, jobResultSchema, nudgeSchema, nudgesResultSchema, proactivePolicySchema,
-} from "@replica/shared";
-import type { Nudge, ProactivePolicy } from "@replica/shared";
+} from "@wiki-memory/shared";
+import type { Nudge, ProactivePolicy } from "@wiki-memory/shared";
 import { readConfig } from "../apps/api/src/config.js";
 import { createService } from "../apps/api/src/service.js";
 import { countTokens } from "../apps/api/src/retrieval/token-budget.js";

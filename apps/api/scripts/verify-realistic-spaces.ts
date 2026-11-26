@@ -1,19 +1,20 @@
-// Standalone audit: pnpm --filter @replica/api exec tsx scripts/verify-realistic-spaces.ts
+// Standalone audit: pnpm --filter @wiki-memory/api exec tsx scripts/verify-realistic-spaces.ts
 import assert from "node:assert/strict";
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { FileResult, RetrieveResult, SourceResult } from "@replica/shared";
+import type { FileResult, RetrieveResult, SourceResult } from "@wiki-memory/shared";
 import type { ChatMessage, ChatSession, ConversationSearchHit, SendMessageResponse, SpaceOverviewResponse } from "../../web/src/api.js";
 import { datasets, type Dataset } from "./realistic-datasets.js";
 import { expectedVersions, http, origin, overview, sessionId, sessions, stem } from "./seed-realistic-spaces.js";
 
 const reportPath = process.env.ASTRA_REPORT_PATH ??
-  "./data/astra_verification_report.md";
-const keywords = ["红烧排骨", "黄焖鸡", "空调", "机械键盘", "X100VI", "爬山", "瞎猜", "热锅", "火锅"];
+  "/Users/lake/.gemini/antigravity/brain/6c956f88-1ba7-4e18-8f3f-ffeeab51afb3/scratch/astra_verification_report.md";
+const keywords = ["红烧排骨", "黄焖鸡", "空调", "机械键盘", "X100VI", "爬山", "瞎猜", "热锅", "火锅", "霍金辐射", "厄尔尼诺", "英伟达", "PS5", "公路车", "三体", "踩奶", "厌氧发酵", "古罗马", "AGPL", "无主灯", "人类简史", "GB18030", "冷蒸发"];
 type Rule = [string, RegExp];
 interface Query { prompt: string; rules: Rule[]; obsolete?: RegExp; unsupported?: RegExp; }
-interface Scenario { truths: Query[]; dual: Query; pending: number[]; }
+interface GeneralCheck { prompt: string; mustExplain: RegExp; forbidLeak: RegExp; }
+interface Scenario { truths: Query[]; dual: Query; pending: number[]; generalChecks?: GeneralCheck[]; }
 const ddl: Rule[] = [
   ["Friday cutoff", /(?:周五|星期五|礼拜五).{0,16}(?:16[:：]?00|下午[四4]点|16点)/],
   ["production DDL prohibition", /(?:禁|不许|不允许|不得|不能|禁止|不做|不可以).{0,40}(?:ddl|表结构)|(?:ddl|表结构).{0,25}(?:禁止|不允许|不能|不做)/i],
@@ -58,13 +59,48 @@ const cases: Record<string, Scenario> = {
     dual: { prompt: "周末带小宇去吃海鲜大餐配花生酱可以吗？拾光记现在怎么收费？莫干山住宿预算多少？",
       rules: [["peanut allergy", /花生.{0,18}过敏|过敏.{0,10}花生/], ["seafood restriction", /高嘌呤海鲜|高嘌呤的海鲜/], ...subscription, ["Moganshan", /莫干山/], ["nightly limit", /(?:1500|1,500|一千五百).{0,12}(?:晚|夜)|(?:晚|夜).{0,18}(?:1500|1,500|一千五百)/]] }, pending: [0],
   },
+  chen_mo: {
+    truths: [
+      { prompt: "陈默现在的家庭应急金红线是多少？投资上有什么硬禁令？",
+        rules: [["25万", /25万|二十五万/], ["no leverage", /杠杆/], ["no single small-cap", /小盘股/]], obsolete: /18万/ },
+      { prompt: "陈默对什么药物和饮食有明确禁忌？父亲下个月去哪家医院复查什么？",
+        rules: [["penicillin", /青霉素/], ["lactose", /乳糖不耐受|牛奶/], ["Tongren cataract", /同仁/], ["cataract", /白内障/], ["Dec 5", /12[-月/]0?5/]] },
+      { prompt: "陈默现在的汇报对象和汇报格式是什么？北极星 3.0 现在的上线安排是什么？",
+        rules: [["Lin VP", /林总/], ["Feishu doc", /飞书文档/], ["risk list", /风险清单/], ["Jan 10", /2027[-年/]?0?1[-月/]?10|1月10/], ["10% canary", /10%|灰度/]], obsolete: /老周|一页PPT|12月15/i },
+    ],
+    dual: { prompt: "我想趁着降息把应急金拿出来加杠杆买小盘股，11 月 28 号带苏晴去吃香菜牛杂配全脂鲜奶酪，顺便问下她生日预算和明天下午 3 点架构评审要准备什么？",
+      rules: [["25万", /25万|二十五万/], ["no leverage", /杠杆/], ["Su Qing dislikes", /香菜/], ["lactose", /乳糖不耐受|普通牛奶|奶酪/], ["3500 budget", /3500|三千五/], ["compliance checklist", /合规审计清单/]] },
+    pending: [0, 1],
+    generalChecks: [
+      { prompt: "为什么黑洞会有霍金辐射？", mustExplain: /量子|视界|弯曲时空|粒子/, forbidLeak: /\[(?:src|chat):|之前对话里只聊到|架构评审|青霉素|乳糖/ },
+      { prompt: "推荐两部适合周末看的科幻电影。", mustExplain: /《.+》/, forbidLeak: /\[(?:src|chat):|架构评审|北极星|应急金/ },
+    ],
+  },
+  lin_xi: {
+    truths: [
+      { prompt: "乐乐花生过敏如果误食应该怎么处理并立刻送去哪家医院？林汐痛风有哪些饮食酒水禁忌？",
+        rules: [["epipen", /肾上腺素笔/], ["hospital", /浙大儿院滨江/], ["gout alcohol", /啤酒|白酒/], ["seafood", /海鲜/], ["permitted drinks", /温白开|淡茶|柠檬苏打水/]] },
+      { prompt: "拾光记现在对新用户怎么收费？已买断的老用户有什么权益？v2.0 现在的内测和正式发布排期是什么？",
+        rules: [["68/yr", /68元?\/?年|每年68/], ["grandfathered", /老用户.{0,24}(?:保留|永久|不二次|免费)|保留.{0,12}老用户/], ["iCloud", /icloud|cloudkit/i], ["TestFlight Dec 22", /12[-月/]22/], ["Jan 8", /2027[-年/]?0?1[-月/]?0?8|1月8/]],
+        obsolete: /18元|阿里云ECS|12月18/i },
+      { prompt: "林汐年底全家旅行现在去哪里、日期和预算上限是多少？妈妈下个月什么时候去哪家医院复查什么？",
+        rules: [["Yunnan", /大理|丽江|云南/], ["Dec 25-31", /12[-月/]25/], ["20k budget", /2万|两万|20000/], ["Dec 8 Mom", /12[-月/]0?8/], ["Sir Run Run Shaw", /邵逸夫/]],
+        obsolete: /北海道|3\.5万/i },
+    ],
+    dual: { prompt: "周末带乐乐去莫干山吃顿啤酒海鲜配花生酱怎么样？顺便帮我核对下莫干山住宿预算上限，以及明天上午 10:30 晴空咖啡的会我必须带什么材料？",
+      rules: [["peanut allergy", /花生/], ["gout", /啤酒|海鲜|痛风/], ["Moganshan 1500", /1500/], ["40% deposit quote", /40%/], ["3-week milestone", /三周|3周|里程碑/]] },
+    pending: [0, 1],
+    generalChecks: [
+      { prompt: "冷蒸发式和超声波式加湿器本质区别是什么？为什么超声波加湿器加自来水容易产生白粉？", mustExplain: /钙|镁|矿物质|蒸发|雾化/, forbidLeak: /\[(?:src|chat):|晴空咖啡|拾光记|浙大儿院|莫干山/ },
+    ],
+  },
 };
 
 function grade(q: Query, answer: string) {
   const clean = answer.normalize("NFKC").replace(/\[(?:src|chat):[^\]]+\]/g, "").replace(/[\s*`]/g, "");
   const missing = q.rules.filter(([, re]) => !re.test(clean)).map(([label]) => label);
   const obsoleteSentence = q.obsolete && clean.split(/[。；！\n]/).find(sentence =>
-    q.obsolete!.test(sentence) && !/原先|此前|曾经|先前|之前|旧版|旧方案|原定|原方案|原来|取代|替代|替换|改为|改用|切换|作废|取消|不再|已从|已由|而非/.test(sentence));
+    q.obsolete!.test(sentence) && !/原先|此前|曾经|先前|之前|旧版|旧方案|旧记录|旧汇报|原定|原方案|原来|取代|替代|替换|改为|改用|切换|作废|取消|不再|不适用|已失效|历史|已从|已由|而非/.test(sentence));
   const obsolete = obsoleteSentence ? q.obsolete!.exec(obsoleteSentence)?.[0] ?? null : null;
   const unsupported = q.unsupported?.exec(clean)?.[0] ?? null;
   return { pass: missing.length === 0 && !obsolete && !unsupported, missing, obsolete, unsupported };
@@ -72,7 +108,7 @@ function grade(q: Query, answer: string) {
 async function retrieve(s: Dataset, query: string, v: number) {
   const input = {
     namespace: s.namespace, space_id: s.space_id, query, snapshot_version: v,
-    return_mode: "both", verify_raw_sources: true, max_tokens: 7000,
+    return_mode: "both", verify_raw_sources: true, max_tokens: 16_000,
   };
   try { return await http<RetrieveResult>("/v1/memories/retrieve", input); }
   catch (error) {
@@ -109,6 +145,8 @@ function legacyMentions(s: Dataset, pages: FileResult[]) {
     atlas_platform: /Qdrant|pgvector|350\s*(?:ms|毫秒)/i,
     enterprise_q4: /(?:180|155)\s*万|11\s*[-月/]\s*28|李总/,
     zhou_ran: /18\s*元|精酿|生蚝|阿里云\s*ECS/i,
+    chen_mo: /18\s*万|老周|一页\s*PPT|12\s*月\s*15/i,
+    lin_xi: /18\s*元|阿里云\s*ECS|北海道|3\.5\s*万|12\s*月\s*18/i,
   };
   return pages.filter(p => /^(entities|topics)\//.test(p.path)).flatMap(p => p.markdown.split("\n").filter(line => terms[s.space_id].test(line))
     .map(line => ({ path: p.path, title: p.frontmatter?.title, line })));
@@ -122,7 +160,7 @@ async function dual(s: Dataset, scenario: Scenario, v: number) {
   const path = "/v1/chat/sessions/" + session.session_id;
   try {
     const { assistant_message: m } = await http<SendMessageResponse>(path + "/messages", {
-      content: q.prompt, max_tokens: 7000, verify_raw_sources: true, compare_baseline: false,
+      content: q.prompt, max_tokens: 16_000, verify_raw_sources: true, compare_baseline: false,
     });
     const hits = m.conversation_hits ?? [];
     const expected = scenario.pending.map(i => sessionId(s, s.pending[i]));
@@ -144,6 +182,51 @@ async function dual(s: Dataset, scenario: Scenario, v: number) {
     const removed = await http<{ deleted: boolean; forget_job_id: string | null }>(path, undefined, "DELETE");
     assert(removed.deleted && !removed.forget_job_id, "Audit probe was not removed cleanly");
   }
+}
+
+function auditNoiseTurns(s: Dataset, state: SpaceOverviewResponse, listing: { sessions: ChatSession[] }) {
+  const pureNoiseLocators = new Set<string>();
+  const mixedNoiseLocators = new Set<string>();
+  const docBySession = new Map(listing.sessions.filter(r => r.dreamed_doc_id).map(r => [r.session_id, r.dreamed_doc_id!]));
+  for (const chat of s.batches.flat()) {
+    const docId = docBySession.get(sessionId(s, chat));
+    if (!docId) continue;
+    const isPureNoiseSession = chat.noiseMessages.length === chat.messages.length;
+    for (const msgIdx of chat.noiseMessages) {
+      if (msgIdx % 2 === 0) {
+        (isPureNoiseSession ? pureNoiseLocators : mixedNoiseLocators).add(`${docId}#t${Math.floor(msgIdx / 2) + 1}`);
+      }
+    }
+  }
+  const pureLeaked = state.claims.facts.filter(f => pureNoiseLocators.has(`${f.docId}#${f.locator}`));
+  const mixedLeaked = state.claims.facts.filter(f => mixedNoiseLocators.has(`${f.docId}#${f.locator}`));
+  const fmt = (f: typeof state.claims.facts[number]) => ({ subject: f.subject, predicate: f.predicate, value: f.value, anchor: `${f.docId}#${f.locator}` });
+  return {
+    pure_noise_leaked_count: pureLeaked.length,
+    pure_noise_leaked: pureLeaked.map(fmt),
+    mixed_noise_leaked_count: mixedLeaked.length,
+    mixed_noise_leaked: mixedLeaked.map(fmt),
+  };
+}
+
+async function runGeneralChecks(s: Dataset, checks: GeneralCheck[] = []) {
+  const results = [];
+  for (const check of checks) {
+    const { session } = await http<{ session: ChatSession }>(stem(s, "chat") + "/sessions", { title: "通用问答零干扰验收（临时）" });
+    const path = "/v1/chat/sessions/" + session.session_id;
+    try {
+      const { assistant_message: m } = await http<SendMessageResponse>(path + "/messages", {
+        content: check.prompt, max_tokens: 12_000, verify_raw_sources: true, compare_baseline: false,
+      });
+      const explained = check.mustExplain.test(m.content);
+      const leaked = check.forbidLeak.exec(m.content)?.[0] ?? null;
+      const zeroRetrieval = (m.retrieval?.contexts.length ?? 0) === 0 && (m.conversation_hits?.length ?? 0) === 0;
+      results.push({ prompt: check.prompt, pass: explained && !leaked && zeroRetrieval, explained, leaked, zeroRetrieval, reply: m.content });
+    } finally {
+      await http(path, undefined, "DELETE");
+    }
+  }
+  return results;
 }
 
 async function incremental(s: Dataset, final: SpaceOverviewResponse) {
@@ -202,6 +285,8 @@ async function audit(s: Dataset) {
   catch (error) { recall = { query: scenario.dual.prompt, pass: false, error: String(error) }; }
   const delta = await incremental(s, state);
   const listing = await sessions(s);
+  const noiseTurns = auditNoiseTurns(s, state, listing);
+  const generalChecks = await runGeneralChecks(s, scenario.generalChecks);
   const pendingSearch = await Promise.all(s.pending.map(async c => {
     const id = sessionId(s, c);
     const { hits } = await http<{ hits: ConversationSearchHit[] }>(stem(s, "chat") +
@@ -247,14 +332,16 @@ async function audit(s: Dataset) {
     conflicts: state.stats.conflict_count, pending_count: listing.pending_count };
   return { space: `${s.namespace}:${s.space_id}`, stats, shape, model: listing.model, pendingIds, contentChecks, versions, jobs,
     legacy_mentions_on_current_pages: legacy, stale_instructions: staleInstructions, conflict_entries: state.conflicts, pending_search: pendingSearch,
-    noise, checks, dual: recall, incremental: delta, pass: shape && !staleInstructions.length && !noise.occurrences && checks.every(c => c.pass) &&
-      pendingSearch.every(p => p.pass) && recall.pass && ("wiki_only_pass" in recall && recall.wiki_only_pass) && (delta?.pass ?? true) };
+    noise, noise_turns: noiseTurns, general_checks: generalChecks, checks, dual: recall, incremental: delta,
+    pass: shape && !staleInstructions.length && !noise.occurrences && noiseTurns.pure_noise_leaked_count === 0 && checks.every(c => c.pass) &&
+      generalChecks.every(g => g.pass) && pendingSearch.every(p => p.pass) && recall.pass &&
+      ("wiki_only_pass" in recall && recall.wiki_only_pass) && (delta?.pass ?? true) };
 }
 
-export async function verify() {
-  const settled = await Promise.allSettled(datasets.map(audit));
+export async function verify(targetDatasets: Dataset[] = datasets) {
+  const settled = await Promise.allSettled(targetDatasets.map(audit));
   const spaces = settled.flatMap(r => r.status === "fulfilled" ? [r.value] : []);
-  const errors = settled.flatMap((r, i) => r.status === "rejected" ? [{ space: datasets[i].space_id, error: String(r.reason) }] : []);
+  const errors = settled.flatMap((r, i) => r.status === "rejected" ? [{ space: targetDatasets[i].space_id, error: String(r.reason) }] : []);
   const pass = errors.length === 0 && spaces.every(s => s.pass);
   const report = { checked_at: new Date().toISOString(), server: origin, pass, keywords, spaces, errors };
   const md = ["# Astra live memory verification", "",
@@ -299,5 +386,8 @@ export async function verify() {
   if (!pass) process.exitCode = 1;
 }
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
-  verify().catch(error => { console.error(error); process.exitCode = 1; });
+  const onlyArg = process.argv.find((a) => a.startsWith("--only="))?.slice("--only=".length);
+  const onlySet = onlyArg ? new Set(onlyArg.split(",").filter(Boolean)) : null;
+  const targets = onlySet ? datasets.filter((d) => onlySet.has(`${d.namespace}:${d.space_id}`) || onlySet.has(d.space_id)) : datasets;
+  verify(targets).catch(error => { console.error(error); process.exitCode = 1; });
 }

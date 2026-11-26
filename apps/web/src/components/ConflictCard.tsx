@@ -15,14 +15,15 @@ export function ConflictCard({
 }) {
   const p = item.parsed;
   const archived = item.type === "archived";
-  if (archived || !p) {
+  const correction = item.type === "dream_correction";
+  if (archived || correction || !p) {
     const Icon = archived ? Archive : GitPullRequestArrow;
     return (
-      <div className={archived ? "card-tactile p-4" : "rounded-[10px] border border-[#fee2e2] bg-white p-4"}>
-        <div className={`status-chip mb-2 ${archived ? "tone-mint" : "tone-rose"}`}>
+      <div className={archived || correction ? "card-tactile p-4" : "rounded-[10px] border border-[#fee2e2] bg-white p-4"}>
+        <div className={`status-chip mb-2 ${archived ? "tone-mint" : correction ? "tone-blue" : "tone-rose"}`}>
           <Icon size={12} aria-hidden="true" />
           {archived ? "梦境归档 · 已完成下架"
-            : item.type === "same_day_conflict" ? "同日冲突 · 保留双方证据" : "冲突与修订记录"}
+            : correction ? "梦境纠错" : item.type === "same_day_conflict" ? "同日冲突 · 保留双方证据" : "冲突与修订记录"}
         </div>
         <RichMarkdown
           markdown={item.raw.replace(/^-\s+/, "")}
@@ -106,3 +107,4 @@ export function ConflictCard({
     </div>
   );
 }
+

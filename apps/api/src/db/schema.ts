@@ -1,5 +1,5 @@
 import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
-import type { DocumentExtension, JobProgress, JobStatus, JobUsage, Warning } from "@replica/shared";
+import type { DocumentExtension, JobProgress, JobStatus, JobUsage, Warning } from "@wiki-memory/shared";
 import type { JobPayload, SnapshotRecord } from "./interfaces.js";
 
 export const spaces = sqliteTable("spaces", {

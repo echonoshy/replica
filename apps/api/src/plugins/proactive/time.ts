@@ -1,4 +1,4 @@
-import type { ProactivePolicy } from "@replica/shared";
+import type { ProactivePolicy } from "@wiki-memory/shared";
 
 export const DAY = 86_400_000;
 export const iso = (millis: number) => new Date(millis).toISOString();

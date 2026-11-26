@@ -2,15 +2,17 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { findAnchors, INDEX_MAX_BYTES, INDEX_MAX_LINES, jobResultSchema, retrieveResultSchema, treeResultSchema } from "@replica/shared";
-import type { Space } from "@replica/shared";
+import { findAnchors, INDEX_MAX_BYTES, INDEX_MAX_LINES, jobResultSchema, retrieveResultSchema, treeResultSchema } from "@wiki-memory/shared";
+import type { Space } from "@wiki-memory/shared";
 import { SQLiteChatStore } from "../apps/api/src/chat/chat-store.js";
 import { readConfig } from "../apps/api/src/config.js";
 import { SQLiteConnection } from "../apps/api/src/db/sqlite-repo.js";
 import { OpenAiGateway } from "../apps/api/src/llm/openai-gateway.js";
-import type { Claim } from "../apps/api/src/pipeline/analyzer.js";
+import type { AtomicFact, Claim } from "../apps/api/src/pipeline/analyzer.js";
 import { lintDraft } from "../apps/api/src/pipeline/linter.js";
 import { compileWiki, vocabularyOf } from "../apps/api/src/pipeline/wiki-compiler.js";
+import { extractWikiLinks } from "../apps/api/src/retrieval/navigator.js";
+import { readPage } from "../apps/api/src/pipeline/wiki-markdown.js";
 import { createService } from "../apps/api/src/service.js";
 import { startFixtureGateway } from "./fixtures/gateway.js";
 import type { GatewayOptions } from "./fixtures/gateway.js";
@@ -319,7 +321,8 @@ describe("memory pipeline optimizations", () => {
   });
 
   it("prioritizes historical vocabulary and makes large collections navigable within the index limits", () => {
-    const subjects = Array.from({ length: 250 }, (_, index): Claim => ({
+    const subjects = Array.from({ length: 250 }, (_, index): AtomicFact => ({
+      tier: index >= 100 ? "pinned_redline" : "working",
       kind: index % 2 ? "entity" : "topic", subject: `运营项目${String(index).padStart(3, "0")}`,
       predicate: `Rule ${index}`, value: `Field ${index}`, cardinality: "one", related: [],
       docId: `doc_${index}`, docDate: "2026-11-20", locator: "s1",
@@ -336,14 +339,25 @@ describe("memory pipeline optimizations", () => {
     const draft = new Map<string, string>();
     const { evidence, required } = compileWiki(draft, space, 1, claims.map(({ docId }) => docId), [], claims, now);
     const index = draft.get("_index.md")!;
-    const rows = index.split("\n").filter((line) => /\/collection-\d+\.md\)/.test(line));
-    expect(rows.length).toBeGreaterThan(0);
-    expect(draft.size - 2).toBeLessThanOrEqual(100);
-    expect(rows.some((line) => /主题汇编 \d+ · 运营项目\d+、运营项目\d+/.test(line))).toBe(true);
+    const direct = extractWikiLinks("_index.md", index);
+    const hubs = direct.filter((path) => path.startsWith("topics/hub-"));
+    const priority = direct.filter((path) => /^(entities|topics)\//.test(path) && !hubs.includes(path));
+    expect(priority).toHaveLength(80);
+    expect([...draft.keys()].some((path) => /\/collection-\d+\.md$/.test(path))).toBe(false);
+    const tail = hubs.flatMap((hub) => extractWikiLinks(hub, draft.get(hub)!));
+    expect(tail.some((path) => path.startsWith("entities/"))).toBe(true);
+    expect(tail.some((path) => path.startsWith("topics/"))).toBe(true);
+    const reachable = [...priority, ...tail];
+    expect(reachable).toHaveLength(claims.length);
+    const subjectsByTitle = new Map(reachable.map((path) => [readPage(draft.get(path)!).frontmatter?.title, path]));
     for (const claim of claims) {
-      if ("subject" in claim) expect(rows.some((line) => line.split(") · ")[1]?.includes(claim.subject))).toBe(true);
+      const path = subjectsByTitle.get(claim.subject)!;
+      expect(path).toMatch(claim.kind === "entity" ? /^entities\// : /^topics\//);
+      expect(draft.get(path)).toContain(`${claim.value} [src:${claim.docId}#s1]`);
+      if (claim.tier === "pinned_redline") expect(priority).toContain(path);
     }
     const report = lintDraft(draft, evidence, required);
+    expect(report).toMatchObject({ orphan_pages: 0, broken_links: 0 });
     expect(report.index_lines).toBeLessThanOrEqual(INDEX_MAX_LINES);
     expect(report.index_bytes).toBeLessThanOrEqual(INDEX_MAX_BYTES);
     expect(report.issues).toEqual([]);

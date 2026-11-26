@@ -1,19 +1,24 @@
 import { randomUUID } from "node:crypto";
-import { contentPagePathSchema } from "@replica/shared";
-import type { JobProgress, JobStatus, Space, SpaceRef } from "@replica/shared";
+import { contentPagePathSchema } from "@wiki-memory/shared";
+import type { JobProgress, JobStatus, Space, SpaceRef } from "@wiki-memory/shared";
 import { zeroUsage } from "../db/interfaces.js";
 import type {
-  ClaimedJob, DocumentRecord, JobQueue, MetadataRepository, NormalizedDocument, SnapshotRecord, SpaceConfigProjection, WikiStorage,
+  ClaimedJob, DocumentRecord, IndexedPage, Job, JobQueue, MetadataRepository, NormalizedDocument, SnapshotRecord, SpaceConfigProjection, WikiStorage,
 } from "../db/interfaces.js";
 import { errorMessage, ServiceError } from "../errors.js";
-import { anchorKey, claimAnchors, isFact } from "./analyzer.js";
-import type { ClaimAnchor } from "./analyzer.js";
+import { indexText } from "../db/tokenize.js";
+import { computeFactActivation } from "../memory/memory-state.js";
+import type { SQLiteMemoryStateStore } from "../memory/memory-state.js";
+import type { OpenAiGateway } from "../llm/openai-gateway.js";
+import { SourceReader } from "../retrieval/synthesizer.js";
+import { anchorKey, claimAnchors, isFact, isIntention, isRule } from "./analyzer.js";
+import type { AtomicFact, ClaimAnchor } from "./analyzer.js";
 import type { Analyzer, Analysis, Claim } from "./analyzer.js";
 import { lintDraft } from "./linter.js";
 import { anchoredSections } from "./normalizer.js";
 import type { DocumentNormalizer } from "./normalizer.js";
 import type { Organizer } from "./organizer.js";
-import { compileWiki, vocabularyOf } from "./wiki-compiler.js";
+import { compileWiki, factTelemetry, vocabularyOf } from "./wiki-compiler.js";
 import { readPage } from "./wiki-markdown.js";
 
 export async function syncSpaceConfig(
@@ -28,6 +33,8 @@ export async function syncSpaceConfig(
 }
 
 type Dependencies = {
+  memoryState?: SQLiteMemoryStateStore;
+  gateway?: Pick<OpenAiGateway, "hasEmbeddings" | "embed">;
   onSnapshotChanged?: (ref: SpaceRef, version: number) => Promise<void>;
   repo: MetadataRepository; queue: JobQueue; storage: WikiStorage; projection: SpaceConfigProjection;
   normalizer: DocumentNormalizer; analyzer: Analyzer; organizer: Organizer; concurrency: number;
@@ -35,6 +42,37 @@ type Dependencies = {
 
 const turnNumber = (locator: string) => locator.startsWith("t") ? Number(locator.slice(1)) : 0;
 type Replacement = { docId: string; retainedLocators: Set<string> };
+
+const retractionStopWords = new Set([
+  "the", "and", "for", "with", "from", "into", "that", "this", "each", "every", "their", "its",
+  "against", "about", "when", "then", "will", "have", "been", "only", "also", "must", "should",
+  "could", "would", "after", "before", "under", "over", "same", "other", "more", "most", "some",
+]);
+
+function contentTokens(text: string) {
+  return new Set(
+    (indexText(text).match(/[\p{L}\p{N}]+/gu) ?? [])
+      .filter((token) => ([...token].length > 1) && !retractionStopWords.has(token)),
+  );
+}
+
+function reliesOnRetractedContent(mergedValue: string, retracted: AtomicFact[], surviving: AtomicFact[]) {
+  const survivingTokens = new Set<string>();
+  for (const item of surviving) {
+    for (const token of contentTokens(`${item.predicate} ${item.value}`)) survivingTokens.add(token);
+  }
+  const retractedOnly = new Set<string>();
+  for (const item of retracted) {
+    for (const token of contentTokens(`${item.predicate} ${item.value}`)) {
+      if (!survivingTokens.has(token)) retractedOnly.add(token);
+    }
+  }
+  if (!retractedOnly.size) return false;
+  for (const token of contentTokens(mergedValue)) {
+    if (retractedOnly.has(token)) return true;
+  }
+  return false;
+}
 
 async function retainClaims(
   claims: Claim[], retracted: Set<string>, replacements: Map<string, Replacement>,
@@ -49,9 +87,50 @@ async function retainClaims(
   };
   const retained: Claim[] = [];
   const docDates = new Map<string, string | undefined>();
-  for (const claim of claims) {
+  const retainCorrections = <T extends AtomicFact>(fact: T): T => {
+    if (!fact.corrections?.length) return fact;
+    const corrections = fact.corrections.flatMap((edit) => {
+      const sources = edit.sources.map(retain).filter((source) => source !== undefined);
+      return sources.length === edit.sources.length ? [{ ...edit, sources }] : [];
+    });
+    return { ...fact, corrections };
+  };
+  for (const original of claims) {
+    const claim = isFact(original) ? retainCorrections(original) : original;
+    if (isFact(claim) && claim.merged_from?.length) {
+      const survivingAtoms: AtomicFact[] = [];
+      const retractedAtoms: AtomicFact[] = [];
+      for (const atom of claim.merged_from) {
+        const kept = retain(atom);
+        if (kept) survivingAtoms.push({ ...retainCorrections(atom), docId: kept.docId });
+        else retractedAtoms.push(atom);
+      }
+      if (!survivingAtoms.length) continue;
+      if (retractedAtoms.length && reliesOnRetractedContent(claim.value, retractedAtoms, survivingAtoms)) {
+        // The merged text contains statements uniquely backed by retracted evidence:
+        // restore only the surviving atomic claims so retracted facts cannot survive on unrelated citations.
+        retained.push(...survivingAtoms);
+        continue;
+      }
+      const primary = retain(claim);
+      const extras = new Map<string, ClaimAnchor>();
+      for (const source of claim.extra_sources ?? []) {
+        const kept = retain(source);
+        if (kept) extras.set(anchorKey(kept), kept);
+      }
+      const anchor = primary ?? extras.values().next().value ?? survivingAtoms[0];
+      extras.delete(anchorKey(anchor));
+      if (!primary && !docDates.has(anchor.docId)) docDates.set(anchor.docId, await readDocDate(anchor.docId));
+      retained.push({
+        ...claim, docId: anchor.docId, locator: anchor.locator,
+        docDate: primary ? claim.docDate : docDates.get(anchor.docId) ?? claim.docDate,
+        extra_sources: extras.size ? [...extras.values()] : undefined,
+        merged_from: survivingAtoms,
+      });
+      continue;
+    }
     const primary = retain(claim);
-    if (!isFact(claim) || !claim.extra_sources?.length) {
+    if ((!isFact(claim) && !isRule(claim) && !isIntention(claim)) || !claim.extra_sources?.length) {
       if (primary) retained.push({ ...claim, docId: primary.docId });
       continue;
     }
@@ -118,6 +197,39 @@ export class CompileWorker {
     await Promise.allSettled(this.active);
   }
 
+  private async finishPublication(job: Job, snapshot: SnapshotRecord, space: Space, publishedPages?: IndexedPage[]) {
+    const { memoryState, storage } = this.deps;
+    if (!memoryState) return;
+    if (snapshot.processed_hot_ids?.length) memoryState.markHotMemoriesConsumedByIds(job.spaceKey, snapshot.processed_hot_ids);
+    if (snapshot.digested_session_ids?.length) {
+      // Commands may arrive while extraction runs or while a published job is awaiting recovery.
+      const sessions = new Set(snapshot.digested_session_ids);
+      const active = memoryState.listHotMemories(job.spaceKey, "active").filter((item) => item.session_id && sessions.has(item.session_id));
+      const changed = new Set(active.filter((item) => item.created_at >= job.createdAt).map((item) => item.session_id));
+      memoryState.markSessionHotMemoriesConsumed(job.spaceKey, [...sessions].filter((id) => !changed.has(id)));
+      const earlier = active.filter((item) => changed.has(item.session_id) && item.created_at < job.createdAt);
+      if (earlier.length) memoryState.markHotMemoriesConsumedByIds(job.spaceKey, earlier.map(({ id }) => id));
+    }
+    const pages = publishedPages ?? await Promise.all(Object.entries(snapshot.page_titles ?? {}).map(async ([path, title]) => {
+      const { body } = readPage(await storage.readSnapshotFile(space, snapshot.version, path));
+      return { path, title, content: body };
+    }));
+    const texts = pages.map((page) => `${page.title}\n${page.content}`);
+    const { gateway } = this.deps;
+    let vectors: number[][] | null = null;
+    if (gateway?.hasEmbeddings()) {
+      try {
+        vectors = await gateway.embed(texts);
+      } catch (error) {
+        console.error("Embedding published Wiki pages failed, using local vectors", errorMessage(error));
+      }
+    }
+    for (const [i, page] of pages.entries()) {
+      const vector = vectors?.[i];
+      memoryState.upsertWikiPageVector(job.spaceKey, snapshot.version, page.path, vector ?? texts[i], !!vector);
+    }
+  }
+
   private async process(claim: ClaimedJob) {
     const { repo, queue, storage, projection, normalizer, analyzer, organizer } = this.deps;
     const { job, lease } = claim;
@@ -138,6 +250,7 @@ export class CompileWorker {
       const recovered = await repo.findPublication(job.id);
       if (recovered) {
         const space = await repo.findSpaceByKey(job.spaceKey);
+        if (space) await this.finishPublication(job, recovered, space);
         if (space?.current_version === recovered.version) await this.deps.onSnapshotChanged?.(space, recovered.version);
         if (space) await syncSpaceConfig(repo, projection, space);
         await queue.complete(claim, recovered.version, usage);
@@ -209,7 +322,7 @@ export class CompileWorker {
       }
       if (delta) {
         const markdown = sections.filter(({ locator }) => turnNumber(locator) >= analyze_from_turn)
-          .map(({ locator, text }) => `<!-- loc:${locator} -->\n\n${text}`).join("\n\n");
+          .map(({ locator, text, date }) => `<!-- loc:${locator} -->${date ? `\n<!-- date:${date} -->` : ""}\n\n${text}`).join("\n\n");
         text = { ...fullText, markdown };
       }
       normalized.push({ doc, text });
@@ -220,6 +333,9 @@ export class CompileWorker {
 
     const progress = { completed: 0, total: normalized.length };
     const analyses: Analysis[] = [];
+    const { memoryState } = this.deps;
+    const existingAliases = [...(memoryState?.canonicalAliasGroups(job.spaceKey) ?? [])]
+      .map(([canonical, aliases]) => ({ canonical, aliases }));
     await mark("extracting", progress);
     let next = 0;
     const outcomes = await Promise.allSettled(Array.from({ length: Math.min(6, normalized.length) }, async () => {
@@ -230,7 +346,8 @@ export class CompileWorker {
           await storage.writeStagingNote(space, job.id, doc.docId, `# ${doc.filename}\n\n${text.warnings.join("\n")}\n`);
           analyses[index] = { claims: [] };
         } else if (text.markdown) {
-          analyses[index] = await analyzer.analyze(space, space.purpose, job.id, doc, text, vocabularyOf(previous, text.markdown), usage);
+          analyses[index] = await analyzer.analyze(space, space.purpose, job.id, doc, text,
+            vocabularyOf(previous, text.markdown), usage, existingAliases);
         } else {
           analyses[index] = { claims: [] };
         }
@@ -247,10 +364,21 @@ export class CompileWorker {
     for (const id of replacedBy.keys()) publishedDocs.delete(id);
     const documents = [...publishedDocs, ...addedDocuments];
     const now = new Date().toISOString();
-    const { claims, evidence, required, indexHeader } = compileWiki(draft, space, version, documents, previous,
-      analyses.flatMap((analysis) => analysis.claims), now, priorClaims);
+    if (memoryState) {
+      for (const analysis of analyses) {
+        for (const item of analysis.entityAliases ?? []) {
+          for (const alias of item.aliases) memoryState.registerAlias(job.spaceKey, "entity", item.canonical, alias);
+        }
+      }
+    }
+    const aliases = memoryState?.aliasLookupMap(job.spaceKey);
+    const aliasGroups = memoryState?.canonicalAliasGroups(job.spaceKey);
+    const telemetry = memoryState?.listTelemetry(job.spaceKey);
+    const { claims, current, originalByFact, evidence, required, indexHeader } = compileWiki(draft, space, version, documents,
+      previous, analyses.flatMap(({ claims, intentions = [] }) => [...claims, ...intentions]), now, priorClaims, { aliases, aliasGroups, telemetry });
+    const consumedHotIds = new Set<string>();
     let lint;
-    if (!pending.length && activeRetractions) {
+    if ((!pending.length && activeRetractions) || (!dreaming && job.payload.organize_mode === "skip")) {
       await mark("linting", progress);
       lint = lintDraft(draft, evidence, required, indexHeader);
       if (lint.issues.length) throw new ServiceError(422, "WIKI_LINT_FAILED", JSON.stringify(lint.issues.slice(0, 20)));
@@ -263,9 +391,23 @@ export class CompileWorker {
         if (summary) stagingNotes.push({ doc_id, summary });
         remaining -= summary.length;
       }
+      const decayCandidates = dreaming ? current.flatMap((fact) => {
+        if (fact.pinned) return [];
+        const control = factTelemetry(originalByFact.get(fact)!, telemetry);
+        const { tier, score, state } = computeFactActivation(fact, control, now.slice(0, 10));
+        if (!(tier === "working" && (state === "cold" || score < 0.45) || tier === "durable" && state === "cold")) return [];
+        return [{ subject: fact.subject, predicate: fact.predicate, value: fact.value, tier, activation_score: score, doc_date: fact.docDate }];
+      }) : [];
+      const reader = dreaming ? new SourceReader(repo, storage, space) : undefined;
       lint = await organizer.organize({
         draft, purpose: space.purpose, dreaming, usage, evidence, required, indexHeader, stagingNotes,
-        context: { space, version, documents, now, claims },
+        context: {
+          space, version, documents, now, claims, aliases, aliasGroups, telemetry, decayCandidates,
+          ...(reader ? {
+            readSource: reader.lookup.bind(reader), hotMemories: memoryState?.listHotMemories(job.spaceKey, "active") ?? [], consumedHotIds,
+          } : {}),
+          onRegisterAlias: memoryState && ((kind, canonical, alias) => memoryState.registerAlias(job.spaceKey, kind, canonical, alias)),
+        },
         linting: (inProgress) => mark(inProgress ? "linting" : "organizing", progress),
       });
     }
@@ -274,13 +416,20 @@ export class CompileWorker {
         const { frontmatter, body } = readPage(markdown);
         return { path, title: frontmatter!.title, content: body };
       });
+    const sessionIds = pending.flatMap((doc) => {
+      const match = /^session_(.+)_m\d+\.json$/.exec(accepted.get(doc.docId)!.filename);
+      return match ? [match[1]] : [];
+    });
     const snapshot: SnapshotRecord = {
       version, job_id: job.id, created_at: now, documents, document_count: documents.length,
       page_count: pages.length, page_titles: Object.fromEntries(pages.map(({ path, title }) => [path, title])), lint,
+      ...(consumedHotIds.size ? { processed_hot_ids: [...consumedHotIds] } : {}),
+      ...(sessionIds.length ? { digested_session_ids: [...new Set(sessionIds)] } : {}),
     };
     draft.set("_meta.json", JSON.stringify(snapshot, null, 2) + "\n");
     await storage.publishSnapshot(space, job.id, version, draft);
     await repo.publish({ lease, expectedVersion: baseVersion, snapshot, pages, addedDocuments, dreaming });
+    await this.finishPublication(job, snapshot, space, pages);
     return snapshot;
   }
 }

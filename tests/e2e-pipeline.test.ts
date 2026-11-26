@@ -2,8 +2,8 @@ import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { jobResultSchema, retrieveResultSchema, treeResultSchema } from "@replica/shared";
-import type { JobResult, RetrieveResult } from "@replica/shared";
+import { jobResultSchema, retrieveResultSchema, treeResultSchema } from "@wiki-memory/shared";
+import type { JobResult, RetrieveResult } from "@wiki-memory/shared";
 import { readConfig } from "../apps/api/src/config.js";
 import { createService } from "../apps/api/src/service.js";
 import { startFixtureGateway } from "./fixtures/gateway.js";
@@ -17,7 +17,7 @@ const readFixture = (name: string) => readFile(new URL(`./fixtures/${name}`, imp
 async function setup({
   rejectTools = false, rejectJson = false, lint = "accept",
 }: { rejectTools?: boolean; rejectJson?: boolean; lint?: "accept" | "repair" | "reject" } = {}) {
-  const data = await mkdtemp(join(tmpdir(), "replica-tests-"));
+  const data = await mkdtemp(join(tmpdir(), "wiki-memory-tests-"));
   cleanup.push(() => rm(data, { recursive: true, force: true }));
   const fast = await startFixtureGateway({ rejectJson });
   const strong = await startFixtureGateway({ rejectTools, lint });
