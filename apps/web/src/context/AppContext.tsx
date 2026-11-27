@@ -78,6 +78,7 @@ interface AppContextValue extends Pick<typeof api,
   tuckedNudgeIds: string[];
   evaluatingProactive: boolean;
   proactiveNotice: string | null;
+  clearProactiveNotice: () => void;
   loadingProactiveInbox: boolean;
   openingNudgeSession: boolean;
   openInbox: () => void;
@@ -94,7 +95,7 @@ interface AppContextValue extends Pick<typeof api,
   deleteIntention: (id: string) => Promise<void>;
   simulateEvent: (input: EventDetails) => Promise<ProactiveEventResult | null>;
   runProactiveScout: () => Promise<void>;
-  openNudgeSession: (nudgeId: string, initialReply?: string) => Promise<void>;
+  openNudgeSession: (nudgeId: string, initialReply?: string, previewNudge?: Nudge) => Promise<void>;
   updateProactivePolicy: (patch: Partial<ProactivePolicy>) => Promise<void>;
   evaluateProactive: (silent?: boolean) => Promise<void>;
   simulatedNudgeCount: number;
@@ -413,9 +414,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => stream.close();
   }, [namespace, spaceId, proactiveAvailable, setPendingSnapshot, streamRevision]);
 
+  const clearProactiveNotice = useCallback(() => setProactiveNotice(null), []);
+
   useEffect(() => {
     if (!proactiveNotice) return;
-    const timer = window.setTimeout(() => setProactiveNotice(null), 5000);
+    const timer = window.setTimeout(() => setProactiveNotice(null), 10000);
     return () => window.clearTimeout(timer);
   }, [proactiveNotice]);
 
@@ -849,11 +852,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const createIntention = (input: NewIntention) =>
-    changeIntention((ref) => api.createIntention({ ...input, ...ref }), "已添加提醒条件");
+    changeIntention((ref) => api.createIntention({ ...input, ...ref }), "已添加留意事项");
   const updateIntentionStatus = (id: string, status: ProspectiveIntention["status"]) =>
-    changeIntention((ref) => api.updateIntention(id, { ...ref, status }), "已更新待办状态");
+    changeIntention((ref) => api.updateIntention(id, { ...ref, status }), "已更新留意事项状态");
   const deleteIntention = (id: string) =>
-    changeIntention((ref) => api.deleteIntention(id, ref), "已删除这条待办");
+    changeIntention((ref) => api.deleteIntention(id, ref), "已删除这条留意事项");
 
   async function runProactiveScout() {
     const scope = proactiveScope.current;
@@ -862,8 +865,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const result = await api.runProactiveScout(scope.space);
       if (scope !== proactiveScope.current) return;
       setProactiveNotice(result.findings.length
-        ? `发现 ${result.findings.length} 项值得跟进的事，新增 ${result.created_intentions.length} 条待办`
-        : "已检查，目前没有发现需要跟进的事");
+        ? `发现 ${result.findings.length} 项值得留意的事项，新增 ${result.created_intentions.length} 条留意事项`
+        : "已排查完你的记忆，目前没有发现新的潜在撞期或遗漏");
       await refreshProactiveExtras();
     } catch {
       if (scope === proactiveScope.current) setProactiveNotice("暂时无法排查风险，请稍后再试");
@@ -888,7 +891,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const tuckWhisper = useCallback((nudgeId: string) => {
     setTuckedNudgeIds((current) => current.includes(nudgeId) ? current : [...current, nudgeId]);
-  }, []);
+    showToast("已收起到轻提醒，随时可查看", { durationMs: 3200 });
+  }, [showToast]);
 
   const recordNudgeUpdate = useCallback((scope: ProactiveScope, nudge: Nudge) => {
     if (nudge.status === "pending") {
@@ -906,7 +910,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   async function executeNudgeAction(id: string, actionId: string, note?: string) {
     if (id.startsWith("sim_")) {
       setSimulatedNudges((items) => items.filter((item) => item.nudge_id !== id));
-      setProactiveNotice("已预览采纳建议的效果");
+      const msg = id.startsWith("sim_event_") ? "已演练采纳建议（当前为预览，点「正式存入轻提醒」即可生效）" : "已预览采纳建议的效果";
+      setProactiveNotice(msg);
+      showToast(msg, { durationMs: 3600 });
       return;
     }
     const scope = proactiveScope.current;
@@ -988,9 +994,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [proactiveAvailable, recordNudgeUpdate, refreshProactiveExtras, hideUnavailableProactive, showToast]);
 
-  const openNudgeSession = useCallback(async (nudgeId: string, initialReply?: string) => {
+  const openNudgeSession = useCallback(async (nudgeId: string, initialReply?: string, previewNudge?: Nudge) => {
     if (nudgeId.startsWith("sim_")) {
-      const sim = simulatedNudges.find((item) => item.nudge_id === nudgeId);
+      const sim = previewNudge ?? simulatedNudges.find((item) => item.nudge_id === nudgeId);
       setSimulatedNudges((current) => current.filter((item) => item.nudge_id !== nudgeId));
       startNewChat();
       const prompt = initialReply?.trim() || (sim ? `关于「${sim.title}」，帮我结合我的记忆梳理一下准备清单和注意点。` : "");
@@ -1198,6 +1204,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         tuckedNudgeIds,
         evaluatingProactive,
         proactiveNotice,
+        clearProactiveNotice,
         loadingProactiveInbox,
         openingNudgeSession,
         openInbox,

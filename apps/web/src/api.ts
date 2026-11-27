@@ -1,11 +1,11 @@
 import type {
-  CreateIntentionInput, ExecuteNudgeActionResult, IntentionsResult, ProactiveEventInput, ProactiveEventResult, ProactiveProfile, ProspectiveIntention, ScoutResult, UpdateIntentionInput,
+  CreateIntentionInput, ExecuteNudgeActionResult, IntentionsResult, ProactiveEventInput, ProactiveEventResult, ProactiveEventSignal, ProactiveEventSignalSource, ProactiveProfile, ProspectiveIntention, ScoutResult, UpdateIntentionInput,
   Citation, CompactRequest, CompactResult, EvaluateInput, EvaluateResult, FileResult, JobResult, Nudge, NudgeAck, NudgesQuery, NudgesResult, OpenNudgeSessionResult,
   ProceduralRule, ProactivePolicy, RetrieveResult, Snapshot, SourceResult, Space, SpaceRef, ToolIndexQuery, ToolIndexResult, TreeResult,
 } from "@wiki-memory/shared";
 
 export type {
-  AckReason, ProposedAction, CreateIntentionInput, ExecuteNudgeActionResult, IntentionsResult, ProactiveEventInput, ProactiveEventResult, ProactiveProfile, ProspectiveIntention, ScoutResult, UpdateIntentionInput,
+  AckReason, ProposedAction, CreateIntentionInput, ExecuteNudgeActionResult, IntentionsResult, ProactiveEventInput, ProactiveEventResult, ProactiveEventSignal, ProactiveEventSignalSource, ProactiveProfile, ProspectiveIntention, ScoutResult, UpdateIntentionInput,
   EvaluateResult, Nudge, NudgeAck, NudgesResult, OpenNudgeSessionResult, ProactivePolicy } from "@wiki-memory/shared";
 
 export type ChatSessionStatus = "pending" | "dreaming" | "dreamed";

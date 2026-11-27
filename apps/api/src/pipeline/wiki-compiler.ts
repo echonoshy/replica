@@ -1,12 +1,14 @@
 import { createHash } from "node:crypto";
 import { findAnchors, INDEX_MAX_BYTES } from "@wiki-memory/shared";
-import type { Space } from "@wiki-memory/shared";
+import type { JobUsage, Space } from "@wiki-memory/shared";
 import type { WikiDraft } from "../db/interfaces.js";
 import { indexText } from "../db/tokenize.js";
+import type { OpenAiGateway } from "../llm/openai-gateway.js";
 import { factStorageKey, factTelemetry, inferFactTier } from "../memory/memory-state.js";
 import type { FactTelemetryRecord } from "../memory/memory-state.js";
 import { anchorKey, claimAnchors, claimKey, claimSource, isIntention, isFact, isRule } from "./analyzer.js";
 import type { Claim, Fact, IntentionClaim, ProceduralRuleClaim, Relation, TimelineEvent } from "./analyzer.js";
+import { classifyFactsWithLlm } from "./fact-classifier.js";
 import { clipBytes, inline, markdownAst, plainText, readPage, relativeWikiLink, renderPage, walk, wikiLinkTarget } from "./wiki-markdown.js";
 
 type FactClaim = Extract<Claim, Fact>;
@@ -67,12 +69,13 @@ function effectiveClaim(original: Claim, options: ReconcileOptions) {
   if (!isFact(original) || !isFact(claim)) return claim;
   const tel = factTelemetry(original, options.telemetry);
   if (!tel) return claim;
+  const downgraded = !tel.pinned && tel.tier_override != null && tel.tier_override !== "pinned_redline";
   return {
     ...claim, value: tel.edited_value ?? claim.value,
     ...(tel.tier_override ? { tier: tel.tier_override } : {}),
     ...(tel.scope_override ? { scope: tel.scope_override } : {}),
     ...(tel.archived_reason && !claim.archived ? { archived: { reason: tel.archived_reason, archived_at: tel.updated_at } } : {}),
-    ...(tel.pinned ? { pinned: true, tier: "pinned_redline" as const } : {}),
+    ...(tel.pinned ? { pinned: true, tier: "pinned_redline" as const } : downgraded ? { pinned: false } : {}),
   };
 }
 
@@ -664,4 +667,44 @@ export function compileWiki(
   draft.set("_index.md", renderIndex(space, version, documents.length, summaries, draft.size));
   draft.set("_claims.json", JSON.stringify(claims, null, 2) + "\n");
   return { claims, current, rules, intentions, originalByFact, evidence, required, indexHeader: draft.get("_index.md")!.split("\n").slice(0, 5).join("\n") };
+}
+
+export async function classifyMissingActiveFacts(
+  gateway: Pick<OpenAiGateway, "structured"> | undefined,
+  claims: Claim[],
+  today: string,
+  usage: JobUsage,
+  options: ReconcileOptions & { tier?: "fast" | "strong" } = {},
+): Promise<{ claims: Claim[]; classified: number }> {
+  if (!gateway || !claims.length) return { claims, classified: 0 };
+  const { current, originalByFact } = reconcile(claims, today, options);
+  const missingOriginals: FactClaim[] = [];
+  const seen = new Set<Claim>();
+  for (const active of current) {
+    const original = originalByFact.get(active);
+    if (!original || seen.has(original)) continue;
+    if (!original.tier || !original.scope) {
+      seen.add(original);
+      missingOriginals.push(original);
+    }
+  }
+  if (!missingOriginals.length) return { claims, classified: 0 };
+  const classified = await classifyFactsWithLlm(gateway, missingOriginals, usage, {
+    tier: options.tier ?? "fast",
+    force: false,
+    throwOnError: false,
+  });
+  const replacements = new Map<Claim, FactClaim>();
+  let count = 0;
+  for (let i = 0; i < missingOriginals.length; i++) {
+    if (classified[i] !== missingOriginals[i]) {
+      replacements.set(missingOriginals[i], classified[i]);
+      count++;
+    }
+  }
+  if (!count) return { claims, classified: 0 };
+  return {
+    claims: claims.map((claim) => replacements.get(claim) ?? claim),
+    classified: count,
+  };
 }

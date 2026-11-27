@@ -15,8 +15,11 @@ import { readConfig } from "../apps/api/src/config.js";
 import { SQLiteConnection } from "../apps/api/src/db/sqlite-repo.js";
 import { PENDING_DEMO_CHATS, PERSONAL_DEMO_DAYS } from "../apps/api/src/demo/scenarios.js";
 import { OpenAiGateway } from "../apps/api/src/llm/openai-gateway.js";
+import { inferFactScope, inferFactTier, cosineSimilarity, vectorizeSemanticText } from "../apps/api/src/memory/memory-state.js";
+import { classifyFactsWithLlm } from "../apps/api/src/pipeline/fact-classifier.js";
 import { readPage } from "../apps/api/src/pipeline/wiki-markdown.js";
-import { countTokens } from "../apps/api/src/retrieval/token-budget.js";
+import { ChatRouter } from "../apps/api/src/retrieval/chat-router.js";
+import { countTokens, relevantMarkdown } from "../apps/api/src/retrieval/token-budget.js";
 import type { memoryControlsView } from "../apps/api/src/routes/memory-controls.js";
 import { createService } from "../apps/api/src/service.js";
 import { startFixtureGateway, type GatewayOptions } from "./fixtures/gateway.js";
@@ -46,10 +49,10 @@ async function setup(options: GatewayOptions = {}, embeddings = false) {
   cleanup.push(service.close);
   service.start();
 
-  async function request(path: string, body?: object, status = 200) {
-    const response = await service.app.request(path, body && {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-    });
+  async function request(path: string, body?: object, status = 200, method?: string) {
+    const response = await service.app.request(path, body ? {
+      method: method ?? "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    } : method ? { method } : undefined);
     const data = await response.json();
     expect(response.status, JSON.stringify(data)).toBe(status);
     return data;
@@ -339,6 +342,7 @@ describe("Memory v3 publication and retrieval", () => {
     const s = await setup({ extract: ({ segments: [seg] }) => ({
       summary: "Station inventory", facts: names.map((subject, i) => ({
         subject, kind: i % 2 ? "entity" : "topic", predicate: "Label", value: "Sign " + i, locator: seg.locator,
+        tier: "durable", scope: "general",
       })),
     }) });
     await s.ingest(names.join(", "), "skip");
@@ -518,5 +522,299 @@ describe("dataset regressions", () => {
     expect(replies.length).toBeGreaterThan(0);
     const characters = replies.reduce((sum, m) => sum + [...m.content.trim()].length, 0);
     expect(characters / replies.length).toBeGreaterThanOrEqual(350);
+  });
+});
+
+describe("LLM fact classification and redline controls", () => {
+  it("never regex-guesses pinned_redline for trips or arrangements mentioning family members", () => {
+    const tripFact = {
+      subject: "北海道圣诞周家庭旅行",
+      predicate: "出行时间与人员",
+      value: "2026年12月24日从杭州出发，30日返回；同行四人：林汐、明远、乐乐、林汐的母亲",
+    };
+    expect(inferFactTier(tripFact)).toBe("durable");
+    expect(inferFactTier({ ...tripFact, expires_on: "2026-12-31" })).toBe("working");
+    expect(inferFactTier({ ...tripFact, pinned: true })).toBe("pinned_redline");
+    expect(inferFactScope(tripFact)).toBe("general");
+  });
+
+  it("assigns LLM-judged tier, scope, and expires_on to unlabeled facts and supports clean redline downgrades", async () => {
+    const s = await setup({
+      extract: ({ segments: [seg] }) => ({
+        summary: "家庭旅行与过敏记录",
+        facts: [
+          {
+            kind: "topic", subject: "北海道圣诞周家庭旅行", predicate: "住宿分房安排",
+            value: "母亲单独一间安静房；林汐、明远、乐乐一间", locator: seg.locator,
+          },
+          {
+            kind: "entity", subject: "乐乐", predicate: "花生过敏",
+            value: "严重花生过敏，严禁任何花生制品，随身带肾上腺素笔", locator: seg.locator,
+          },
+          {
+            kind: "entity", subject: "林汐", predicate: "12月7日安排",
+            value: "上午陪母亲复查血压，中午接乐乐，当天不排提审", locator: seg.locator,
+          },
+        ],
+      }),
+      classifyFacts: ({ facts }) => ({
+        classifications: facts.map((fact) => {
+          if (fact.subject === "乐乐") {
+            return { index: fact.index, tier: "pinned_redline", scope: "private_health" };
+          }
+          if (fact.predicate === "12月7日安排") {
+            return { index: fact.index, tier: "working", scope: "family", expires_on: "2026-12-08" };
+          }
+          return { index: fact.index, tier: "working", scope: "family", expires_on: "2026-12-31" };
+        }),
+      }),
+    });
+
+    // Direct unit check on classifyFactsWithLlm
+    const gateway = new OpenAiGateway(s.config);
+    const usage = { llm_calls: 0, prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, latency_ms: 0 };
+    const direct = await classifyFactsWithLlm(gateway, [
+      { kind: "topic", subject: "北海道圣诞周家庭旅行", predicate: "住宿分房安排", value: "母亲单独一间安静房" },
+      { kind: "entity", subject: "乐乐", predicate: "花生过敏", value: "严重花生过敏" },
+    ], usage);
+    expect(direct[0]).toMatchObject({ tier: "working", scope: "family", expires_on: "2026-12-31" });
+    expect(direct[1]).toMatchObject({ tier: "pinned_redline", scope: "private_health" });
+    expect(usage.llm_calls).toBe(1);
+
+    // End-to-end compile pipeline classifies unlabeled facts before publishing
+    await s.ingest("北海道住宿分房、乐乐花生过敏、12月7日安排", "skip", "family.md");
+    const initial = await s.controls();
+    const byPred = new Map(initial.facts.map((f) => [f.predicate, f]));
+    expect(byPred.get("住宿分房安排")).toMatchObject({ tier: "working", scope: "family", expires_on: "2026-12-31" });
+    expect(byPred.get("12月7日安排")).toMatchObject({ tier: "working", scope: "family", expires_on: "2026-12-08" });
+    expect(byPred.get("花生过敏")).toMatchObject({ tier: "pinned_redline", scope: "private_health" });
+
+    // Cleanly downgrade a pinned_redline fact via PATCH .../facts
+    const allergy = byPred.get("花生过敏")!;
+    await s.request(controlsPath + "/facts", {
+      fact_key: allergy.fact_key,
+      tier_override: "durable",
+      pinned: false,
+    }, 200, "PATCH");
+    const afterDowngrade = await s.controls();
+    expect(afterDowngrade.facts.find((f) => f.fact_key === allergy.fact_key)).toMatchObject({
+      tier: "durable",
+      pinned: false,
+    });
+    expect(afterDowngrade.stats.pinned_count).toBe(0);
+
+    // Re-pin and then downgrade to working even without explicitly passing pinned: false
+    await s.request(controlsPath + "/facts", {
+      fact_key: allergy.fact_key,
+      pinned: true,
+      tier_override: "pinned_redline",
+    }, 200, "PATCH");
+    expect((await s.controls()).facts.find((f) => f.fact_key === allergy.fact_key)).toMatchObject({
+      tier: "pinned_redline",
+      pinned: true,
+    });
+    await s.request(controlsPath + "/facts", {
+      fact_key: allergy.fact_key,
+      tier_override: "working",
+    }, 200, "PATCH");
+    expect((await s.controls()).facts.find((f) => f.fact_key === allergy.fact_key)).toMatchObject({
+      tier: "working",
+      pinned: false,
+    });
+  });
+
+  it("trusts LLM ChatRouter decisions directly without regex overrides on hot_memory, privacy_mode, or safety_check", async () => {
+    const s = await setup({
+      router: ({ message }) => ({
+        memory_mode: "personal",
+        search_queries: [message],
+        needs_inventory: false,
+        safety_check: false,
+        needs_audit_history: false,
+        privacy_mode: "full",
+        hot_memory: null,
+      }),
+    });
+    const gateway = new OpenAiGateway(s.config);
+    const router = new ChatRouter(gateway);
+
+    // Document-editing request must NOT be hijacked into a forget hot_memory
+    const editPlan = await router.route({
+      message: "把第二段关于预算的描述删掉",
+      recentHistory: [],
+      hasMemory: true,
+      today: "2026-11-26",
+    });
+    expect(editPlan.hot_memory).toBeNull();
+    expect(editPlan.safety_check).toBe(false);
+
+    // Private question mentioning "给客户发邮件" must NOT be forced into external_safe
+    const quotePlan = await router.route({
+      message: "之前给客户发邮件一般怎么报价，烧钱的大约预算怎么盘点？",
+      recentHistory: [],
+      hasMemory: true,
+      today: "2026-11-26",
+    });
+    expect(quotePlan.privacy_mode).toBe("full");
+    expect(quotePlan.safety_check).toBe(false);
+    expect(quotePlan.needs_inventory).toBe(false);
+
+    // End-to-end chat turn does not persist a bogus forget hot_memory
+    await s.request("/v1/admin/spaces", { ...ref, purpose });
+    const chatRes = await s.chat("把第二段关于预算的描述删掉");
+    expect(chatRes.hot_memory_action).toBeUndefined();
+    expect((await s.controls()).hot_memories).toEqual([]);
+  });
+
+  it("classifies chat-captured hot memories with LLM and excludes private_health hot memories under external_safe", async () => {
+    const s = await setup({
+      extract: ({ segments: [seg] }) => ({
+        summary: "合作进展",
+        facts: [{
+          kind: "topic", subject: "合作进展", predicate: "对外同步", value: "下周交付公开演示版本",
+          locator: seg.locator, tier: "durable", scope: "work_shareable",
+        }],
+      }),
+      classifyFacts: ({ facts }) => ({
+        classifications: facts.map((f) => ({
+          index: f.index,
+          tier: f.value.includes("花生过敏") ? "pinned_redline" : "durable",
+          scope: f.value.includes("花生过敏") ? "private_health" : "general",
+        })),
+      }),
+      router: ({ message }) => {
+        if (message.startsWith("记住：")) {
+          return {
+            memory_mode: "personal",
+            search_queries: [message],
+            needs_inventory: false,
+            safety_check: true,
+            needs_audit_history: false,
+            privacy_mode: "full",
+            hot_memory: { kind: "remember", content: message.slice(3) },
+          };
+        }
+        return {
+          memory_mode: "personal",
+          search_queries: ["合作进展"],
+          needs_inventory: false,
+          safety_check: false,
+          needs_audit_history: false,
+          privacy_mode: "external_safe",
+          hot_memory: null,
+        };
+      },
+    });
+    await s.ingest("下周交付公开演示版本", "skip", "work.md");
+    const remembered = await s.chat("记住：乐乐花生过敏，随身带肾上腺素笔");
+    expect(remembered.hot_memory_action).toMatchObject({
+      kind: "remember",
+      tier: "pinned_redline",
+      scope: "private_health",
+    });
+
+    const spy = vi.spyOn(OpenAiGateway.prototype, "complete");
+    cleanup.push(() => spy.mockRestore());
+    await s.chat("帮我起草一封发给投资人的项目进展更新");
+    const strongCall = spy.mock.calls.find(([tier]) => tier === "strong")!;
+    const systemPrompt = String(strongCall[1][0].content);
+    expect(systemPrompt).toContain("下周交付公开演示版本");
+    expect(systemPrompt).not.toContain("花生过敏");
+    expect(systemPrompt).not.toContain("肾上腺素笔");
+  });
+
+  it("does not force ordinary single-slot facts containing 不得/出境 into cardinality=many, while protecting pinned_redline", async () => {
+    const s = await setup({
+      extract: ({ document, segments: [seg] }) => {
+        if (document.filename === "v1.md") {
+          return {
+            summary: "初版计划",
+            facts: [
+              { kind: "entity", subject: "林汐", predicate: "出差状态", value: "不得不推迟出差到下周", locator: seg.locator, cardinality: "one", tier: "working", scope: "work_internal" },
+              { kind: "topic", subject: "旅行计划", predicate: "目的地", value: "日本出境游计划", locator: seg.locator, cardinality: "one", tier: "working", scope: "family" },
+              { kind: "entity", subject: "乐乐", predicate: "过敏红线", value: "严重花生过敏，严禁坚果制品", locator: seg.locator, cardinality: "one", tier: "pinned_redline", scope: "private_health" },
+            ],
+          };
+        }
+        return {
+          summary: "更新计划",
+          facts: [
+            { kind: "entity", subject: "林汐", predicate: "出差状态", value: "改为本周五照常出差", locator: seg.locator, cardinality: "one", tier: "working", scope: "work_internal" },
+            { kind: "topic", subject: "旅行计划", predicate: "目的地", value: "改为三亚国内度假", locator: seg.locator, cardinality: "one", tier: "working", scope: "family" },
+            { kind: "entity", subject: "乐乐", predicate: "过敏红线", value: "误食立即送附近急诊", locator: seg.locator, cardinality: "one", tier: "pinned_redline", scope: "private_health" },
+          ],
+        };
+      },
+    });
+    await s.ingest("不得不推迟出差；日本出境游计划；乐乐花生过敏", "skip", "v1.md");
+    await s.request("/v1/memories/ingest", {
+      ...ref, purpose, mode: "sync", organize_mode: "skip",
+      items: [{ filename: "v2.md", content: "改为本周五照常出差；改为三亚国内度假；误食立即送急诊", doc_date: "2020-01-05" }],
+    });
+    const controls = await s.controls();
+    const tripFacts = controls.facts.filter((f) => f.predicate === "出差状态" || f.predicate === "目的地");
+    expect(tripFacts.map((f) => f.value).sort()).toEqual(["改为三亚国内度假", "改为本周五照常出差"]);
+    // LLM-classified pinned_redline preserves both coexisting redline details
+    const allergyFacts = controls.facts.filter((f) => f.predicate === "过敏红线");
+    expect(allergyFacts.map((f) => f.value).sort()).toEqual(["严重花生过敏，严禁坚果制品", "误食立即送附近急诊"]);
+  });
+
+  it("admits conflicts.md via router needs_audit_history=true even without legacy audit keywords, and blocks it when false", async () => {
+    const s = await setup({
+      extract: ({ document, segments: [seg] }) => ({
+        summary: document.filename,
+        facts: [{
+          kind: "topic", subject: "拾光记", predicate: "年费定价",
+          value: document.filename === "p1.md" ? "每年 99 元" : "每年 128 元",
+          locator: seg.locator, cardinality: "one", tier: "durable", scope: "work_shareable",
+        }],
+      }),
+      router: ({ message }) => ({
+        memory_mode: "personal",
+        search_queries: ["拾光记 年费定价"],
+        needs_inventory: false,
+        safety_check: false,
+        needs_audit_history: message.includes("最早"),
+        privacy_mode: "full",
+        hot_memory: null,
+      }),
+    });
+    await s.ingest("拾光记最初年费 99 元", "skip", "p1.md");
+    await s.request("/v1/memories/ingest", {
+      ...ref, purpose, mode: "sync", organize_mode: "skip",
+      items: [{ filename: "p2.md", content: "拾光记年费调整为 128 元", doc_date: "2020-02-01" }],
+    });
+
+    const auditChat = await s.chat("拾光记最早卖多少钱？");
+    const auditPages = (auditChat.assistant_message.retrieval.contexts as Array<{ page_id: string; content: string }>)
+      .map((ctx) => ctx.page_id);
+    expect(auditPages).toContain("conflicts.md");
+    expect(JSON.stringify(auditChat.assistant_message.retrieval.contexts)).toContain("99 元");
+
+    const nonAuditChat = await s.chat("罗马历史和拾光记现在卖多少钱？");
+    const nonAuditPages = (nonAuditChat.assistant_message.retrieval.contexts as Array<{ page_id: string }>)
+      .map((ctx) => ctx.page_id);
+    expect(nonAuditPages).not.toContain("conflicts.md");
+  });
+
+  it("uses structured redlineAnchors in relevantMarkdown without single-char query/禁 false positives or pet single-char collisions", () => {
+    const page = [
+      "# 记录",
+      "- **游记 · 行程** · 参观紫禁城和故宫博物院非常震撼 [src:doc_1#s1]",
+      "- **备忘 · 提醒** · 周五提交普通月度汇总材料 [src:doc_1#s2]",
+      "- **安全 · 须知** · 支架术后按时服药不可自行停药 [src:doc_1#s3]",
+    ].join("\n");
+    const redlineAnchors = new Set(["doc_1#s3"]);
+    const boosted = relevantMarkdown(page, "周末安排", 36, true, redlineAnchors);
+    expect(boosted).toContain("支架术后按时服药");
+    expect(boosted).not.toContain("紫禁城");
+
+    // Without boostSafety, query words like 吃/喝/烧 no longer force safety boosting
+    const unboosted = relevantMarkdown(page, "参观紫禁城吃面", 36, false, redlineAnchors);
+    expect(unboosted).toContain("紫禁城");
+
+    // Offline concept vector does not conflate 天猫/热狗 with pet_animal
+    const sim = cosineSimilarity(vectorizeSemanticText("天猫买热狗优惠券"), vectorizeSemanticText("宠物兽医体检"));
+    expect(sim).toBeLessThan(0.25);
   });
 });

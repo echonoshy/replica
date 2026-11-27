@@ -4,9 +4,11 @@ import { identifierSchema } from "@wiki-memory/shared";
 import type { SpaceRef } from "@wiki-memory/shared";
 import { spaceKey } from "../db/interfaces.js";
 import type { MetadataRepository, WikiStorage } from "../db/interfaces.js";
+import type { OpenAiGateway } from "../llm/openai-gateway.js";
 import { factStorageKey, type SQLiteMemoryStateStore } from "../memory/memory-state.js";
 import { isFact, memoryTierSchema, privacyScopeSchema } from "../pipeline/analyzer.js";
 import type { Claim } from "../pipeline/analyzer.js";
+import { classifyHotMemoryWithLlm } from "../pipeline/fact-classifier.js";
 import { reconcile } from "../pipeline/wiki-compiler.js";
 import { readSnapshotClaims, requireSpace, ruleSummary, snapshotFor } from "../retrieval/synthesizer.js";
 import { requestErrors } from "./responses.js";
@@ -72,6 +74,7 @@ export function memoryControlsView(memoryState: SQLiteMemoryStateStore, key: str
 
 export function memoryControlRoutes(
   app: OpenAPIHono, repo: MetadataRepository, storage: WikiStorage, memoryState: SQLiteMemoryStateStore,
+  gateway?: OpenAiGateway,
 ) {
   async function existingSpaceKey(path: z.infer<typeof params>) {
     const ref = fromParams(path);
@@ -130,7 +133,16 @@ export function memoryControlRoutes(
   }), async (c) => {
     const key = await existingSpaceKey(c.req.valid("param"));
     const { target_hint, ...input } = c.req.valid("json");
-    const hot_memory = memoryState.addHotMemory({ spaceKey: key, targetHint: target_hint, ...input });
+    const classified = (!input.tier || !input.scope) && gateway
+      ? await classifyHotMemoryWithLlm(gateway, { ...input, targetHint: target_hint })
+      : null;
+    const hot_memory = memoryState.addHotMemory({
+      spaceKey: key,
+      targetHint: target_hint,
+      ...input,
+      tier: input.tier ?? classified?.tier,
+      scope: input.scope ?? classified?.scope,
+    });
     return c.json({ hot_memory }, 201);
   });
 

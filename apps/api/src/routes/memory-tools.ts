@@ -8,8 +8,9 @@ import type { SQLiteChatStore } from "../chat/chat-store.js";
 import { spaceKey, type LexicalSearchProvider, type MetadataRepository, type WikiStorage } from "../db/interfaces.js";
 import { ServiceError } from "../errors.js";
 import type { OpenAiGateway } from "../llm/openai-gateway.js";
-import { inferFactScope, type SQLiteMemoryStateStore } from "../memory/memory-state.js";
+import type { SQLiteMemoryStateStore } from "../memory/memory-state.js";
 import { anchorKey, claimAnchors, isFact, type Fact } from "../pipeline/analyzer.js";
+import { classifyHotMemoryWithLlm } from "../pipeline/fact-classifier.js";
 import { factTelemetry } from "../pipeline/wiki-compiler.js";
 import type { SessionCompactor } from "../retrieval/compactor.js";
 import { extractWikiLinks, rankWikiHits, vectorPages } from "../retrieval/navigator.js";
@@ -88,20 +89,19 @@ export function memoryToolRoutes(app: OpenAPIHono, repo: MetadataRepository, sto
     const input = c.req.valid("query");
     const { snapshot } = await snapshotFor(repo, input, input.version);
     if (!snapshot?.documents.includes(input.doc_id)) throw new ServiceError(404, "SOURCE_NOT_FOUND", "Source is outside this snapshot");
-    const checkPassage = async (text: string) => {
+    const checkPassage = async (_text: string) => {
       const claims = await readSnapshotClaims(storage, input, snapshot.version);
       const controls = state.listTelemetry(spaceKey(input));
       const anchor = `${input.doc_id}#${input.locator}`;
       const restricted = (fact: Fact) => {
         const control = factTelemetry(fact, controls);
         return fact.archived || control?.archived_reason ||
-          externalScopes.includes(control?.scope_override ?? fact.scope ?? inferFactScope(fact));
+          externalScopes.includes(control?.scope_override ?? fact.scope ?? "general");
       };
-      if (externalScopes.includes(inferFactScope({ subject: "", predicate: "", value: text })) ||
-        claims.some((fact) => isFact(fact) && (
-          (claimAnchors(fact).some((source) => anchorKey(source) === anchor) && restricted(fact)) ||
-          fact.merged_from?.some((atom) => anchorKey(atom) === anchor && restricted(atom))
-        ))) {
+      if (claims.some((fact) => isFact(fact) && (
+        (claimAnchors(fact).some((source) => anchorKey(source) === anchor) && restricted(fact)) ||
+        fact.merged_from?.some((atom) => anchorKey(atom) === anchor && restricted(atom))
+      ))) {
         throw new ServiceError(403, "SOURCE_RESTRICTED", "Source passage contains private information under external_safe mode");
       }
     };
@@ -117,8 +117,11 @@ export function memoryToolRoutes(app: OpenAPIHono, repo: MetadataRepository, sto
   }), async (c) => {
     const input = c.req.valid("json");
     await requireSpace(repo, input);
+    const classified = (!input.tier || !input.scope)
+      ? await classifyHotMemoryWithLlm(gateway, { kind: input.kind, content: input.content, targetHint: input.target_hint, tier: input.tier, scope: input.scope })
+      : null;
     const hot = state.addHotMemory({ spaceKey: spaceKey(input), sessionId: input.session_id, kind: input.kind,
-      content: input.content, targetHint: input.target_hint, tier: input.tier, scope: input.scope });
+      content: input.content, targetHint: input.target_hint, tier: input.tier ?? classified?.tier, scope: input.scope ?? classified?.scope });
     return c.json({ hot_memory: hotMemorySummarySchema.parse(hot) }, 201);
   });
 

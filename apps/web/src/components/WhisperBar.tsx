@@ -30,7 +30,7 @@ function WhisperPreview({ nudge, more }: { nudge: Nudge; more: number }) {
         {expanded ? (
           <div id={previewId} className="card-tactile mt-1.5 max-h-[min(46dvh,29rem)] overflow-y-auto p-3 sm:p-4">
             <h2 className="mb-2 text-sm font-semibold [overflow-wrap:anywhere]">{nudge.title}</h2>
-            <NudgeContent nudge={nudge} />
+            <NudgeContent nudge={nudge} showSnoozeOptions />
           </div>
         ) : null}
       </section>

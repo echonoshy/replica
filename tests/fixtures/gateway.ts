@@ -32,7 +32,12 @@ function extract({ document, segments }: ExtractionInput) {
   const events: Array<Record<string, unknown>> = [];
   const add = (predicate: string, value: string, match: RegExp, extras: Record<string, unknown> = {}) => {
     const locator = location(match);
-    if (locator) facts.push({ ...preferences, predicate, value, locator, ...extras });
+    if (locator) facts.push({
+      ...preferences, predicate, value, locator,
+      tier: extras.expires_on ? "working" : "durable",
+      scope: "general",
+      ...extras,
+    });
   };
   add("高铁座位", "靠窗", /偏好是靠窗/);
   add("高铁座位", "过道", /从靠窗改为过道/, { revision: { explicit: true, previous_value: "靠窗" } });
@@ -57,7 +62,7 @@ function extract({ document, segments }: ExtractionInput) {
   }
   if (!facts.length && !events.length && segments[0]) {
     facts.push({ kind: "topic", subject: "项目笔记", predicate: "记录", value: text.slice(0, 130).replace(/\s+/g, " "),
-      locator: segments[0].locator, cardinality: "many" });
+      locator: segments[0].locator, cardinality: "many", tier: "durable", scope: "general" });
   }
   return { summary: document.filename, entities: [], facts, conflicts: [], timeline_events: events };
 }
@@ -107,7 +112,9 @@ export interface GatewayOptions {
     candidates: string[]; anchors: string[]; verified: string | null;
   }) => unknown;
   proactive?: (input: ProactiveContext) => unknown;
+  router?: (input: { today: string; recent_history: Array<{ role: string; content: string }>; message: string }) => unknown;
   scout?: (input: unknown) => unknown;
+  classifyFacts?: (input: { facts: Array<{ index: number; kind: string; subject: string; predicate: string; value: string; doc_date?: string; expires_on?: string; pinned?: boolean }> }) => unknown;
   rejectTools?: boolean;
   rejectJson?: boolean;
   lint?: "accept" | "repair" | "reject";
@@ -158,6 +165,7 @@ export async function startFixtureGateway(options: GatewayOptions = {}) {
     const input = payload as Completion;
     const system = input.messages[0].content ?? "";
     const stage = system.startsWith("You extract") ? "analyzer"
+      : system.startsWith("Classify each personal memory fact") ? "classify_facts"
       : system.startsWith("Route this") ? "router"
       : system.startsWith("Decide whether") ? "proactive"
       : system.startsWith("Scout the published personal memory") ? "scout"
@@ -179,13 +187,31 @@ export async function startFixtureGateway(options: GatewayOptions = {}) {
     if (stage === "analyzer") {
       await options.beforeAnalysis?.(data);
       content = JSON.stringify(options.extract?.(data) ?? extract(data));
+    } else if (stage === "classify_facts") {
+      content = JSON.stringify(await options.classifyFacts?.(data) ?? { classifications: [] });
     } else if (stage === "router") {
-      content = JSON.stringify({
-        memory_mode: "personal",
-        search_queries: [data.message],
-        needs_inventory: false,
-        safety_check: false,
-      });
+      if (options.router) {
+        content = JSON.stringify(await options.router(data));
+      } else {
+        const message = String(data.message ?? "").trim();
+        const remember = message.match(/^(?:记住[\s：:，,]+|remember(?:\s+that)?\s+)([\s\S]+)/i);
+        const forget = message.match(/^(?:忘掉|忘记)[\s：:，,]+([\s\S]+)/i);
+        const hot_memory = forget?.[1]?.trim()
+          ? { kind: "forget", content: forget[1].trim(), target_hint: forget[1].trim() }
+          : remember?.[1]?.trim()
+            ? { kind: "remember", content: remember[1].trim() }
+            : null;
+        const privacy_mode = /对外邮件|发给客户|公开纪要|external email/i.test(message) ? "external_safe" : "full";
+        content = JSON.stringify({
+          memory_mode: "personal",
+          search_queries: [message],
+          needs_inventory: false,
+          safety_check: false,
+          needs_audit_history: false,
+          privacy_mode,
+          hot_memory,
+        });
+      }
     } else if (stage === "proactive") {
       content = JSON.stringify(await options.proactive?.(data) ?? { decision: "silent" });
     } else if (stage === "scout") {

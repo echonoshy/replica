@@ -110,7 +110,7 @@ export class OpenAiGateway {
     const send = async (format: PreferredFormat | undefined) => {
       usage.llm_calls++;
       const response = await client.chat.completions.create({
-        model, messages, stream: false, max_tokens: options.maxTokens ?? 12_288,
+        model, messages, stream: false, max_tokens: options.maxTokens ?? 16_384,
         ...(disableThinking ? { thinking: { type: "disabled" } } : {}),
         ...(format === "json" ? { response_format: { type: "json_object" } } : {}),
         ...(format === "tools" ? { tools: options.tools, tool_choice: "auto" } : {}),
@@ -163,7 +163,7 @@ export class OpenAiGateway {
         model,
         messages,
         stream: true,
-        max_tokens: options.maxTokens ?? 12_288,
+        max_tokens: options.maxTokens ?? 16_384,
         ...(withUsage ? { stream_options: { include_usage: true } } : {}),
         ...(disableThinking ? { thinking: { type: "disabled" } } : {}),
       }, { signal: options.signal });
@@ -207,7 +207,7 @@ export class OpenAiGateway {
 
   async structured<T>(
     tier: Tier, system: string, data: unknown, schema: z.ZodType<T>,
-    usage: JobUsage, maxTokens = 12_288,
+    usage: JobUsage, maxTokens = 16_384,
   ): Promise<T> {
     let feedback = "";
     for (let attempt = 0; attempt < 3; attempt++) {

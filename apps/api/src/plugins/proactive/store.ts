@@ -292,6 +292,7 @@ export class Store {
         this.schedule(key, timer(action, version, "snooze", snoozeKey, Date.parse(action.snooze_until), {
           text: original.body, subjects: [], anchors: original.citations.map((c) => c.anchor), item_keys: items, nudge_id: id,
           ...(original.intention_id && { intention_id: original.intention_id }),
+          ...(original.citations.length === 0 && original.intention_id && { user_authored: true }),
         }, Math.max(0, ...parents.map((p) => p.chain_depth))), now);
       } else {
         this.cancelSnooze(key, id, now);

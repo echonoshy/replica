@@ -3,7 +3,8 @@ import { findAnchors } from "@wiki-memory/shared";
 import { indexText, queryTerms } from "../db/tokenize.js";
 
 const encoderOptions = { disallowedSpecial: new Set<string>() };
-const safetyLinePattern = /过敏|急诊|医嘱|禁忌|红线|禁|绝对不能|严禁|不耐受|底线|上限|不能碰|不吃|过敏原|allergy|medical|emergency|prohibit|redline/i;
+const structuredRedlineMarker = /\[redline\]|\bpinned_redline\b/i;
+const fallbackSafetyMarker = /过敏|急诊|医嘱|禁忌|红线|绝对不能|严禁|不耐受|过敏原|allergy|medical|emergency|prohibit|redline/i;
 
 export const countTokens = (text: string | null | undefined) => text ? encode(text, encoderOptions).length : 0;
 
@@ -21,17 +22,27 @@ export function trimIndex(markdown: string, limit: number) {
   return lastLine > 0 ? clipped.slice(0, lastLine).trimEnd() : clipped;
 }
 
-export function relevantMarkdown(markdown: string, query: string | string[], limit: number, boostSafety = false) {
+export function relevantMarkdown(
+  markdown: string,
+  query: string | string[],
+  limit: number,
+  boostSafety = false,
+  redlineAnchors?: Set<string>,
+) {
   if (countTokens(markdown) <= limit) return markdown;
   const queryList = Array.isArray(query) ? query : [query];
   const terms = [...new Set(queryList.flatMap((q) => queryTerms(q)))];
-  const queryHasSafetyCue = boostSafety || queryList.some((q) =>
-    /吃|喝|餐|饭|奶|酒|药|烧|病|过敏|禁忌|红线|健康|猫|狗|宠|预算|杠杆|投资|应急|日程|盘点|规划|生日|聚餐|医/i.test(q));
   const lines = markdown.split("\n").map((line, index) => {
     const words = new Set(indexText(line).match(/[\p{L}\p{N}]+/gu) ?? []);
     const lexicalScore = terms.reduce((sum, word) => sum + Number(words.has(word)), 0);
-    const safetyBonus = queryHasSafetyCue && safetyLinePattern.test(line) ? 1.5 : 0;
-    return { line, index, score: lexicalScore + safetyBonus, citations: findAnchors(line) };
+    const citations = findAnchors(line);
+    const isRedline = boostSafety && (
+      redlineAnchors !== undefined
+        ? structuredRedlineMarker.test(line) || citations.some((c) => redlineAnchors.has(c.anchor))
+        : structuredRedlineMarker.test(line) || fallbackSafetyMarker.test(line)
+    );
+    const safetyBonus = isRedline ? 1.5 : 0;
+    return { line, index, score: lexicalScore + safetyBonus, citations };
   }).filter(({ citations }) => citations.length);
   lines.sort((a, b) => b.score - a.score || a.index - b.index);
   const kept = new Map<number, string>();

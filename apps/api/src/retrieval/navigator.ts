@@ -15,7 +15,6 @@ const selection = z.object({
     reason: z.string().trim().min(1).max(400),
   })).max(16),
 });
-const auditQuestion = /历史|旧值|原来|修订|冲突|覆盖|替换|变更记录|此前|以前|为什么改|改成|变过几次|演进|supersed|conflict|revision|previous|history/i;
 
 export function extractWikiLinks(pagePath: string, markdown: string): string[] {
   const links = new Set<string>();
@@ -56,6 +55,7 @@ export function rankWikiHits(lexical: string[], semantic: string[]) {
 export interface NavigateOptions {
   queries?: string[];
   needsInventory?: boolean;
+  needsAuditHistory?: boolean;
   historicalMatches?: string[];
 }
 
@@ -75,22 +75,26 @@ export class Navigator {
     const queries = options.queries?.length ? options.queries : [input.query];
     const allQueries = queries.map((q) => this.memoryState?.expandQueryWithAliases(spaceKey(input), q) ?? q);
     const combinedQuery = allQueries.join("；");
-    const includeAudit = auditQuestion.test(combinedQuery);
-    const valid = new Set(paths.filter((path) => path !== "_index.md" && (path !== "conflicts.md" || includeAudit)));
+    const includeAuditInIndexes = options.needsAuditHistory === true;
+    const allowAuditForModel = options.needsAuditHistory !== false;
+    const valid = new Set(paths.filter((path) => path !== "_index.md" && (path !== "conflicts.md" || allowAuditForModel)));
     if (!valid.size) return [];
 
     const [model, lexicalLists, vectors] = await Promise.all([
       this.gateway.structured("fast", prompts.navigator, { query: combinedQuery, index },
         selection, zeroUsage(), 4096).catch(() => null),
       Promise.all(allQueries.slice(0, 4).map((q) =>
-        this.lexical.search(spaceKey(input), version, q, 6, includeAudit))),
-      vectorPages(this.gateway, this.memoryState, spaceKey(input), version, combinedQuery, 6, includeAudit),
+        this.lexical.search(spaceKey(input), version, q, 6, includeAuditInIndexes))),
+      vectorPages(this.gateway, this.memoryState, spaceKey(input), version, combinedQuery, 6, includeAuditInIndexes),
     ]);
     const matches = new Map<string, string>();
     const add = (path: string, reason: string) => {
       if (matches.size < 16 && valid.has(path) && !matches.has(path)) matches.set(path, reason);
     };
     for (const { path, reason } of model?.selected_pages ?? []) add(path, reason);
+    if (options.needsAuditHistory === true) {
+      add("conflicts.md", "历史修订与冲突审计");
+    }
     if (options.needsInventory) {
       add("timeline.md", "全局盘点：时间线与日程");
       for (const path of valid) if (path.startsWith("entities/")) add(path, "全局盘点：核心实体与红线约束");
@@ -105,13 +109,15 @@ export class Navigator {
   }
 
   async expand<T extends Page>(input: RetrieveInput, index: string, paths: string[], first: T[],
-    load: (page: Selected) => Promise<T>, readSource?: (anchor: string) => Promise<string | null>, queries = [input.query]) {
+    load: (page: Selected) => Promise<T>, readSource?: (anchor: string) => Promise<string | null>,
+    _queries = [input.query], needsAuditHistory?: boolean) {
     const strategy = input.retrieval_strategy ?? "fast";
     const pages = first.map((p) => ({ ...p }));
     let hops = 1;
     if (strategy === "fast") return { pages, hops, strategy };
     const visited = new Set(first.map((p) => p.path));
-    const valid = new Set(paths.filter((p) => p !== "conflicts.md" || auditQuestion.test(queries.join(" "))));
+    const allowAudit = needsAuditHistory === true || (needsAuditHistory === undefined && visited.has("conflicts.md"));
+    const valid = new Set(paths.filter((p) => p !== "conflicts.md" || allowAudit));
     const capacity = Math.min(16, first.length + 6, Math.max(first.length, Math.floor(input.max_tokens / 64)));
     const candidates = () => {
       const priority = new Map<string, number>();
@@ -143,7 +149,7 @@ export class Navigator {
           const anchors = readSource ? evidence.flatMap((p) => findAnchors(p.excerpt).map((a) => a.anchor)) : [];
           const action = exploration.parse(await this.gateway.structured("fast", explorePrompt, {
             query: input.query, index: truncateTokens(index, 2000), evidence, candidates: choices, anchors, verified,
-          }, exploration, zeroUsage(), 512));
+          }, exploration, zeroUsage(), 2048));
           if (action.read_pages.some((p) => !choices.includes(p)) || (action.read_source && !anchors.includes(action.read_source))) {
             throw new Error("Invalid exploration target");
           }

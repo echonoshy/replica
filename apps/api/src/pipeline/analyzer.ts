@@ -123,7 +123,6 @@ export interface Analysis {
 }
 
 const CHUNK_CHARS = 28_000;
-const safetyCardinalityPattern = /过敏|急诊|医嘱|禁忌|红线|合规|严禁|禁止|不得|不许|绝对不能|不能碰|不耐受|等保|出境|公有云|allergy|medical|emergency|compliance|prohibit|redline|forbidden/i;
 
 type ChunkSegment = {
   locator: string;
@@ -245,8 +244,7 @@ export class Analyzer {
         const resolvedRevision = fact.revision ?? (revision ? {
           explicit: true as const, previous_value: revision.previous_value, previous_date: revision.previous_date,
         } : undefined);
-        const cardinality = !resolvedRevision?.explicit
-          && safetyCardinalityPattern.test(`${fact.predicate} ${fact.value}`)
+        const cardinality = !resolvedRevision?.explicit && fact.tier === "pinned_redline"
           ? "many"
           : fact.cardinality;
         const evidence = {

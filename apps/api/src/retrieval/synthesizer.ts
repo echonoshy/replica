@@ -7,7 +7,7 @@ import { indexText, queryTerms } from "../db/tokenize.js";
 import { ServiceError } from "../errors.js";
 import type { OpenAiGateway } from "../llm/openai-gateway.js";
 import { prompts } from "../llm/prompts.js";
-import { factStorageKey, inferFactScope } from "../memory/memory-state.js";
+import { factStorageKey, inferFactTier } from "../memory/memory-state.js";
 import type { FactTelemetryRecord, SQLiteMemoryStateStore } from "../memory/memory-state.js";
 import { anchorKey, claimAnchors, isFact, isRule } from "../pipeline/analyzer.js";
 import type { Claim, Fact, PrivacyScope, ProceduralRuleClaim } from "../pipeline/analyzer.js";
@@ -183,9 +183,8 @@ export const externalScopes: PrivacyScope[] = ["private_health", "family", "work
 export function ruleSummary(rule: ProceduralRuleClaim): ProceduralRule {
   return {
     rule_id: rule.rule_id, trigger_context: rule.trigger_context, instruction: rule.instruction,
-    rationale: rule.rationale, scope: rule.scope ?? inferFactScope({
-      subject: rule.trigger_context, predicate: rule.rationale ?? "", value: rule.instruction,
-    }), priority: rule.priority ?? "normal", doc_id: rule.docId, locator: rule.locator,
+    rationale: rule.rationale, scope: rule.scope ?? "general", priority: rule.priority ?? "normal",
+    doc_id: rule.docId, locator: rule.locator,
     doc_date: rule.docDate, archived: Boolean(rule.archived), archived_reason: rule.archived?.reason,
   };
 }
@@ -204,7 +203,7 @@ function scopedPageRenderer(claims: Claim[], controls: Map<string, FactTelemetry
   const hiddenSubjects = new Set<string>();
   for (const fact of claims.filter(isFact)) {
     const control = factTelemetry(fact, controls);
-    if (control?.archived_reason || excluded.includes(control?.scope_override ?? fact.scope ?? inferFactScope(fact))) {
+    if (control?.archived_reason || excluded.includes(control?.scope_override ?? fact.scope ?? "general")) {
       hidden.add(fact.value);
       hidden.add(control?.edited_value ?? "");
       hiddenSubjects.add(fact.subject);
@@ -243,7 +242,7 @@ function scopedPageRenderer(claims: Claim[], controls: Map<string, FactTelemetry
     for (const fact of facts) {
       const control = factTelemetry(fact, controls);
       const value = control?.edited_value ?? fact.value;
-      const scope = control?.scope_override ?? fact.scope ?? inferFactScope({ ...fact, value });
+      const scope = control?.scope_override ?? fact.scope ?? "general";
       if (control?.archived_reason || excluded.includes(scope)) return [];
       if (control?.edited_value != null) {
         // Escape edited Markdown and preserve only the provenance tags from the snapshot.
@@ -253,9 +252,6 @@ function scopedPageRenderer(claims: Claim[], controls: Map<string, FactTelemetry
         rendered = rendered.replace(original, () => (direct.length ? label : "") + inline(value));
       }
     }
-    const hasExplicitScope = facts.length && facts.every((fact) =>
-      factTelemetry(fact, controls)?.scope_override ?? fact.scope);
-    if (!direct.length && !hasExplicitScope && excluded.includes(inferFactScope({ subject: "", predicate: "", value: rendered }))) return [];
     return [rendered];
   }).join("\n");
 }
@@ -350,12 +346,13 @@ export class Synthesizer {
 
   async retrieve(
     input: RetrieveInput,
-    plan?: { queries?: string[]; needsInventory?: boolean; boostSafety?: boolean; excludeScopes?: PrivacyScope[] },
+    plan?: { queries?: string[]; needsInventory?: boolean; needsAuditHistory?: boolean; boostSafety?: boolean; excludeScopes?: PrivacyScope[] },
   ): Promise<RetrieveResult> {
     const started = Date.now();
     const excluded = [...new Set([...(plan?.excludeScopes ?? []), ...(input.privacy_mode === "external_safe" ? externalScopes : [])])];
+    const boostSafety = Boolean(input.boost_safety || plan?.boostSafety || input.needs_inventory || plan?.needsInventory);
     const view = await wikiView(this.repo, this.storage, this.memoryState, input, input.snapshot_version, excluded,
-      input.as_of_date, input.include_rules);
+      input.as_of_date, Boolean(input.include_rules || boostSafety));
     const { snapshot, version, claims, restricted: restrict, index, paths } = view;
     const key = spaceKey(input);
     const extras: Partial<RetrieveResult> = {};
@@ -390,7 +387,9 @@ export class Synthesizer {
       }));
       historicalMatches = scored.filter((p) => p.score > 0).sort((a, b) => b.score - a.score).slice(0, 6).map((p) => p.path);
     }
-    const selection = await this.navigator.select(input, version, index, paths, { queries: searchQueries, needsInventory, historicalMatches });
+    const selection = await this.navigator.select(input, version, index, paths, {
+      queries: searchQueries, needsInventory, needsAuditHistory: plan?.needsAuditHistory, historicalMatches,
+    });
     const load = async ({ path, reason }: { path: string; reason: string }) => ({
       path, reason: view.render(reason), ...await view.page(path),
     });
@@ -403,8 +402,25 @@ export class Synthesizer {
     } : undefined;
     const first = await Promise.all(selection.map(load));
     const { pages, hops, strategy } = input.retrieval_strategy && input.retrieval_strategy !== "fast"
-      ? await this.navigator.expand(input, index, paths, first, load, verify, searchQueries)
+      ? await this.navigator.expand(input, index, paths, first, load, verify, searchQueries, plan?.needsAuditHistory)
       : { pages: first, hops: 1, strategy: "fast" as const };
+    const redlineAnchors = new Set<string>();
+    if (boostSafety && claims.length) {
+      const controls = this.memoryState?.listTelemetry(key);
+      for (const claim of claims) {
+        if (isFact(claim)) {
+          const tel = factTelemetry(claim, controls);
+          const downgraded = !tel?.pinned && tel?.tier_override != null && tel.tier_override !== "pinned_redline";
+          const pinned = tel?.pinned ? true : downgraded ? false : Boolean(claim.pinned);
+          const tier = pinned ? "pinned_redline" : (tel?.tier_override ?? claim.tier ?? inferFactTier({ ...claim, pinned }));
+          if (tier === "pinned_redline" && !claim.archived && !tel?.archived_reason) {
+            for (const a of claimAnchors(claim)) redlineAnchors.add(anchorKey(a));
+          }
+        } else if (isRule(claim) && !claim.archived && claim.priority === "redline") {
+          for (const a of claimAnchors(claim)) redlineAnchors.add(anchorKey(a));
+        }
+      }
+    }
     const tightBudget = answerRequested && input.max_tokens < 1000;
     const indexCap = input.return_mode === "answer" && tightBudget
       ? Math.floor(input.max_tokens / 12)
@@ -423,7 +439,7 @@ export class Synthesizer {
     const slices: Omit<WikiContext, "citations">[] = [];
     for (const [i, page] of pages.entries()) {
       const share = Math.min(contextBudget, Math.max(64, Math.floor(contextBudget / (pages.length - i))));
-      const excerpt = relevantMarkdown(page.body, searchQueries, share, Boolean(input.boost_safety || plan?.boostSafety || needsInventory));
+      const excerpt = relevantMarkdown(page.body, searchQueries, share, boostSafety, redlineAnchors);
       if (!excerpt || !findAnchors(excerpt).length) continue;
       slices.push({ page_id: page.path, title: page.title, relevance_reason: page.reason, content: excerpt });
       contextBudget -= countTokens(excerpt);

@@ -45,12 +45,13 @@ export function deliveries(store: Store, window: EvaluationWindow, parents: Map<
     if (draft.utility_score && draft.utility_score.net_utility < 0 && draft.urgency !== "urgent") { reasons.add("negative_utility"); continue; }
     const ids = [...new Set(draft.trigger_ids)];
     if (!ids.every((id) => parents.has(id))) { reasons.add("invalid_trigger"); continue; }
-    if (!draft.citations.length) { reasons.add("no_valid_citation"); continue; }
+    const triggers = ids.map(id => parents.get(id)!);
+    const userAuthored = triggers.length > 0 && triggers.every(t => t.payload.user_authored);
+    if (!draft.citations.length && (!userAuthored || draft.ungrounded_citations)) { reasons.add("no_valid_citation"); continue; }
     const anchors = new Set(draft.citations.map((c) => c.anchor));
     const citedAgenda = agenda.filter((t) => t.payload.anchors.some((a) => anchors.has(a)));
     const blocked = citedAgenda.map((t) => store.blocked(spaceKey(ref), t, ms, policy.cooldown_hours)).find(Boolean);
     if (blocked) { reasons.add(blocked); continue; }
-    const triggers = ids.map(id => parents.get(id)!);
     const sources = [...triggers, ...citedAgenda];
     const items = [...new Set(sources.flatMap((t) => t.payload.item_keys))].sort();
     if (items.some((item) => used.has(item))) { reasons.add("duplicate"); continue; }
@@ -72,7 +73,7 @@ export function deliveries(store: Store, window: EvaluationWindow, parents: Map<
     if (count >= policy.max_daily_pushes) { reasons.add("daily_limit"); continue; }
     daily.set(day, count + 1);
     items.forEach((item) => used.add(item));
-    const { intention_id: requestedId, ...content } = draft;
+    const { intention_id: requestedId, ungrounded_citations: _ungrounded, ...content } = draft;
     const intentionId = requestedId ?? triggers[0]?.payload.intention_id;
     const linked = intentionId && triggers.some(t => t.payload.intention_id === intentionId);
     accepted.push({ items, nudge: {

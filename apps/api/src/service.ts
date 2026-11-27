@@ -93,7 +93,7 @@ export function createService(input: ServiceConfig, options: { clock?: () => num
   };
   demoRoutes(app, repo, storage, gateway, synthesizer, modelInfo, memoryState);
   chatRoutes(app, repo, queue, storage, gateway, synthesizer, ingestion, chatStore, wake, modelInfo, memoryState, normalizer, compactor);
-  memoryControlRoutes(app, repo, storage, memoryState);
+  memoryControlRoutes(app, repo, storage, memoryState, gateway);
   app.doc31("/openapi.json", { openapi: "3.1.0", info: { title: "Wiki Memory Service", version: "1.0.0" } });
   app.get("/docs", swaggerUI({ url: "/openapi.json", title: "Wiki Memory API" }));
 

@@ -51,6 +51,7 @@ export interface EnrichedFactView {
   sources: string[];
   tier: MemoryTier;
   scope: PrivacyScope;
+  expires_on?: string | null;
   pinned: boolean;
   archived: boolean;
   archived_reason: string | null;
@@ -67,20 +68,14 @@ export interface SemanticTurnHit {
   similarity: number;
 }
 
-const PINNED_REDLINE_PATTERN = /过敏|急诊|医嘱|禁忌|红线|严禁|禁止|不得|不许|绝对不能|不能碰|不耐受|肾上腺素|应急金|底线|杠杆|小盘股|处方粮|高磷|痛风|高血压|等保|出境|公有云|家庭成员|身份|配偶|爱人|父母|父亲|母亲|儿子|女儿|孩子|宠物|allergy|medical|emergency|redline|prohibit|forbidden/i;
-const WORKING_PATTERN = /待办|排期|筹备|本次|暂定|验收|更换|缴费|预约|复查|陪诊|评审|kickoff|测试|内测|灰度|出差|行程|预算|住宿|民宿|洗碗机|刹车片|物业费|账单|支出|报销|草稿|提纲|清单|todo|task|review|draft|trip/i;
-const PRIVATE_HEALTH_PATTERN = /过敏|急诊|医嘱|药|医院|复查|体检|痛风|尿酸|血压|氨氯地平|颈椎|乳糖|青霉素|肾上腺素|白内障|肌酐|处方粮|高磷|发烧|布洛芬|健康|门诊|病/i;
-const FAMILY_PATTERN = /爱人|老婆|妻子|丈夫|配偶|伴侣|父亲|母亲|爸|妈|祖父母|爷爷|奶奶|外公|外婆|父母|儿子|女儿|孩子|幼儿园|生日|家庭|家里|应急金|房贷|猫|狗|宠物/i;
-const WORK_INTERNAL_PATTERN = /绩效|1on1|一对一|汇报|工资|薪资|报价底线|谈判底线|外包底线|预付款|尾款|定金|审计|合规|内部|保密|会议纪要|风险清单|SLA|P0|灰度|测试号/i;
-
 // Generic synonym groups supplement lexical matching when embeddings are unavailable.
 const SEMANTIC_CONCEPTS: Array<[string, RegExp]> = [
   ["pet_litter", /猫砂|豆腐砂|垫料|猫厕所|宠物厕所|猫砂盆|cat litter/],
-  ["pet_cat", /宠物|猫|狗|兽医|宠粮|处方粮|喂食|pet care/],
+  ["pet_animal", /宠物|猫咪|小猫|养猫|猫粮|狗狗|小狗|养狗|狗粮|遛狗|兽医|宠粮|处方粮|喂食|pet care/],
   ["allergy_peanut", /食物过敏|过敏原|花生|坚果|配料表|误食|食物致敏|food allerg/],
   ["allergy_drug", /药物过敏|药物禁忌|过敏史|青霉素|阿莫西林|用药过敏|drug allerg/],
   ["diet_lactose", /乳糖|牛奶|乳制品|奶酪|无乳糖|燕麦奶|lactose/],
-  ["coffee", /拿铁|美式|咖啡|浓缩咖啡|燕麦奶|coffee|latte/],
+  ["coffee", /拿铁|美式|咖啡|浓缩咖啡|coffee|latte/],
   ["diet_gout", /痛风|尿酸|嘌呤|动物内脏|海鲜|啤酒|gout|purine/],
   ["diet_dislikes", /忌口|不吃|不爱吃|饮食偏好|饮食禁忌/],
   ["finance_emergency", /应急金|应急储蓄|紧急备用金|备用金|周转金|应急资金|emergency fund/],
@@ -88,8 +83,9 @@ const SEMANTIC_CONCEPTS: Array<[string, RegExp]> = [
   ["work_report", /汇报|工作报告|进度报告|周报|月报|风险清单|工作总结|status report/],
   ["work_launch", /灰度|上线|发布|延期|交付|项目排期|里程碑/],
   ["travel_trip", /旅行|旅游|出游|差旅|行程|住宿|民宿|酒店|旅馆|travel|hotel/],
-  ["family_mother", /父母|妈妈|母亲|我妈|外婆|外祖母|奶奶|祖母|mother/],
-  ["family_father", /父母|爸爸|父亲|我爸|外公|外祖父|爷爷|祖父|father/],
+  ["family_parents", /父母|爸妈|双亲|parents/],
+  ["family_mother", /妈妈|母亲|我妈|外婆|外祖母|奶奶|祖母|mother/],
+  ["family_father", /爸爸|父亲|我爸|外公|外祖父|爷爷|祖父|father/],
   ["family_spouse", /爱人|老婆|妻子|老公|丈夫|配偶|伴侣|spouse/],
   ["family_child", /儿子|女儿|孩子|小孩|子女|幼儿|儿童|child/],
   ["schedule_car", /刹车片|修车|车辆保养|汽车维修|车检/],
@@ -108,20 +104,13 @@ export function factTelemetry(fact: Fact, telemetry?: Map<string, FactTelemetryR
   return telemetry.get(factStorageKey(fact)) ?? fact.previous_fact_keys?.map((key) => telemetry.get(key)).find(Boolean);
 }
 
-export function inferFactTier(fact: Pick<Fact, "subject" | "predicate" | "value" | "cardinality" | "expires_on" | "pinned">): MemoryTier {
+export function inferFactTier(fact: Pick<Fact, "expires_on" | "pinned"> & Partial<Pick<Fact, "subject" | "predicate" | "value" | "cardinality">>): MemoryTier {
   if (fact.pinned) return "pinned_redline";
-  const text = `${fact.subject} ${fact.predicate} ${fact.value}`;
-  if (PINNED_REDLINE_PATTERN.test(text)) return "pinned_redline";
-  if (fact.expires_on || WORKING_PATTERN.test(text)) return "working";
+  if (fact.expires_on) return "working";
   return "durable";
 }
 
-export function inferFactScope(fact: Pick<Fact, "subject" | "predicate" | "value">): PrivacyScope {
-  const text = `${fact.subject} ${fact.predicate} ${fact.value}`;
-  if (PRIVATE_HEALTH_PATTERN.test(text)) return "private_health";
-  if (WORK_INTERNAL_PATTERN.test(text)) return "work_internal";
-  if (FAMILY_PATTERN.test(text)) return "family";
-  if (/项目|产品|发布|架构|客户|外包|报销|出差|会议|合作|文档/.test(text)) return "work_shareable";
+export function inferFactScope(_fact: Partial<Pick<Fact, "subject" | "predicate" | "value">>): PrivacyScope {
   return "general";
 }
 
@@ -130,9 +119,11 @@ export function computeFactActivation(
   telemetry: FactTelemetryRecord | undefined,
   today: string,
 ): { tier: MemoryTier; score: number; state: "pinned" | "fresh" | "fading" | "cold" } {
-  const tier: MemoryTier = telemetry?.pinned
+  const explicitlyDowngraded = !telemetry?.pinned && telemetry?.tier_override != null && telemetry.tier_override !== "pinned_redline";
+  const effectivePinned = telemetry?.pinned ? true : explicitlyDowngraded ? false : Boolean(fact.pinned);
+  const tier: MemoryTier = effectivePinned
     ? "pinned_redline"
-    : telemetry?.tier_override ?? fact.tier ?? inferFactTier(fact);
+    : telemetry?.tier_override ?? fact.tier ?? inferFactTier({ ...fact, pinned: effectivePinned });
   if (tier === "pinned_redline") {
     return { tier, score: 1, state: "pinned" };
   }
@@ -422,12 +413,21 @@ export class SQLiteMemoryStateStore {
   ): FactTelemetryRecord {
     const existing = this.listTelemetry(spaceKey).get(factKey);
     const now = new Date().toISOString();
+    let tierOverride = patch.tier_override !== undefined ? patch.tier_override : (existing?.tier_override ?? null);
+    let pinned = patch.pinned !== undefined ? patch.pinned : (existing?.pinned ?? false);
+    if (patch.tier_override != null && patch.tier_override !== "pinned_redline" && patch.pinned === undefined) {
+      pinned = false;
+    } else if (patch.tier_override === "pinned_redline" && patch.pinned === undefined) {
+      pinned = true;
+    } else if (patch.pinned === false && patch.tier_override === undefined && (!tierOverride || tierOverride === "pinned_redline")) {
+      tierOverride = "durable";
+    }
     const next: FactTelemetryRecord = {
       space_key: spaceKey,
       fact_key: factKey,
-      tier_override: patch.tier_override !== undefined ? patch.tier_override : (existing?.tier_override ?? null),
+      tier_override: tierOverride,
       scope_override: patch.scope_override !== undefined ? patch.scope_override : (existing?.scope_override ?? null),
-      pinned: patch.pinned !== undefined ? patch.pinned : (existing?.pinned ?? false),
+      pinned,
       archived_reason: patch.archived_reason !== undefined ? patch.archived_reason : (existing?.archived_reason ?? null),
       edited_value: patch.edited_value !== undefined ? patch.edited_value : (existing?.edited_value ?? null),
       recall_count: existing?.recall_count ?? 0,
@@ -490,8 +490,8 @@ export class SQLiteMemoryStateStore {
       kind: input.kind,
       content: input.content.trim(),
       target_hint: input.targetHint?.trim() || null,
-      tier: input.tier ?? (PINNED_REDLINE_PATTERN.test(input.content) ? "pinned_redline" : "durable"),
-      scope: input.scope ?? inferFactScope({ subject: "", predicate: "", value: input.content }),
+      tier: input.tier ?? "durable",
+      scope: input.scope ?? "general",
       status: "active",
       created_at: now,
     };
@@ -631,7 +631,8 @@ export class SQLiteMemoryStateStore {
         sources: claimAnchors(claim).map((a) => `${a.docId}#${a.locator}`),
         tier,
         scope,
-        pinned: Boolean(tel?.pinned || claim.pinned),
+        ...(claim.expires_on ? { expires_on: claim.expires_on } : {}),
+        pinned: tel?.pinned ? true : (tel?.tier_override != null && tel.tier_override !== "pinned_redline") ? false : Boolean(claim.pinned),
         archived: Boolean(archivedReason),
         archived_reason: archivedReason,
         recall_count: tel?.recall_count ?? 0,

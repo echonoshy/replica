@@ -39,7 +39,7 @@ const decisionSchema = z.object({
   })).max(20).default([]),
 });
 export type Decision = z.infer<typeof decisionSchema>;
-export type VerifiedNudge = Omit<z.infer<typeof modelNudge>, "citations"> & { citations: Citation[] };
+export type VerifiedNudge = Omit<z.infer<typeof modelNudge>, "citations"> & { citations: Citation[]; ungrounded_citations?: boolean };
 const sourceTag = /\[src:([^\]]*)\]/g;
 
 export async function resolveCitation(sources: ReturnType<MemoryKernelPort["sources"]>, documents: Set<string>, anchor: string) {
@@ -71,11 +71,12 @@ async function verify(port: MemoryKernelPort, ref: SpaceRef, snapshot: Snapshot,
       checked.set(anchor, await resolveCitation(sources, documents, anchor));
     }
     const citations = [...anchors].flatMap((a) => checked.get(a) ?? []);
+    const ungrounded = anchors.size > 0 && citations.length === 0;
     let body = draft.body.replace(sourceTag, (tag, anchor: string) => checked.get(anchor) ? tag : "").trim();
     if (citations.length && !Array.from(body.matchAll(sourceTag)).length) body += " [src:" + citations[0].anchor + "]";
     const { prepared_brief, proposed_actions, utility_score, intention_id, why_now, ...base } = draft;
     const brief = prepared_brief?.replace(sourceTag, (tag, anchor: string) => checked.get(anchor) ? tag : "").trim();
-    verified.push({ ...base, body, citations, ...(brief && { prepared_brief: brief }), ...(why_now && { why_now }),
+    verified.push({ ...base, body, citations, ...(ungrounded && { ungrounded_citations: true }), ...(brief && { prepared_brief: brief }), ...(why_now && { why_now }),
       ...(proposed_actions?.length && { proposed_actions }), ...(intention_id && { intention_id }), ...(utility_score && { utility_score }) });
   }
   return verified;
@@ -137,9 +138,10 @@ export class Decider {
     }
     const triggers = fitRows(batch.map((t) => ({
       trigger_id: t.trigger_id, source_type: t.source_type, fire_at: t.fire_at, chain_depth: t.chain_depth,
-      text: truncateTokens(t.payload.text, 120), anchors: t.payload.anchors.slice(0, 6),
+      text: truncateTokens(t.payload.text, 160), anchors: t.payload.anchors.slice(0, 6),
       ...(t.payload.intention_id && { intention_id: t.payload.intention_id }),
-    })), 1000);
+      ...(t.payload.user_authored && { user_authored: true }),
+    })), 1200);
     const shown = new Set(triggers.map((t) => t.trigger_id));
     const overflow = Map.groupBy(batch.filter((t) => !shown.has(t.trigger_id)), (t) => "group:" + t.source_type);
     const deliveryMs = quietUntil(ms, policy);
@@ -161,7 +163,7 @@ export class Decider {
       pending_chat_hits: fitRows(retrieved?.pending_chat_hits ?? [], 450),
       proactive_profile: this.store.profile(ref, ms),
       armed_intentions: fitRows(armed.filter(i => candidateIds.has(i.intention_id)).map(i => ({ intention_id: i.intention_id, goal: truncateTokens(i.goal, 100), kind: i.kind,
-        priority: i.priority, subjects: i.subjects.slice(0, 6), evidence_anchors: i.evidence_anchors.slice(0, 4) })), 600),
+        priority: i.priority, source: i.source, subjects: i.subjects.slice(0, 6), evidence_anchors: i.evidence_anchors.slice(0, 4) })), 600),
       working_state: fitRows(this.store.working(spaceKey(ref), iso(ms - 7 * DAY), iso(ms)), 340),
     };
     // Measure the serialized payload too: escaping Markdown can cost extra tokens.

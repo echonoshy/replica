@@ -177,9 +177,9 @@ export function demoRoutes(
     const baseStart = Date.now();
 
     const [withCompletion, baselineCompletion] = await Promise.all([
-      gateway.complete("strong", withMemoryMessages, withUsage, { maxTokens: 8192 }),
+      gateway.complete("strong", withMemoryMessages, withUsage, { maxTokens: 16_384 }),
       input.compare_baseline
-        ? gateway.complete("strong", baselineMessages, baseUsage, { maxTokens: 8192 })
+        ? gateway.complete("strong", baselineMessages, baseUsage, { maxTokens: 16_384 })
         : Promise.resolve(null),
     ]);
 

@@ -15,7 +15,7 @@ import { enqueueDream } from "../pipeline/dreaming.js";
 import { enqueueRetraction, jobResponse } from "../pipeline/ingestion.js";
 import type { Ingestion } from "../pipeline/ingestion.js";
 import type { Claim, PrivacyScope } from "../pipeline/analyzer.js";
-import { inferFactScope } from "../memory/memory-state.js";
+import { classifyHotMemoryWithLlm } from "../pipeline/fact-classifier.js";
 import type { SQLiteMemoryStateStore } from "../memory/memory-state.js";
 import { reconcile } from "../pipeline/wiki-compiler.js";
 import { anchoredSections, documentType, TextDocumentNormalizer } from "../pipeline/normalizer.js";
@@ -428,10 +428,25 @@ export function chatRoutes(
         today: todayLabel,
       });
       const command = routePlan.hot_memory;
+      const hotClassified = command && memoryState
+        ? await classifyHotMemoryWithLlm(gateway, {
+          kind: command.kind,
+          content: command.content,
+          targetHint: command.target_hint,
+        })
+        : null;
       const hotMemoryAction = command && memoryState?.addHotMemory({
-        spaceKey: session.space_key, sessionId: session_id, kind: command.kind,
-        content: command.content, targetHint: command.target_hint,
+        spaceKey: session.space_key,
+        sessionId: session_id,
+        kind: command.kind,
+        content: command.content,
+        targetHint: command.target_hint,
+        tier: hotClassified?.tier,
+        scope: hotClassified?.scope,
       });
+      const allActiveHot = memoryState && hotMemoryAction
+        ? memoryState.listHotMemories(session.space_key, "active")
+        : previousHot;
       const external = routePlan.privacy_mode === "external_safe";
       const excludeScopes: PrivacyScope[] = external ? externalScopes : [];
       let activeFacts: Claim[] = [];
@@ -451,19 +466,15 @@ export function chatRoutes(
         ...(memoryState?.enrichFacts(session.space_key, activeFacts, session.session_date) ?? [])
           .filter((f) => excludeScopes.includes(f.scope) || f.archived).flatMap((f) => [f.original_value, f.value]),
         ...allRules.filter((r) => excludeScopes.includes(r.scope)).flatMap((r) => [r.instruction, r.rationale ?? ""]),
-        ...previousHot.filter((h) => excludeScopes.includes(h.scope)).map((h) => h.content),
+        ...allActiveHot.filter((h) => excludeScopes.includes(h.scope)).map((h) => h.content),
       ].filter(Boolean) : [];
-      const shareable = (text: string) => !external || (
-        !excludeScopes.includes(inferFactScope({ subject: "", predicate: "", value: text }))
-        && !privateValues.some((value) => text.includes(value))
-      );
+      const shareable = (text: string) => !external || !privateValues.some((value) => text.includes(value));
       const coreCard = memoryState?.buildCoreProfileCard(session.space_key, activeFacts, session.session_date, {
         excludeScopes, rules: rules.map((r) => ({ ...r, docId: r.doc_id })),
       })
         // Alias registrations have no independent privacy scope.
         .split("\n").filter((line) => !external || (!line.startsWith("- **称谓与实体映射**") && shareable(line))).join("\n");
-      const activeHot = (memoryState && hotMemoryAction ? memoryState.listHotMemories(session.space_key, "active") : previousHot)
-        .filter((h) => !excludeScopes.includes(h.scope) && shareable(h.content));
+      const activeHot = allActiveHot.filter((h) => !excludeScopes.includes(h.scope) && shareable(h.content));
 
       let retrieval: RetrieveResult = EMPTY_RETRIEVAL;
       let conversationHits: ConversationSearchHit[] = [];
@@ -491,6 +502,7 @@ export function chatRoutes(
           }, {
             queries: searchQueries,
             needsInventory: routePlan.needs_inventory,
+            needsAuditHistory: routePlan.needs_audit_history,
             boostSafety: routePlan.safety_check,
             excludeScopes,
           }) : EMPTY_RETRIEVAL,
@@ -627,11 +639,11 @@ export function chatRoutes(
       ): Promise<string> => {
         if (hooks.onDelta && typeof gateway.stream === "function") {
           return gateway.stream("strong", msgs, usage, (chunk) => hooks.onDelta?.(channel, chunk), {
-            maxTokens: 12_288,
+            maxTokens: 16_384,
             signal: hooks.signal,
           });
         }
-        const completion = await gateway.complete("strong", msgs, usage, { maxTokens: 12_288 });
+        const completion = await gateway.complete("strong", msgs, usage, { maxTokens: 16_384 });
         const text = completion.choices[0]?.message.content?.trim() ?? "";
         if (text) hooks.onDelta?.(channel, text);
         return text;

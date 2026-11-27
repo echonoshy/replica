@@ -199,10 +199,21 @@ export const proactiveEventMatchSchema = z.object({
   score: z.number(),
   matched_by: z.array(z.string()),
 });
+export const proactiveEventSignalSourceSchema = z.enum(["intention", "redline", "schedule", "rule", "fact", "nudge"]);
+export const proactiveEventSignalSchema = z.object({
+  signal_id: z.string().min(1),
+  source: proactiveEventSignalSourceSchema,
+  label: z.string().min(1),
+  detail: z.string().default(""),
+  match_reason: z.string().min(1),
+  priority: z.enum(["redline", "high", "normal", "low"]).optional(),
+  anchor: z.string().optional(),
+});
 export const proactiveEventResultSchema = z.object({
   event_id: z.string(),
   evaluated_at: proactiveInstantSchema,
   l1_matches: z.array(proactiveEventMatchSchema),
+  matched_signals: z.array(proactiveEventSignalSchema).default([]),
   llm_called: z.boolean(),
   decision_summary: evaluateResultSchema.shape.decision_summary,
   nudges: z.array(nudgeSchema),
@@ -313,6 +324,8 @@ export type ExecuteNudgeActionInput = z.infer<typeof executeNudgeActionSchema>;
 export type ExecuteNudgeActionResult = z.infer<typeof executeNudgeActionResultSchema>;
 export type ProactiveEventInput = z.infer<typeof proactiveEventInputSchema>;
 export type ProactiveEventMatch = z.infer<typeof proactiveEventMatchSchema>;
+export type ProactiveEventSignalSource = z.infer<typeof proactiveEventSignalSourceSchema>;
+export type ProactiveEventSignal = z.infer<typeof proactiveEventSignalSchema>;
 export type ProactiveEventResult = z.infer<typeof proactiveEventResultSchema>;
 export type ScoutRequest = z.infer<typeof scoutRequestSchema>;
 export type ScoutFinding = z.infer<typeof scoutFindingSchema>;

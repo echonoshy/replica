@@ -23,6 +23,7 @@ export interface Payload {
   intention_id?: string;
   redline?: boolean;
   risk_watch?: boolean;
+  user_authored?: boolean;
 }
 export interface Trigger {
   trigger_id: string;
@@ -65,6 +66,7 @@ export function intentionTimer(ref: SpaceRef, version: number, i: ProspectiveInt
     intention_id: i.intention_id, text: i.goal, anchors: i.evidence_anchors, subjects: i.subjects,
     item_keys: [key], occurs_on: iso(due), valid_until: c.deadline ? iso(Date.parse(c.deadline)) : undefined,
     redline: i.priority === "redline", risk_watch: i.kind === "risk_watch",
+    ...(i.source === "user" && !i.evidence_anchors.length && { user_authored: true }),
   });
 }
 

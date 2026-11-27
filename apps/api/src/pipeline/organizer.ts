@@ -424,7 +424,7 @@ export class Organizer {
       if (turn >= 6) {
         for (const read of reads) if (read.turn < turn - 4) clearRead(read, "older_than_four_turns");
       }
-      const chat = await this.gateway.complete("strong", messages, usage, { format: "tools", tools, maxTokens: 12_288 });
+      const chat = await this.gateway.complete("strong", messages, usage, { format: "tools", tools, maxTokens: 16_384 });
       const message = chat.choices[0]?.message;
       const calls = message?.tool_calls?.filter((call) => call.type === "function") ?? [];
       let requested: Array<{ name: string; arguments: unknown; id?: string }>;

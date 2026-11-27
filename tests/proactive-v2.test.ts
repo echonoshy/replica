@@ -241,6 +241,445 @@ describe("event gating and live memory context", () => {
     expect(await s.event()).toMatchObject({ llm_called: true, decision_summary: "silent", nudges: [],
       suppressed_reasons: expect.arrayContaining(["negative_utility"]) });
   });
+
+  it("allows a user-created intention without memory anchors to push while still rejecting fabricated citations", async () => {
+    const s = await setup({
+      proactive: ctx => ({
+        decision: "push",
+        nudges: [{
+          trigger_ids: [ctx.triggers[0].trigger_id],
+          kind: "event_trigger",
+          urgency: "normal",
+          title: "准备合同发给客户",
+          body: "客户已经确认报价，现在可以按报价准备合同。",
+          why_now: "刚收到确认报价的邮件，适合马上推进合同。",
+          citations: [],
+        }],
+      }),
+    });
+    const created = await s.create({
+      kind: "event_based",
+      goal: "把合同发给星辰科技",
+      subjects: ["星辰科技"],
+      condition: { cue_text: "星辰科技确认报价", match_event_types: ["email_received"] },
+      evidence_anchors: [],
+    });
+    const ok = await s.event({
+      event_type: "email_received",
+      summary: "星辰科技确认报价，请按报价准备合同。",
+      dry_run: true,
+    });
+    expect(ok).toMatchObject({
+      llm_called: true,
+      decision_summary: "push",
+      l1_matches: [{ intention_id: created.intention_id }],
+      matched_signals: expect.arrayContaining([
+        expect.objectContaining({ source: "intention", signal_id: "intention:" + created.intention_id }),
+      ]),
+      nudges: [{ intention_id: created.intention_id, kind: "event_trigger", citations: [] }],
+    });
+
+    // Fabricated citation on a user-authored intention must still be rejected.
+    s.gateway.options.proactive = ctx => ({
+      decision: "push",
+      nudges: [{
+        trigger_ids: [ctx.triggers[0].trigger_id],
+        kind: "event_trigger",
+        urgency: "normal",
+        title: "准备合同发给客户",
+        body: "附伪造出处 [src:" + missing + "]",
+        citations: [missing],
+      }],
+    });
+    const fake = await s.event({
+      event_type: "email_received",
+      summary: "星辰科技确认报价，请按报价准备合同。",
+      dry_run: true,
+    });
+    expect(fake).toMatchObject({
+      llm_called: true,
+      decision_summary: "silent",
+      nudges: [],
+      suppressed_reasons: expect.arrayContaining(["no_valid_citation"]),
+    });
+  });
+
+  it("matches new calendar conflicts against active upcoming schedules via Chinese date parsing without requiring cancellation words", async () => {
+    const s = await setup({
+      extract: ({ segments: [first] }) => ({
+        summary: "Hospital appointment",
+        facts: [],
+        timeline_events: [{
+          date: "2026-12-05",
+          text: "上午陪父亲到同仁医院复查白内障，10:30 报到",
+          locator: first.locator,
+          related: [{ kind: "entity", subject: "父亲" }],
+        }],
+      }),
+    });
+    const docId = await s.ingest("12月5日上午陪父亲去同仁医院复查", "hospital.txt");
+    const result = await s.event({
+      event_type: "calendar_changed",
+      summary: "12月5日上午10点半新增架构评审",
+      occurred_at: "2026-11-26T10:30:00+08:00",
+      dry_run: true,
+    });
+    expect(result).toMatchObject({
+      llm_called: true,
+      decision_summary: "push",
+      matched_signals: expect.arrayContaining([
+        expect.objectContaining({
+          source: "schedule",
+          anchor: docId + "#s1",
+          match_reason: expect.stringContaining("2026-12-05"),
+        }),
+      ]),
+      nudges: [{ citations: [expect.objectContaining({ anchor: docId + "#s1" })] }],
+    });
+  });
+
+  it("keeps unrelated small-talk and generic-stopword events silent with zero model calls", async () => {
+    const s = await setup({
+      extract: ({ segments: [first] }) => ({
+        summary: "Family constraint",
+        facts: [{
+          kind: "entity",
+          subject: "家人",
+          predicate: "就诊安排红线",
+          value: "12月5日陪诊安排不可随意取消",
+          tier: "pinned_redline",
+          locator: first.locator,
+        }],
+        timeline_events: [{
+          date: "2026-12-05",
+          text: "陪家人去医院复查",
+          locator: first.locator,
+          related: [{ kind: "entity", subject: "家人" }],
+        }],
+      }),
+    });
+    await s.ingest("12月5日陪家人去医院复查", "family.txt");
+    const callsBefore = s.gateway.requests.length;
+    for (const payload of [
+      { event_type: "custom", summary: "今天天气晴朗，午饭打算吃面", entities: [] },
+      { event_type: "chat_turn", summary: "今天天气晴朗无事发生", entities: ["安排", "明天", "取消"] },
+    ]) {
+      const res = await s.event({ ...payload, occurred_at: "2026-11-26T10:30:00+08:00", dry_run: true });
+      expect(res).toMatchObject({
+        l1_matches: [],
+        matched_signals: [],
+        llm_called: false,
+        decision_summary: "silent",
+        nudges: [],
+        suppressed_reasons: ["no_l1_match"],
+      });
+    }
+    expect(s.gateway.requests).toHaveLength(callsBefore);
+  });
+
+  it("surfaces high-relevance durable facts in matched_signals when no intention is pre-registered", async () => {
+    const s = await setup({
+      extract: ({ segments: [first] }) => ({
+        summary: "Boss preference",
+        facts: [{
+          kind: "entity",
+          subject: "林总",
+          predicate: "汇报偏好",
+          value: "只看一页结论和指标表格，不要长篇铺垫",
+          tier: "durable",
+          locator: first.locator,
+        }],
+      }),
+    });
+    const docId = await s.ingest("林总汇报只要一页结论和表格", "boss.txt");
+    const result = await s.event({
+      event_type: "calendar_changed",
+      summary: "下午临时安排向林总做季度进度汇报",
+      occurred_at: "2026-11-26T10:30:00+08:00",
+      dry_run: true,
+    });
+    expect(result).toMatchObject({
+      llm_called: true,
+      decision_summary: "push",
+      matched_signals: expect.arrayContaining([
+        expect.objectContaining({ source: "fact", anchor: docId + "#s1" }),
+      ]),
+      nudges: [{ citations: [expect.objectContaining({ anchor: docId + "#s1" })] }],
+    });
+  });
+
+  it("coalesces multiple LLM nudge drafts for one event into at most one highest-priority nudge while still applying intention updates", async () => {
+    const s = await setup({
+      extract: ({ segments: [first] }) => ({
+        summary: "Dietary redline",
+        facts: [{
+          kind: "entity",
+          subject: "陈默",
+          predicate: "饮食禁忌",
+          value: "绝对不吃香菜；痛风忌动物内脏和牛杂",
+          tier: "pinned_redline",
+          locator: first.locator,
+        }],
+      }),
+    });
+    const docId = await s.ingest("陈默绝对不吃香菜，痛风忌动物内脏和牛杂", "diet.txt");
+    const anchor = docId + "#s1";
+    const intention = await s.create({
+      kind: "event_based",
+      goal: "筹备苏晴生日晚餐",
+      subjects: ["苏晴"],
+      condition: { cue_text: "生日晚餐安排", match_event_types: ["chat_turn"] },
+      evidence_anchors: [anchor],
+    });
+    const secondary = await s.create({
+      kind: "event_based",
+      goal: "确认生日聚餐餐厅预订",
+      subjects: ["苏晴"],
+      condition: { cue_text: "生日餐厅变动", match_event_types: ["chat_turn"] },
+      evidence_anchors: [anchor],
+    });
+    s.gateway.options.proactive = ctx => {
+      const primaryTriggerId = ctx.triggers[0].trigger_id;
+      const secondaryTriggerId = ctx.triggers[1]?.trigger_id ?? primaryTriggerId;
+      return {
+        decision: "push",
+        nudges: [
+          {
+            trigger_ids: [secondaryTriggerId],
+            kind: "reminder",
+            urgency: "normal",
+            title: "提醒：确认生日聚餐准备",
+            body: "别忘了提前预订生日晚餐 [src:" + anchor + "]",
+            citations: [anchor],
+            utility_score: { miss_cost: 4, actionability: 3, value_add: 3, interruption_cost: 2, net_utility: 8 },
+          },
+          {
+            trigger_ids: [primaryTriggerId],
+            kind: "risk_alert",
+            urgency: "urgent",
+            title: "饮食红线冲突：香菜与牛杂禁忌",
+            body: "生日改吃香菜牛杂火锅直接触碰忌口与痛风红线 [src:" + anchor + "]",
+            why_now: "现在回复换餐厅还能避免踩雷。",
+            citations: [anchor],
+            utility_score: { miss_cost: 9, actionability: 8, value_add: 8, interruption_cost: 2, net_utility: 23 },
+          },
+        ],
+        intention_updates: [
+          { intention_id: intention.intention_id, status: "triggered" },
+          { intention_id: secondary.intention_id, status: "triggered" },
+        ],
+      };
+    };
+
+    const result = await s.event({
+      event_type: "chat_turn",
+      summary: "苏晴说生日改去吃香菜牛杂火锅",
+      entities: ["苏晴"],
+      occurred_at: "2026-11-26T10:30:00+08:00",
+    });
+
+    expect(result.llm_called).toBe(true);
+    expect(result.decision_summary).toBe("push");
+    expect(result.nudges).toHaveLength(1);
+    expect(result.nudges[0]).toMatchObject({
+      kind: "risk_alert",
+      urgency: "urgent",
+      intention_id: intention.intention_id,
+      title: "饮食红线冲突：香菜与牛杂禁忌",
+    });
+    expect(result.updated_intention_ids).toEqual(expect.arrayContaining([intention.intention_id, secondary.intention_id]));
+    expect((await s.intentions("triggered")).intentions.map(i => i.intention_id)).toEqual(
+      expect.arrayContaining([intention.intention_id, secondary.intention_id]),
+    );
+    const stored = await s.request(base + "/nudges?" + query + "&status=all");
+    expect(stored.total).toBe(1);
+  });
+
+  it("does not leak unrelated facts mentioning a person in value or subject without topical overlap and caps matched_signals to top 6", async () => {
+    const s = await setup({
+      extract: ({ document, segments: [first] }) => {
+        if (document.filename === "diet.txt") {
+          return {
+            summary: "Diet and birthday",
+            facts: [
+              {
+                kind: "entity",
+                subject: "陈默",
+                predicate: "饮食禁忌",
+                value: "绝对不吃香菜；痛风忌动物内脏和牛杂",
+                tier: "pinned_redline",
+                locator: first.locator,
+              },
+              {
+                kind: "entity",
+                subject: "苏晴",
+                predicate: "职业背景",
+                value: "建筑设计师，平时爱喝燕麦拿铁",
+                tier: "durable",
+                locator: first.locator,
+              },
+              {
+                kind: "entity",
+                subject: "苏晴",
+                predicate: "家庭身份",
+                value: "陈默的爱人",
+                tier: "pinned_redline",
+                locator: first.locator,
+              },
+            ],
+            timeline_events: [{
+              date: "2026-12-03",
+              text: "苏晴生日晚餐，原定城南日料店",
+              locator: first.locator,
+              related: [{ kind: "entity", subject: "苏晴" }],
+            }],
+          };
+        }
+        return {
+          summary: "Pet care",
+          facts: [
+            {
+              kind: "entity",
+              subject: "芝麻",
+              predicate: "家庭喂养分工",
+              value: "工作日陈默早晚喂食，苏晴负责周末换猫砂和梳毛",
+              tier: "durable",
+              locator: first.locator,
+            },
+            {
+              kind: "entity",
+              subject: "芝麻",
+              predicate: "处方粮禁忌",
+              value: "严禁高磷猫粮，周末由苏晴核对配料表",
+              tier: "pinned_redline",
+              locator: first.locator,
+            },
+          ],
+          timeline_events: [{
+            date: "2026-12-08",
+            text: "和苏晴一起带芝麻去宠物医院打疫苗",
+            locator: first.locator,
+            related: [{ kind: "entity", subject: "苏晴" }, { kind: "entity", subject: "芝麻" }],
+          }],
+        };
+      },
+    });
+    const dietDoc = await s.ingest("陈默绝对不吃香菜，痛风忌牛杂；12月3日苏晴生日晚餐", "diet.txt");
+    await s.ingest("芝麻家庭喂养分工：苏晴周末换猫砂，严禁高磷猫粮", "pet.txt");
+    await s.request(memory + "/aliases", { kind: "entity", alias: "老婆", canonical_subject: "苏晴" }, "POST", 201);
+
+    const result = await s.event({
+      event_type: "chat_turn",
+      summary: "苏晴说生日改去吃香菜牛杂火锅",
+      entities: ["苏晴"],
+      occurred_at: "2026-11-26T10:30:00+08:00",
+      dry_run: true,
+    });
+
+    expect(result.llm_called).toBe(true);
+    expect(result.matched_signals.length).toBeGreaterThanOrEqual(2);
+    expect(result.matched_signals.length).toBeLessThanOrEqual(6);
+    const labels = result.matched_signals.map(sig => sig.label);
+    expect(result.matched_signals).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: "redline", anchor: dietDoc + "#s1" }),
+      expect.objectContaining({ source: "schedule", anchor: dietDoc + "#s1" }),
+    ]));
+    expect(labels.some(l => l.includes("芝麻"))).toBe(false);
+    expect(labels.some(l => l.includes("职业背景"))).toBe(false);
+    expect(labels.some(l => l.includes("家庭身份"))).toBe(false);
+    expect(labels.some(l => l.includes("疫苗"))).toBe(false);
+  });
+
+  it("catches relative-date and weekday schedule conflicts like 明天下午2点看牙 without demo word lists while keeping same-day small talk silent", async () => {
+    const s = await setup({
+      extract: ({ segments: [first] }) => ({
+        summary: "Schedules and recurring redline",
+        facts: [{
+          kind: "entity",
+          subject: "周然",
+          predicate: "周三固定安排",
+          value: "每周三下午固定送孩子学钢琴，不排外部会议",
+          tier: "pinned_redline",
+          locator: first.locator,
+        }],
+        timeline_events: [
+          {
+            date: "2026-11-26",
+            text: "上午例行站会同步进度",
+            locator: first.locator,
+            related: [{ kind: "entity", subject: "周然" }],
+          },
+          {
+            date: "2026-11-27",
+            text: "下午两点半与客户签合同",
+            locator: first.locator,
+            related: [{ kind: "entity", subject: "周然" }],
+          },
+        ],
+      }),
+    });
+    const docId = await s.ingest("11月26日站会，11月27日下午与客户签合同，每周三下午送孩子学钢琴", "schedule.txt");
+
+    // Relative date ("明天下午2点看牙") catches 2026-11-27 schedule with ZERO hardcoded Demo word list
+    const dentist = await s.event({
+      event_type: "chat_turn",
+      summary: "明天下午2点看牙",
+      entities: [],
+      occurred_at: "2026-11-26T10:30:00+08:00",
+      dry_run: true,
+    });
+    expect(dentist).toMatchObject({
+      llm_called: true,
+      decision_summary: "push",
+      matched_signals: expect.arrayContaining([
+        expect.objectContaining({
+          source: "schedule",
+          anchor: docId + "#s1",
+          match_reason: expect.stringContaining("2026-11-27"),
+        }),
+      ]),
+    });
+
+    // Weekday mention ("周三下午面试") catches recurring Wednesday pinned_redline without Demo words
+    const interview = await s.event({
+      event_type: "chat_turn",
+      summary: "周三下午面试",
+      entities: [],
+      occurred_at: "2026-11-26T10:30:00+08:00",
+      dry_run: true,
+    });
+    expect(interview).toMatchObject({
+      llm_called: true,
+      decision_summary: "push",
+      matched_signals: expect.arrayContaining([
+        expect.objectContaining({
+          source: "redline",
+          anchor: docId + "#s1",
+          match_reason: expect.stringContaining("周三"),
+        }),
+      ]),
+    });
+
+    // Same-day small talk stays 0-LLM silent even though 2026-11-26 has an active schedule!
+    const callsBefore = s.gateway.requests.length;
+    for (const summary of ["今天天气晴朗，午饭打算吃面", "今天天气不错，下午顺路买杯咖啡"]) {
+      const quiet = await s.event({
+        event_type: "custom",
+        summary,
+        entities: [],
+        occurred_at: "2026-11-26T10:30:00+08:00",
+        dry_run: true,
+      });
+      expect(quiet).toMatchObject({
+        l1_matches: [],
+        matched_signals: [],
+        llm_called: false,
+        decision_summary: "silent",
+        nudges: [],
+      });
+    }
+    expect(s.gateway.requests).toHaveLength(callsBefore);
+  });
 });
 
 describe("dream-time scout", () => {

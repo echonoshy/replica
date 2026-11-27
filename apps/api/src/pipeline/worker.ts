@@ -18,7 +18,7 @@ import { lintDraft } from "./linter.js";
 import { anchoredSections } from "./normalizer.js";
 import type { DocumentNormalizer } from "./normalizer.js";
 import type { Organizer } from "./organizer.js";
-import { compileWiki, factTelemetry, vocabularyOf } from "./wiki-compiler.js";
+import { classifyMissingActiveFacts, compileWiki, factTelemetry, vocabularyOf } from "./wiki-compiler.js";
 import { readPage } from "./wiki-markdown.js";
 
 export async function syncSpaceConfig(
@@ -34,7 +34,7 @@ export async function syncSpaceConfig(
 
 type Dependencies = {
   memoryState?: SQLiteMemoryStateStore;
-  gateway?: Pick<OpenAiGateway, "hasEmbeddings" | "embed">;
+  gateway?: Pick<OpenAiGateway, "hasEmbeddings" | "embed"> & Partial<Pick<OpenAiGateway, "structured">>;
   onSnapshotChanged?: (ref: SpaceRef, version: number) => Promise<void>;
   repo: MetadataRepository; queue: JobQueue; storage: WikiStorage; projection: SpaceConfigProjection;
   normalizer: DocumentNormalizer; analyzer: Analyzer; organizer: Organizer; concurrency: number;
@@ -374,8 +374,19 @@ export class CompileWorker {
     const aliases = memoryState?.aliasLookupMap(job.spaceKey);
     const aliasGroups = memoryState?.canonicalAliasGroups(job.spaceKey);
     const telemetry = memoryState?.listTelemetry(job.spaceKey);
+    let combinedClaims: Claim[] = [...previous, ...analyses.flatMap(({ claims, intentions = [] }) => [...claims, ...intentions])];
+    if ((pending.length || dreaming) && this.deps.gateway?.structured) {
+      const classified = await classifyMissingActiveFacts(
+        { structured: this.deps.gateway.structured.bind(this.deps.gateway) },
+        combinedClaims,
+        now.slice(0, 10),
+        usage,
+        { aliases, telemetry },
+      );
+      combinedClaims = classified.claims;
+    }
     const { claims, current, originalByFact, evidence, required, indexHeader } = compileWiki(draft, space, version, documents,
-      previous, analyses.flatMap(({ claims, intentions = [] }) => [...claims, ...intentions]), now, priorClaims, { aliases, aliasGroups, telemetry });
+      combinedClaims, [], now, priorClaims, { aliases, aliasGroups, telemetry });
     const consumedHotIds = new Set<string>();
     let lint;
     if ((!pending.length && activeRetractions) || (!dreaming && job.payload.organize_mode === "skip")) {

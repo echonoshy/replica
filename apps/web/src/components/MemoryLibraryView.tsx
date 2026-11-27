@@ -425,6 +425,14 @@ function FactCard({ fact }: { fact: EnrichedFactView }) {
   const { busy, error, save } = useControlMutation();
   const [edit, setEdit] = useState<string | null>(null);
   if (!activeSpace) return null;
+  const isRedline = fact.tier === "pinned_redline";
+  const expiresOn = (fact as EnrichedFactView & { expires_on?: string | null }).expires_on ?? null;
+  const showValidityRange = Boolean(fact.valid_from);
+  const expiryDate = expiresOn && (!showValidityRange || expiresOn !== fact.valid_to)
+    ? expiresOn
+    : !showValidityRange && fact.valid_to
+      ? fact.valid_to
+      : null;
   const percent = Math.round(fact.activation_score * 100);
   const activation = { pinned: "永不衰减", fresh: `活跃 ${percent}%`, fading: `淡化中 ${percent}%`, cold: "已沉底" }[fact.decay_state];
   const update = (patch: Omit<FactControlPatch, "fact_key">) =>
@@ -432,15 +440,28 @@ function FactCard({ fact }: { fact: EnrichedFactView }) {
       if (patch.restore && !data.facts.some((row) => row.fact_key === fact.fact_key)) {
         throw new Error("此事实仍由快照归档，当前版本无法恢复。");
       }
-      if (patch.pinned === false && data.facts.some((row) => row.fact_key === fact.fact_key && row.pinned)) {
-        throw new Error("原始快照仍将此事实标记为置顶。");
+      if (patch.tier_override && data.facts.some((row) => row.fact_key === fact.fact_key && row.tier !== patch.tier_override)) {
+        throw new Error(`未能将记忆档位切换为「${tierLabels[patch.tier_override]}」。`);
       }
     });
   return (
     <fieldset disabled={busy} aria-label={`${fact.subject} · ${fact.predicate}`} className={controlCard}>
       <div className="flex flex-wrap items-center justify-between gap-1.5">
         <h4 className="break-words font-semibold">{fact.subject} <span className="font-normal text-[#646a73]">· {fact.predicate}</span></h4>
-        <span className={`status-chip ${tierTones[fact.tier]}`}>{tierLabels[fact.tier]}</span>
+        <select
+          aria-label="记忆档位"
+          title="点击切换记忆档位"
+          className={`status-chip ${tierTones[fact.tier]} cursor-pointer transition hover:brightness-95 focus-visible:outline-[#3370ff]`}
+          value={fact.tier}
+          onChange={(e) => {
+            const nextTier = e.target.value as MemoryTier;
+            void update({ tier_override: nextTier, pinned: nextTier === "pinned_redline" });
+          }}
+        >
+          {(Object.entries(tierLabels) as Array<[MemoryTier, string]>).map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
       </div>
       {edit === null ? <p className="whitespace-pre-wrap break-words text-[13px] leading-relaxed">{fact.value}</p> : (
         <form className="space-y-1.5" onSubmit={async (event) => {
@@ -458,15 +479,31 @@ function FactCard({ fact }: { fact: EnrichedFactView }) {
           {Object.entries(scopeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
         <span className="status-chip bg-[#f3f4f6] text-[#5c6370]">{activation} · 命中 {fact.recall_count} 次</span>
-        {(fact.valid_from || fact.valid_to) && <span className="status-chip bg-[#f3f4f6] text-[#5c6370]">
-          生效 {fact.valid_from ?? "…"} ~ {fact.valid_to ?? "长期"}
-        </span>}
+        {showValidityRange && (
+          <span className="status-chip bg-[#f3f4f6] text-[#5c6370]">
+            生效 {fact.valid_from} ~ {fact.valid_to ?? "长期"}
+          </span>
+        )}
+        {expiryDate && (
+          <span className="status-chip bg-[#f8f4eb] text-[#7b6744] font-mono-num">
+            <CalendarClock size={11} /> 到期 {expiryDate}
+          </span>
+        )}
       </div>
       <div className="flex flex-wrap gap-1.5 border-t border-[#eceef2] pt-2">
         {fact.archived ? <button type="button" className="control" onClick={() => void update({ restore: true })}><RotateCcw size={12} />恢复</button> : (
           <>
-            <button type="button" className="control" aria-pressed={fact.pinned} onClick={() => void update({ pinned: !fact.pinned })}>
-              {fact.pinned ? <PinOff size={12} /> : <Pin size={12} />}{fact.pinned ? "取消置顶" : "置顶锁定"}
+            <button
+              type="button"
+              className="control"
+              aria-pressed={isRedline}
+              onClick={() => void update(
+                isRedline
+                  ? { pinned: false, tier_override: "durable" }
+                  : { pinned: true, tier_override: "pinned_redline" },
+              )}
+            >
+              {isRedline ? <PinOff size={12} /> : <Pin size={12} />}{isRedline ? "移出红线" : "设为红线"}
             </button>
             <button type="button" className="control" disabled={edit !== null} onClick={() => setEdit(fact.value)}><Pencil size={12} />编辑</button>
             <button type="button" className="control" onClick={() => void update({ archived_reason: "手动归档" })}><Archive size={12} />归档遗忘</button>
